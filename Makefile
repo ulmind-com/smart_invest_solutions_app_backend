@@ -19,7 +19,14 @@ run: build
 # Run with hot reload (requires 'air' - install with: go install github.com/air-verse/air@latest)
 dev:
 	@echo "Starting development server with hot reload..."
-	@air -c .air.toml 2>/dev/null || ~/go/bin/air -c .air.toml 2>/dev/null || go run ./cmd/server/
+	@if command -v air > /dev/null 2>&1; then \
+		air -c .air.toml; \
+	elif [ -f "$(HOME)/go/bin/air" ]; then \
+		$(HOME)/go/bin/air -c .air.toml; \
+	else \
+		echo "Air not found. Running with go run instead..."; \
+		go run ./cmd/server/; \
+	fi
 
 # Run tests
 test:
@@ -51,3 +58,32 @@ deps:
 # Run all checks
 check: vet lint test
 	@echo "All checks passed!"
+
+# ==========================================
+# Prisma Schema Management
+# ==========================================
+
+# Validate Prisma schema
+prisma-validate:
+	@echo "Validating Prisma schema..."
+	@npx prisma validate
+
+# Push schema to MongoDB (create collections & indexes)
+prisma-push:
+	@echo "Pushing schema to MongoDB..."
+	@npx prisma db push
+
+# Open Prisma Studio (visual database browser)
+prisma-studio:
+	@echo "Opening Prisma Studio..."
+	@npx prisma studio
+
+# Format Prisma schema file
+prisma-format:
+	@echo "Formatting Prisma schema..."
+	@npx prisma format
+
+# Generate Prisma client
+prisma-generate:
+	@echo "Generating Prisma client..."
+	@npx prisma generate

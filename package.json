@@ -1,0 +1,24 @@
+{
+  "name": "smart_invest_solutions_app_backend",
+  "version": "1.0.0",
+  "description": "A modern Go backend API for Smart Invest Solutions, built with clean architecture principles.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ulmind-com/smart_invest_solutions_app_backend.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ulmind-com/smart_invest_solutions_app_backend/issues"
+  },
+  "homepage": "https://github.com/ulmind-com/smart_invest_solutions_app_backend#readme",
+  "devDependencies": {
+    "dotenv": "^17.4.2",
+    "prisma": "^7.9.1"
+  }
+}

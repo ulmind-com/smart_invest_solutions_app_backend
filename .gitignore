@@ -33,3 +33,10 @@ vendor/
 # OS
 .DS_Store
 Thumbs.db
+
+# Node / Prisma
+node_modules/
+generated/prisma/
+skills-lock.json
+.claude/
+.windsurf/
