@@ -3,8 +3,11 @@ package service
 import (
 	"context"
 	"fmt"
+	"strconv"
 
+	"github.com/smart-invest-solutions/backend/internal/config"
 	"github.com/smart-invest-solutions/backend/internal/domain"
+	"github.com/smart-invest-solutions/backend/pkg/utils"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -12,12 +15,14 @@ import (
 // userService implements domain.UserService.
 type userService struct {
 	userRepo domain.UserRepository
+	config   *config.Config
 }
 
-// NewUserService creates a new user service with the given repository.
-func NewUserService(userRepo domain.UserRepository) domain.UserService {
+// NewUserService creates a new user service with the given repository and config.
+func NewUserService(userRepo domain.UserRepository, cfg *config.Config) domain.UserService {
 	return &userService{
 		userRepo: userRepo,
+		config:   cfg,
 	}
 }
 
@@ -35,11 +40,18 @@ func (s *userService) Register(ctx context.Context, req *domain.CreateUserReques
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
+	// Default role is client if not specified
+	role := req.Role
+	if role == "" {
+		role = domain.RoleClient
+	}
+
 	user := &domain.User{
 		Name:     req.Name,
 		Email:    req.Email,
 		Password: string(hashedPassword),
 		Phone:    req.Phone,
+		Role:     role,
 	}
 
 	createdUser, err := s.userRepo.Create(ctx, user)
@@ -48,6 +60,43 @@ func (s *userService) Register(ctx context.Context, req *domain.CreateUserReques
 	}
 
 	return createdUser.ToResponse(), nil
+}
+
+// Login authenticates a user and generates a JWT token.
+func (s *userService) Login(ctx context.Context, req *domain.LoginRequest) (*domain.LoginResponse, error) {
+	// Find user by email
+	user, err := s.userRepo.FindByEmail(ctx, req.Email)
+	if err != nil || user == nil {
+		return nil, fmt.Errorf("invalid credentials")
+	}
+
+	// Check if user is active
+	if !user.IsActive {
+		return nil, fmt.Errorf("account is disabled")
+	}
+
+	// Compare passwords
+	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password))
+	if err != nil {
+		return nil, fmt.Errorf("invalid credentials")
+	}
+
+	// Parse expiry hours from config
+	expiryHours, err := strconv.Atoi(s.config.JWTExpiryHours)
+	if err != nil || expiryHours <= 0 {
+		expiryHours = 24 // default fallback
+	}
+
+	// Generate JWT
+	token, err := utils.GenerateJWT(user.ID, user.Role, s.config.JWTSecret, expiryHours)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate token: %w", err)
+	}
+
+	return &domain.LoginResponse{
+		Token: token,
+		User:  user.ToResponse(),
+	}, nil
 }
 
 // GetByID retrieves a user by their ID string.

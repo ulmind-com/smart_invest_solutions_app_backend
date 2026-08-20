@@ -15,6 +15,7 @@ type Config struct {
 	Env            string
 	JWTSecret      string
 	JWTExpiryHours string
+	CloudinaryURL  string
 }
 
 // Load reads configuration from environment variables.
@@ -33,6 +34,7 @@ func Load() *Config {
 		Env:            getEnv("ENV", "development"),
 		JWTSecret:      getEnv("JWT_SECRET", "default-secret-change-me"),
 		JWTExpiryHours: getEnv("JWT_EXPIRY_HOURS", "24"),
+		CloudinaryURL:  getEnv("CLOUDINARY_URL", ""),
 	}
 
 	return cfg

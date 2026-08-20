@@ -7,6 +7,14 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
+// Role constants
+const (
+	RoleClient     = "client"
+	RoleAdvisor    = "advisor"
+	RoleAdmin      = "admin"
+	RoleSuperAdmin = "super_admin"
+)
+
 // User represents a user entity in the system.
 type User struct {
 	ID        bson.ObjectID `bson:"_id,omitempty" json:"id"`
@@ -14,7 +22,7 @@ type User struct {
 	Email     string        `bson:"email" json:"email" binding:"required,email"`
 	Password  string        `bson:"password" json:"-"`
 	Phone     string        `bson:"phone,omitempty" json:"phone,omitempty"`
-	Role      string        `bson:"role" json:"role"`
+	Role      string        `bson:"role" json:"role"` // client, advisor, admin, super_admin
 	IsActive  bool          `bson:"is_active" json:"is_active"`
 	CreatedAt time.Time     `bson:"created_at" json:"created_at"`
 	UpdatedAt time.Time     `bson:"updated_at" json:"updated_at"`
@@ -26,6 +34,8 @@ type CreateUserRequest struct {
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required,min=8"`
 	Phone    string `json:"phone,omitempty"`
+	// Role is usually set server-side (default: client) but could be requested
+	Role     string `json:"role,omitempty"` 
 }
 
 // UpdateUserRequest represents the request payload for updating a user.
@@ -33,12 +43,19 @@ type UpdateUserRequest struct {
 	Name  *string `json:"name,omitempty"`
 	Email *string `json:"email,omitempty"`
 	Phone *string `json:"phone,omitempty"`
+	Role  *string `json:"role,omitempty"`
 }
 
 // LoginRequest represents the request payload for user login.
 type LoginRequest struct {
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required"`
+}
+
+// LoginResponse represents the response containing the token and user details.
+type LoginResponse struct {
+	Token string        `json:"token"`
+	User  *UserResponse `json:"user"`
 }
 
 // UserResponse represents the response payload for a user (without sensitive data).
@@ -80,6 +97,7 @@ type UserRepository interface {
 // UserService defines the interface for user business logic operations.
 type UserService interface {
 	Register(ctx context.Context, req *CreateUserRequest) (*UserResponse, error)
+	Login(ctx context.Context, req *LoginRequest) (*LoginResponse, error)
 	GetByID(ctx context.Context, id string) (*UserResponse, error)
 	GetAll(ctx context.Context, page, limit int64) ([]*UserResponse, int64, error)
 	Update(ctx context.Context, id string, req *UpdateUserRequest) (*UserResponse, error)

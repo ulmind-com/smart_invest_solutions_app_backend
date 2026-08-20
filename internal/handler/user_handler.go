@@ -39,6 +39,24 @@ func (h *UserHandler) Register(c *gin.Context) {
 	response.Created(c, "User registered successfully", user)
 }
 
+// Login handles user authentication.
+// POST /api/v1/users/login
+func (h *UserHandler) Login(c *gin.Context) {
+	var req domain.LoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ValidationError(c, err.Error())
+		return
+	}
+
+	loginResp, err := h.userService.Login(c.Request.Context(), &req)
+	if err != nil {
+		response.Error(c, http.StatusUnauthorized, err.Error())
+		return
+	}
+
+	response.Success(c, "Login successful", loginResp)
+}
+
 // GetByID handles fetching a user by ID.
 // GET /api/v1/users/:id
 func (h *UserHandler) GetByID(c *gin.Context) {

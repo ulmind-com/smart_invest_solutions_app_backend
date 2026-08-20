@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/smart-invest-solutions/backend/internal/config"
 	"github.com/smart-invest-solutions/backend/internal/database"
 	"github.com/smart-invest-solutions/backend/internal/handler"
 	"github.com/smart-invest-solutions/backend/internal/middleware"
@@ -12,7 +13,7 @@ import (
 )
 
 // Setup initializes the Gin router with all routes and middleware.
-func Setup(db *database.MongoDB) *gin.Engine {
+func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	router := gin.New()
 
 	// Global middleware
@@ -37,7 +38,7 @@ func Setup(db *database.MongoDB) *gin.Engine {
 
 	// Initialize layers
 	userRepo := repository.NewUserRepository(db.Database)
-	userService := service.NewUserService(userRepo)
+	userService := service.NewUserService(userRepo, cfg)
 	userHandler := handler.NewUserHandler(userService)
 
 	// API v1 routes
@@ -46,11 +47,24 @@ func Setup(db *database.MongoDB) *gin.Engine {
 		// User routes
 		users := v1.Group("/users")
 		{
+			// Public routes
 			users.POST("/register", userHandler.Register)
-			users.GET("", userHandler.GetAll)
+			users.POST("/login", userHandler.Login)
+			
+			// Protected routes (Require Login)
+			users.Use(middleware.RequireAuth(cfg))
+			
+			// Anyone logged in can view their own profile (or others if allowed, logic in handler)
 			users.GET("/:id", userHandler.GetByID)
 			users.PUT("/:id", userHandler.Update)
-			users.DELETE("/:id", userHandler.Delete)
+
+			// Admin only routes
+			adminOnly := users.Group("")
+			adminOnly.Use(middleware.RequireRole("admin"))
+			{
+				adminOnly.GET("", userHandler.GetAll)
+				adminOnly.DELETE("/:id", userHandler.Delete)
+			}
 		}
 	}
 

@@ -39,7 +39,7 @@ func main() {
 	}
 
 	// Setup router
-	r := router.Setup(db)
+	r := router.Setup(db, cfg)
 
 	// Create HTTP server
 	addr := fmt.Sprintf(":%s", cfg.Port)
