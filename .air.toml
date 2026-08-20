@@ -1,0 +1,77 @@
+# Smart Invest Solutions - Air Configuration
+# Hot-reload configuration for Go development
+# Documentation: https://github.com/air-verse/air
+
+root = "."
+testdata_dir = "testdata"
+tmp_dir = "tmp"
+
+[build]
+  # Build arguments (empty array, no extra args needed)
+  args_bin = []
+  # Build command
+  bin = "./tmp/main"
+  cmd = "go build -o ./tmp/main ./cmd/server/"
+  # Watch delay (milliseconds)
+  delay = 1000
+  # Directories to exclude from watching
+  exclude_dir = ["assets", "tmp", "vendor", "testdata", "node_modules", ".git"]
+  # File extensions to exclude
+  exclude_file = []
+  # Regex patterns to exclude
+  exclude_regex = ["_test.go"]
+  # Unchanged directories to exclude
+  exclude_unchanged = false
+  # Follow symlinks
+  follow_symlink = false
+  # Run full binary path (empty = use bin)
+  full_bin = ""
+  # File extensions to watch
+  include_ext = ["go", "toml", "yaml", "yml", "env"]
+  # Additional directories to watch
+  include_dir = []
+  # Additional files to watch
+  include_file = []
+  # Kill delay (nanoseconds, 0 = immediate)
+  kill_delay = "0s"
+  # Log output
+  log = "build-errors.log"
+  # Poll for changes (false = use filesystem events)
+  poll = false
+  # Poll interval (milliseconds)
+  poll_interval = 0
+  # Rerun after build
+  rerun = false
+  # Rerun delay (milliseconds)
+  rerun_delay = 500
+  # Send OS interrupt signal before kill
+  send_interrupt = false
+  # Stop on error
+  stop_on_error = false
+
+[color]
+  # Color configuration for console output
+  app = ""
+  build = "yellow"
+  main = "magenta"
+  runner = "green"
+  watcher = "cyan"
+
+[log]
+  # Log time
+  main_only = false
+  time = false
+
+[misc]
+  # Clean on exit
+  clean_on_exit = false
+
+[proxy]
+  # Proxy is disabled
+  app_port = 0
+  enabled = false
+  proxy_port = 0
+
+[screen]
+  clear_on_rebuild = false
+  keep_scroll = true
