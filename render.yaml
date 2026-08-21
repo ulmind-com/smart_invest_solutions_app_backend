@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: smart-invest-backend
+    env: go
+    buildCommand: go build -o bin/server ./cmd/server
+    startCommand: ./bin/server
+    healthCheckPath: /health
+    envVars:
+      - key: ENV
+        value: production
+      - key: DB_NAME
+        value: smart_invest_solutions
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRY_HOURS
+        value: "24"
+      - key: CLOUDINARY_URL
+        sync: false
+      - key: MAIL_ADDRESS
+        value: noreply@samiransamanta.in
+      - key: RESEND_API_KEY
+        sync: false
