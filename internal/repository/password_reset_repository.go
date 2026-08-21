@@ -19,7 +19,7 @@ type passwordResetRepository struct {
 func NewPasswordResetRepository(db *mongo.Database) domain.PasswordResetRepository {
 	col := db.Collection("password_resets")
 
-	// Ensure index on email and expires_at for fast lookups
+	// Ensure index on email and expires_at for fast lookups & TTL auto-cleanup
 	_, _ = col.Indexes().CreateMany(context.Background(), []mongo.IndexModel{
 		{
 			Keys: bson.D{
@@ -27,6 +27,10 @@ func NewPasswordResetRepository(db *mongo.Database) domain.PasswordResetReposito
 				{Key: "otp", Value: 1},
 				{Key: "is_used", Value: 1},
 			},
+		},
+		{
+			Keys:    bson.D{{Key: "expires_at", Value: 1}},
+			Options: options.Index().SetExpireAfterSeconds(0), // Automatic MongoDB background cleanup for expired OTPs
 		},
 	})
 
@@ -79,6 +83,24 @@ func (r *passwordResetRepository) MarkAsUsed(ctx context.Context, id bson.Object
 	_, err := r.collection.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return fmt.Errorf("failed to invalidate OTP: %w", err)
+	}
+	return nil
+}
+
+// DeleteAllByEmail removes all OTP records associated with an email address.
+func (r *passwordResetRepository) DeleteAllByEmail(ctx context.Context, email string) error {
+	_, err := r.collection.DeleteMany(ctx, bson.M{"email": email})
+	if err != nil {
+		return fmt.Errorf("failed to delete OTPs for email: %w", err)
+	}
+	return nil
+}
+
+// DeleteByID removes a specific OTP record by its ObjectID.
+func (r *passwordResetRepository) DeleteByID(ctx context.Context, id bson.ObjectID) error {
+	_, err := r.collection.DeleteOne(ctx, bson.M{"_id": id})
+	if err != nil {
+		return fmt.Errorf("failed to delete OTP by ID: %w", err)
 	}
 	return nil
 }

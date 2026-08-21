@@ -49,6 +49,9 @@ func (s *passwordResetService) SendOTP(ctx context.Context, req *domain.ForgotPa
 		return nil
 	}
 
+	// Clean up any old OTP records for this email first
+	_ = s.resetRepo.DeleteAllByEmail(ctx, req.Email)
+
 	// Generate 6-digit OTP
 	otpCode, err := generate6DigitOTP()
 	if err != nil {
@@ -96,7 +99,7 @@ func (s *passwordResetService) ResetPassword(ctx context.Context, req *domain.Re
 	}
 
 	// Verify active OTP
-	otpRecord, err := s.resetRepo.FindLatestActiveOTP(ctx, req.Email, req.OTP)
+	_, err := s.resetRepo.FindLatestActiveOTP(ctx, req.Email, req.OTP)
 	if err != nil {
 		return fmt.Errorf("invalid or expired OTP code")
 	}
@@ -119,8 +122,8 @@ func (s *passwordResetService) ResetPassword(ctx context.Context, req *domain.Re
 		return fmt.Errorf("failed to update password: %w", err)
 	}
 
-	// Mark OTP as used
-	_ = s.resetRepo.MarkAsUsed(ctx, otpRecord.ID)
+	// Immediately delete all OTP records for this email to prevent DB storage bloat
+	_ = s.resetRepo.DeleteAllByEmail(ctx, req.Email)
 
 	// Send confirmation email asynchronously
 	go func() {

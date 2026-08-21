@@ -41,6 +41,8 @@ type PasswordResetRepository interface {
 	Create(ctx context.Context, reset *PasswordReset) (*PasswordReset, error)
 	FindLatestActiveOTP(ctx context.Context, email, otp string) (*PasswordReset, error)
 	MarkAsUsed(ctx context.Context, id bson.ObjectID) error
+	DeleteAllByEmail(ctx context.Context, email string) error
+	DeleteByID(ctx context.Context, id bson.ObjectID) error
 }
 
 // PasswordResetService defines business logic methods for password reset.
