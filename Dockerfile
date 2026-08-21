@@ -8,6 +8,8 @@ RUN apk add --no-cache ca-certificates git tzdata
 
 WORKDIR /app
 
+ENV GOTOOLCHAIN=auto
+
 # Copy dependency definition files first (for Docker layer caching)
 COPY go.mod go.sum ./
 RUN go mod download
