@@ -80,6 +80,26 @@ definitions:
     - phone
     - relation_with_hof
     type: object
+  github_com_smart-invest-solutions_backend_internal_domain.CreateGeneralInsuranceDTO:
+    properties:
+      advisor_contact:
+        type: string
+      advisor_name:
+        type: string
+      company_name:
+        type: string
+      date_of_expiry:
+        type: string
+      policy_no:
+        type: string
+      vehicle_no:
+        type: string
+    required:
+    - company_name
+    - date_of_expiry
+    - policy_no
+    - vehicle_no
+    type: object
   github_com_smart-invest-solutions_backend_internal_domain.CreateUserRequest:
     properties:
       email:
@@ -143,6 +163,44 @@ definitions:
     required:
     - email
     type: object
+  github_com_smart-invest-solutions_backend_internal_domain.GeneralInsurance:
+    properties:
+      advisor_contact:
+        type: string
+      advisor_name:
+        type: string
+      company_name:
+        type: string
+      created_at:
+        type: string
+      date_of_expiry:
+        description: 'Format: YYYY-MM-DD'
+        type: string
+      id:
+        type: string
+      policy_no:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: string
+      vehicle_no:
+        type: string
+    required:
+    - company_name
+    - date_of_expiry
+    - policy_no
+    - vehicle_no
+    type: object
+  github_com_smart-invest-solutions_backend_internal_domain.GeneralInsuranceListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.GeneralInsurance'
+        type: array
+      total:
+        type: integer
+    type: object
   github_com_smart-invest-solutions_backend_internal_domain.LoginRequest:
     properties:
       email:
@@ -195,6 +253,21 @@ definitions:
       phone:
         type: string
       relation_with_hof:
+        type: string
+    type: object
+  github_com_smart-invest-solutions_backend_internal_domain.UpdateGeneralInsuranceDTO:
+    properties:
+      advisor_contact:
+        type: string
+      advisor_name:
+        type: string
+      company_name:
+        type: string
+      date_of_expiry:
+        type: string
+      policy_no:
+        type: string
+      vehicle_no:
         type: string
     type: object
   github_com_smart-invest-solutions_backend_internal_domain.UpdateProfileRequest:
@@ -702,6 +775,224 @@ paths:
       summary: Get user's family members (Admin Only)
       tags:
       - Family Members (Admin)
+  /general-insurances:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves list of all general/vehicle insurance policies for the
+        authenticated user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: General insurance policies retrieved successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.GeneralInsuranceListResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all my General Insurance policies
+      tags:
+      - General Insurance
+    post:
+      consumes:
+      - application/json
+      description: Creates a new general/vehicle insurance policy linked to the authenticated
+        user account.
+      parameters:
+      - description: General Insurance Policy Details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreateGeneralInsuranceDTO'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: General Insurance policy added successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.GeneralInsurance'
+              type: object
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "422":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Add General Insurance policy
+      tags:
+      - General Insurance
+  /general-insurances/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Removes a general insurance policy from the authenticated user
+        account.
+      parameters:
+      - description: Policy ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Policy deleted successfully
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete General Insurance policy
+      tags:
+      - General Insurance
+    get:
+      consumes:
+      - application/json
+      description: Retrieves detailed info for a single general insurance policy.
+      parameters:
+      - description: General Insurance ID (MongoDB ObjectID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Policy retrieved successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.GeneralInsurance'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "404":
+          description: Policy not found
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get General Insurance policy by ID
+      tags:
+      - General Insurance
+    put:
+      consumes:
+      - application/json
+      description: Updates vehicle no, policy no, date of expiry, company name, or
+        advisor info.
+      parameters:
+      - description: Policy ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UpdateGeneralInsuranceDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Policy updated successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.GeneralInsurance'
+              type: object
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "404":
+          description: Policy not found
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Update / Edit General Insurance policy
+      tags:
+      - General Insurance
+  /general-insurances/user/{userId}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves all general insurance policies associated with a specific
+        user ID for Admin/Advisor view.
+      parameters:
+      - description: Target Client User ID
+        in: path
+        name: userId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Policies retrieved successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.GeneralInsuranceListResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "403":
+          description: Forbidden — Admin role required
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user's General Insurance policies (Admin Only)
+      tags:
+      - General Insurance (Admin)
   /users:
     get:
       consumes:

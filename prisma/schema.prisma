@@ -20,10 +20,77 @@ model User {
   email     String   @unique
   password  String
   phone     String?
-  role      String   @default("user")
+  role      String   @default("client")
   isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("users")
+}
+
+// =============================================
+// Access Request Model
+// =============================================
+model AccessRequest {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  name       String
+  email      String   @unique
+  phone      String
+  notes      String?
+  status     String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  adminNotes String?  @map("admin_notes")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("access_requests")
+}
+
+// =============================================
+// Password Reset Model (OTP)
+// =============================================
+model PasswordReset {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  email     String
+  otp       String
+  expiresAt DateTime @map("expires_at")
+  isUsed    Boolean  @default(false) @map("is_used")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("password_resets")
+}
+
+// =============================================
+// Family Member Model
+// =============================================
+model FamilyMember {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String   @map("user_id") @db.ObjectId
+  name            String
+  relationWithHof String   @map("relation_with_hof")
+  phone           String
+  email           String?
+  bloodGroup      String?  @map("blood_group")
+  dateOfBirth     String   @map("date_of_birth")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("family_members")
+}
+
+// =============================================
+// General Insurance Model
+// =============================================
+model GeneralInsurance {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId         String   @map("user_id") @db.ObjectId
+  vehicleNo      String   @map("vehicle_no")
+  policyNo       String   @map("policy_no")
+  dateOfExpiry   String   @map("date_of_expiry")
+  companyName    String   @map("company_name")
+  advisorName    String?  @map("advisor_name")
+  advisorContact String?  @map("advisor_contact")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("general_insurances")
 }

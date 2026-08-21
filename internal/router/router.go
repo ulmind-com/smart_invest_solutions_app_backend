@@ -56,17 +56,20 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	accessReqRepo := repository.NewAccessRequestRepository(db.Database)
 	passResetRepo := repository.NewPasswordResetRepository(db.Database)
 	familyMemberRepo := repository.NewFamilyMemberRepository(db.Database)
+	generalInsuranceRepo := repository.NewGeneralInsuranceRepository(db.Database)
 
 	// Initialize Services
 	userService := service.NewUserService(userRepo, cfg)
 	accessReqService := service.NewAccessRequestService(accessReqRepo, userRepo, userService, emailSvc)
 	passResetService := service.NewPasswordResetService(passResetRepo, userRepo, emailSvc)
 	familyMemberService := service.NewFamilyMemberService(familyMemberRepo)
+	generalInsuranceService := service.NewGeneralInsuranceService(generalInsuranceRepo)
 
 	// Initialize Handlers
 	userHandler := handler.NewUserHandler(userService, passResetService)
 	accessReqHandler := handler.NewAccessRequestHandler(accessReqService)
 	familyMemberHandler := handler.NewFamilyMemberHandler(familyMemberService)
+	generalInsuranceHandler := handler.NewGeneralInsuranceHandler(generalInsuranceService)
 
 	// API v1 routes
 	v1 := router.Group("/api/v1")
@@ -134,6 +137,25 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			adminFamily.Use(middleware.RequireRole("admin"))
 			{
 				adminFamily.GET("/user/:userId", familyMemberHandler.GetMembersByUserIDAdmin)
+			}
+		}
+
+		// General Insurance routes
+		generalInsurances := v1.Group("/general-insurances")
+		{
+			generalInsurances.Use(middleware.RequireAuth(cfg))
+
+			generalInsurances.POST("", generalInsuranceHandler.AddInsurance)
+			generalInsurances.GET("", generalInsuranceHandler.GetMyInsurances)
+			generalInsurances.GET("/:id", generalInsuranceHandler.GetByID)
+			generalInsurances.PUT("/:id", generalInsuranceHandler.UpdateInsurance)
+			generalInsurances.DELETE("/:id", generalInsuranceHandler.DeleteInsurance)
+
+			// Admin route
+			adminInsurance := generalInsurances.Group("")
+			adminInsurance.Use(middleware.RequireRole("admin"))
+			{
+				adminInsurance.GET("/user/:userId", generalInsuranceHandler.GetInsurancesByUserIDAdmin)
 			}
 		}
 	}
