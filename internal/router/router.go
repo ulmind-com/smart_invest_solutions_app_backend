@@ -55,15 +55,18 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	userRepo := repository.NewUserRepository(db.Database)
 	accessReqRepo := repository.NewAccessRequestRepository(db.Database)
 	passResetRepo := repository.NewPasswordResetRepository(db.Database)
+	familyMemberRepo := repository.NewFamilyMemberRepository(db.Database)
 
 	// Initialize Services
 	userService := service.NewUserService(userRepo, cfg)
 	accessReqService := service.NewAccessRequestService(accessReqRepo, userRepo, userService, emailSvc)
 	passResetService := service.NewPasswordResetService(passResetRepo, userRepo, emailSvc)
+	familyMemberService := service.NewFamilyMemberService(familyMemberRepo)
 
 	// Initialize Handlers
 	userHandler := handler.NewUserHandler(userService, passResetService)
 	accessReqHandler := handler.NewAccessRequestHandler(accessReqService)
+	familyMemberHandler := handler.NewFamilyMemberHandler(familyMemberService)
 
 	// API v1 routes
 	v1 := router.Group("/api/v1")
@@ -112,6 +115,25 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 				adminReqs.GET("/:id", accessReqHandler.GetRequestByID)
 				adminReqs.POST("/:id/approve", accessReqHandler.ApproveRequest)
 				adminReqs.POST("/:id/reject", accessReqHandler.RejectRequest)
+			}
+		}
+
+		// Family Member routes
+		familyMembers := v1.Group("/family-members")
+		{
+			familyMembers.Use(middleware.RequireAuth(cfg))
+
+			familyMembers.POST("", familyMemberHandler.AddMember)
+			familyMembers.GET("", familyMemberHandler.GetMyMembers)
+			familyMembers.GET("/:id", familyMemberHandler.GetByID)
+			familyMembers.PUT("/:id", familyMemberHandler.UpdateMember)
+			familyMembers.DELETE("/:id", familyMemberHandler.DeleteMember)
+
+			// Admin route
+			adminFamily := familyMembers.Group("")
+			adminFamily.Use(middleware.RequireRole("admin"))
+			{
+				adminFamily.GET("/user/:userId", familyMemberHandler.GetMembersByUserIDAdmin)
 			}
 		}
 	}
