@@ -41,8 +41,12 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 		})
 	})
 
-	// Swagger Documentation UI — visit http://localhost:8080/swagger/index.html
-	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	// Swagger Documentation UI — visit /swagger/index.html
+	url := ginSwagger.URL("/swagger/doc.json")
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler, url))
+	router.GET("/swagger", func(c *gin.Context) {
+		c.Redirect(http.StatusMovedPermanently, "/swagger/index.html")
+	})
 
 	// Initialize Email & Storage services
 	emailSvc := email.NewResendService(cfg)

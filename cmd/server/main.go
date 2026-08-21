@@ -25,7 +25,6 @@ import (
 // @contact.name    ULMIND Team
 // @contact.email   support@ulmind.com
 
-// @host            localhost:8080
 // @BasePath        /api/v1
 
 // @securityDefinitions.apikey BearerAuth
