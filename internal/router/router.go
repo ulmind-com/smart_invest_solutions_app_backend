@@ -10,6 +10,7 @@ import (
 	"github.com/smart-invest-solutions/backend/internal/middleware"
 	"github.com/smart-invest-solutions/backend/internal/repository"
 	"github.com/smart-invest-solutions/backend/internal/service"
+	"github.com/smart-invest-solutions/backend/pkg/email"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
@@ -43,10 +44,20 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	// Swagger Documentation UI — visit http://localhost:8080/swagger/index.html
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
-	// Initialize layers
+	// Initialize Email & Storage services
+	emailSvc := email.NewResendService(cfg)
+
+	// Initialize Repositories
 	userRepo := repository.NewUserRepository(db.Database)
+	accessReqRepo := repository.NewAccessRequestRepository(db.Database)
+
+	// Initialize Services
 	userService := service.NewUserService(userRepo, cfg)
+	accessReqService := service.NewAccessRequestService(accessReqRepo, userRepo, userService, emailSvc)
+
+	// Initialize Handlers
 	userHandler := handler.NewUserHandler(userService)
+	accessReqHandler := handler.NewAccessRequestHandler(accessReqService)
 
 	// API v1 routes
 	v1 := router.Group("/api/v1")
@@ -57,11 +68,10 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			// Public routes
 			users.POST("/register", userHandler.Register)
 			users.POST("/login", userHandler.Login)
-			
+
 			// Protected routes (Require Login)
 			users.Use(middleware.RequireAuth(cfg))
-			
-			// Anyone logged in can view their own profile (or others if allowed, logic in handler)
+
 			users.GET("/:id", userHandler.GetByID)
 			users.PUT("/:id", userHandler.Update)
 
@@ -71,6 +81,24 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			{
 				adminOnly.GET("", userHandler.GetAll)
 				adminOnly.DELETE("/:id", userHandler.Delete)
+			}
+		}
+
+		// Access Request routes
+		accessReqs := v1.Group("/access-requests")
+		{
+			// Public endpoint for clients to request access
+			accessReqs.POST("", accessReqHandler.SubmitRequest)
+
+			// Admin-only endpoints for reviewing, approving & rejecting requests
+			adminReqs := accessReqs.Group("")
+			adminReqs.Use(middleware.RequireAuth(cfg))
+			adminReqs.Use(middleware.RequireRole("admin"))
+			{
+				adminReqs.GET("", accessReqHandler.GetAllRequests)
+				adminReqs.GET("/:id", accessReqHandler.GetRequestByID)
+				adminReqs.POST("/:id/approve", accessReqHandler.ApproveRequest)
+				adminReqs.POST("/:id/reject", accessReqHandler.RejectRequest)
 			}
 		}
 	}

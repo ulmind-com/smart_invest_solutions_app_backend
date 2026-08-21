@@ -16,6 +16,8 @@ type Config struct {
 	JWTSecret      string
 	JWTExpiryHours string
 	CloudinaryURL  string
+	MailAddress    string
+	ResendAPIKey   string
 }
 
 // Load reads configuration from environment variables.
@@ -35,6 +37,8 @@ func Load() *Config {
 		JWTSecret:      getEnv("JWT_SECRET", "default-secret-change-me"),
 		JWTExpiryHours: getEnv("JWT_EXPIRY_HOURS", "24"),
 		CloudinaryURL:  getEnv("CLOUDINARY_URL", ""),
+		MailAddress:    getEnv("MAIL_ADDRESS", "noreply@samiransamanta.in"),
+		ResendAPIKey:   getEnv("RESEND_API_KEY", ""),
 	}
 
 	return cfg
