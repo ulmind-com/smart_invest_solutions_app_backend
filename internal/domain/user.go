@@ -32,9 +32,8 @@ type User struct {
 type CreateUserRequest struct {
 	Name     string `json:"name" binding:"required"`
 	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=8"`
+	Password string `json:"password" binding:"required"`
 	Phone    string `json:"phone,omitempty"`
-	Role     string `json:"role,omitempty"`
 }
 
 // UpdateUserRequest represents the request payload for updating a user (Admin/Internal).
@@ -55,7 +54,7 @@ type UpdateProfileRequest struct {
 // ChangePasswordRequest represents the payload for changing a user's password.
 type ChangePasswordRequest struct {
 	CurrentPassword string `json:"current_password" binding:"required"`
-	NewPassword     string `json:"new_password" binding:"required,min=8"`
+	NewPassword     string `json:"new_password" binding:"required"`
 	ConfirmPassword string `json:"confirm_password" binding:"required"`
 }
 

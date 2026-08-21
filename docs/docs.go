@@ -2188,8 +2188,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "new_password": {
-                    "type": "string",
-                    "minLength": 8
+                    "type": "string"
                 }
             }
         },
@@ -2288,13 +2287,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "password": {
-                    "type": "string",
-                    "minLength": 8
-                },
-                "phone": {
                     "type": "string"
                 },
-                "role": {
+                "phone": {
                     "type": "string"
                 }
             }
@@ -2526,8 +2521,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "new_password": {
-                    "type": "string",
-                    "minLength": 8
+                    "type": "string"
                 },
                 "otp": {
                     "type": "string"

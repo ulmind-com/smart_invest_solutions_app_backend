@@ -105,7 +105,6 @@ func (s *accessRequestService) ApproveRequest(ctx context.Context, id string, dt
 		Email:    accessReq.Email,
 		Phone:    accessReq.Phone,
 		Password: randomPassword,
-		Role:     domain.RoleClient,
 	}
 
 	userResp, err := s.userService.Register(ctx, createUserReq)

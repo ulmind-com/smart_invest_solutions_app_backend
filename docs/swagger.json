@@ -2181,8 +2181,7 @@
                     "type": "string"
                 },
                 "new_password": {
-                    "type": "string",
-                    "minLength": 8
+                    "type": "string"
                 }
             }
         },
@@ -2281,13 +2280,9 @@
                     "type": "string"
                 },
                 "password": {
-                    "type": "string",
-                    "minLength": 8
-                },
-                "phone": {
                     "type": "string"
                 },
-                "role": {
+                "phone": {
                     "type": "string"
                 }
             }
@@ -2519,8 +2514,7 @@
                     "type": "string"
                 },
                 "new_password": {
-                    "type": "string",
-                    "minLength": 8
+                    "type": "string"
                 },
                 "otp": {
                     "type": "string"

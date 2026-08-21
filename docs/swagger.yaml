@@ -38,7 +38,6 @@ definitions:
       current_password:
         type: string
       new_password:
-        minLength: 8
         type: string
     required:
     - confirm_password
@@ -107,11 +106,8 @@ definitions:
       name:
         type: string
       password:
-        minLength: 8
         type: string
       phone:
-        type: string
-      role:
         type: string
     required:
     - email
@@ -266,7 +262,6 @@ definitions:
       email:
         type: string
       new_password:
-        minLength: 8
         type: string
       otp:
         type: string

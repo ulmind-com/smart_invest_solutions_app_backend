@@ -94,10 +94,6 @@ func (s *passwordResetService) ResetPassword(ctx context.Context, req *domain.Re
 		return fmt.Errorf("new password and confirm password do not match")
 	}
 
-	if len(req.NewPassword) < 8 {
-		return fmt.Errorf("password must be at least 8 characters long")
-	}
-
 	// Verify active OTP
 	_, err := s.resetRepo.FindLatestActiveOTP(ctx, req.Email, req.OTP)
 	if err != nil {

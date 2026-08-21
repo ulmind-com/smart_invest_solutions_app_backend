@@ -40,18 +40,13 @@ func (s *userService) Register(ctx context.Context, req *domain.CreateUserReques
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	// Default role is client if not specified
-	role := req.Role
-	if role == "" {
-		role = domain.RoleClient
-	}
-
+	// Default role is client for user creation
 	user := &domain.User{
 		Name:     req.Name,
 		Email:    req.Email,
 		Password: string(hashedPassword),
 		Phone:    req.Phone,
-		Role:     role,
+		Role:     domain.RoleClient,
 	}
 
 	createdUser, err := s.userRepo.Create(ctx, user)
@@ -176,10 +171,6 @@ func (s *userService) UpdateProfile(ctx context.Context, id string, req *domain.
 func (s *userService) ChangePassword(ctx context.Context, id string, req *domain.ChangePasswordRequest) error {
 	if req.NewPassword != req.ConfirmPassword {
 		return fmt.Errorf("new password and confirmation password do not match")
-	}
-
-	if len(req.NewPassword) < 8 {
-		return fmt.Errorf("new password must be at least 8 characters long")
 	}
 
 	objectID, err := bson.ObjectIDFromHex(id)
