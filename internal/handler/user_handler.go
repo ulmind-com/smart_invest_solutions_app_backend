@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/smart-invest-solutions/backend/internal/domain"
+	"github.com/smart-invest-solutions/backend/internal/middleware"
 	"github.com/smart-invest-solutions/backend/pkg/response"
 )
 
@@ -179,4 +180,102 @@ func (h *UserHandler) Delete(c *gin.Context) {
 	}
 
 	response.Success(c, "User deleted successfully", nil)
+}
+
+// GetProfile handles fetching the authenticated user's profile.
+// @Summary      Get current user profile
+// @Description  Retrieves profile information for the currently authenticated user.
+// @Tags         Profile
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  response.APIResponse{data=domain.UserResponse}  "Profile retrieved successfully"
+// @Failure      401  {object}  response.APIResponse  "Unauthorized"
+// @Security     BearerAuth
+// @Router       /users/me [get]
+func (h *UserHandler) GetProfile(c *gin.Context) {
+	userIDVal, exists := c.Get(middleware.AuthCtxKey)
+	if !exists {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	userID := userIDVal.(string)
+
+	user, err := h.userService.GetByID(c.Request.Context(), userID)
+	if err != nil {
+		response.Error(c, http.StatusNotFound, err.Error())
+		return
+	}
+
+	response.Success(c, "Profile retrieved successfully", user)
+}
+
+// UpdateProfile handles updating the authenticated user's profile details.
+// @Summary      Update user profile
+// @Description  Updates authenticated user's name and contact phone number. Email is immutable and cannot be modified.
+// @Tags         Profile
+// @Accept       json
+// @Produce      json
+// @Param        request  body      domain.UpdateProfileRequest  true  "Profile fields to update"
+// @Success      200      {object}  response.APIResponse{data=domain.UserResponse}  "Profile updated successfully"
+// @Failure      400      {object}  response.APIResponse  "Bad request"
+// @Failure      401      {object}  response.APIResponse  "Unauthorized"
+// @Failure      422      {object}  response.APIResponse  "Validation error"
+// @Security     BearerAuth
+// @Router       /users/me [put]
+func (h *UserHandler) UpdateProfile(c *gin.Context) {
+	userIDVal, exists := c.Get(middleware.AuthCtxKey)
+	if !exists {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	userID := userIDVal.(string)
+
+	var req domain.UpdateProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ValidationError(c, err.Error())
+		return
+	}
+
+	user, err := h.userService.UpdateProfile(c.Request.Context(), userID, &req)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	response.Success(c, "Profile updated successfully", user)
+}
+
+// ChangePassword handles changing the authenticated user's password.
+// @Summary      Change password
+// @Description  Changes the authenticated user's password after validating current password.
+// @Tags         Profile
+// @Accept       json
+// @Produce      json
+// @Param        request  body      domain.ChangePasswordRequest  true  "Password change payload"
+// @Success      200      {object}  response.APIResponse  "Password changed successfully"
+// @Failure      400      {object}  response.APIResponse  "Bad request or current password mismatch"
+// @Failure      401      {object}  response.APIResponse  "Unauthorized"
+// @Failure      422      {object}  response.APIResponse  "Validation error"
+// @Security     BearerAuth
+// @Router       /users/change-password [put]
+func (h *UserHandler) ChangePassword(c *gin.Context) {
+	userIDVal, exists := c.Get(middleware.AuthCtxKey)
+	if !exists {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	userID := userIDVal.(string)
+
+	var req domain.ChangePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ValidationError(c, err.Error())
+		return
+	}
+
+	if err := h.userService.ChangePassword(c.Request.Context(), userID, &req); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	response.Success(c, "Password changed successfully", nil)
 }

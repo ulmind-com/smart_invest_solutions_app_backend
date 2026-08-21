@@ -136,6 +136,26 @@ func (r *userRepository) Update(ctx context.Context, id bson.ObjectID, req *doma
 	return &user, nil
 }
 
+// UpdatePassword updates the hashed password for a user document.
+func (r *userRepository) UpdatePassword(ctx context.Context, id bson.ObjectID, hashedPassword string) error {
+	filter := bson.M{"_id": id}
+	update := bson.M{
+		"$set": bson.M{
+			"password":   hashedPassword,
+			"updated_at": time.Now().UTC(),
+		},
+	}
+
+	result, err := r.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to update password: %w", err)
+	}
+	if result.MatchedCount == 0 {
+		return fmt.Errorf("user not found")
+	}
+	return nil
+}
+
 // Delete removes a user document from the database.
 func (r *userRepository) Delete(ctx context.Context, id bson.ObjectID) error {
 	result, err := r.collection.DeleteOne(ctx, bson.M{"_id": id})

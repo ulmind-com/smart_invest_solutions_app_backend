@@ -76,6 +76,10 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			// Protected routes (Require Login)
 			users.Use(middleware.RequireAuth(cfg))
 
+			users.GET("/me", userHandler.GetProfile)
+			users.PUT("/me", userHandler.UpdateProfile)
+			users.PUT("/change-password", userHandler.ChangePassword)
+
 			users.GET("/:id", userHandler.GetByID)
 			users.PUT("/:id", userHandler.Update)
 

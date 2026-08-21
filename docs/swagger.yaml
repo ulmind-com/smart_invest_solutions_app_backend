@@ -31,6 +31,20 @@ definitions:
       admin_notes:
         type: string
     type: object
+  github_com_smart-invest-solutions_backend_internal_domain.ChangePasswordRequest:
+    properties:
+      confirm_password:
+        type: string
+      current_password:
+        type: string
+      new_password:
+        minLength: 8
+        type: string
+    required:
+    - confirm_password
+    - current_password
+    - new_password
+    type: object
   github_com_smart-invest-solutions_backend_internal_domain.CreateAccessRequestDTO:
     properties:
       email:
@@ -58,8 +72,6 @@ definitions:
       phone:
         type: string
       role:
-        description: 'Role is usually set server-side (default: client) but could
-          be requested'
         type: string
     required:
     - email
@@ -86,6 +98,13 @@ definitions:
   github_com_smart-invest-solutions_backend_internal_domain.RejectAccessRequestDTO:
     properties:
       reason:
+        type: string
+    type: object
+  github_com_smart-invest-solutions_backend_internal_domain.UpdateProfileRequest:
+    properties:
+      name:
+        type: string
+      phone:
         type: string
     type: object
   github_com_smart-invest-solutions_backend_internal_domain.UpdateUserRequest:
@@ -518,6 +537,43 @@ paths:
       summary: Update user
       tags:
       - Users
+  /users/change-password:
+    put:
+      consumes:
+      - application/json
+      description: Changes the authenticated user's password after validating current
+        password.
+      parameters:
+      - description: Password change payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ChangePasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Password changed successfully
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad request or current password mismatch
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "422":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Change password
+      tags:
+      - Profile
   /users/login:
     post:
       consumes:
@@ -556,6 +612,73 @@ paths:
       summary: Login user
       tags:
       - Authentication
+  /users/me:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves profile information for the currently authenticated user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Profile retrieved successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get current user profile
+      tags:
+      - Profile
+    put:
+      consumes:
+      - application/json
+      description: Updates authenticated user's name and contact phone number. Email
+        is immutable and cannot be modified.
+      parameters:
+      - description: Profile fields to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UpdateProfileRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Profile updated successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserResponse'
+              type: object
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "422":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Update user profile
+      tags:
+      - Profile
   /users/register:
     post:
       consumes:

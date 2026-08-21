@@ -34,16 +34,29 @@ type CreateUserRequest struct {
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required,min=8"`
 	Phone    string `json:"phone,omitempty"`
-	// Role is usually set server-side (default: client) but could be requested
-	Role     string `json:"role,omitempty"` 
+	Role     string `json:"role,omitempty"`
 }
 
-// UpdateUserRequest represents the request payload for updating a user.
+// UpdateUserRequest represents the request payload for updating a user (Admin/Internal).
 type UpdateUserRequest struct {
 	Name  *string `json:"name,omitempty"`
 	Email *string `json:"email,omitempty"`
 	Phone *string `json:"phone,omitempty"`
 	Role  *string `json:"role,omitempty"`
+}
+
+// UpdateProfileRequest represents the payload when a logged-in user updates their own profile.
+// Note: Email is strictly excluded to enforce email immutability.
+type UpdateProfileRequest struct {
+	Name  *string `json:"name,omitempty"`
+	Phone *string `json:"phone,omitempty"`
+}
+
+// ChangePasswordRequest represents the payload for changing a user's password.
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password" binding:"required"`
+	NewPassword     string `json:"new_password" binding:"required,min=8"`
+	ConfirmPassword string `json:"confirm_password" binding:"required"`
 }
 
 // LoginRequest represents the request payload for user login.
@@ -91,6 +104,7 @@ type UserRepository interface {
 	FindByEmail(ctx context.Context, email string) (*User, error)
 	FindAll(ctx context.Context, page, limit int64) ([]*User, int64, error)
 	Update(ctx context.Context, id bson.ObjectID, update *UpdateUserRequest) (*User, error)
+	UpdatePassword(ctx context.Context, id bson.ObjectID, hashedPassword string) error
 	Delete(ctx context.Context, id bson.ObjectID) error
 }
 
@@ -101,5 +115,7 @@ type UserService interface {
 	GetByID(ctx context.Context, id string) (*UserResponse, error)
 	GetAll(ctx context.Context, page, limit int64) ([]*UserResponse, int64, error)
 	Update(ctx context.Context, id string, req *UpdateUserRequest) (*UserResponse, error)
+	UpdateProfile(ctx context.Context, id string, req *UpdateProfileRequest) (*UserResponse, error)
+	ChangePassword(ctx context.Context, id string, req *ChangePasswordRequest) error
 	Delete(ctx context.Context, id string) error
 }

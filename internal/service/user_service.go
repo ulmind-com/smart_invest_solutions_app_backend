@@ -151,6 +151,67 @@ func (s *userService) Update(ctx context.Context, id string, req *domain.UpdateU
 	return user.ToResponse(), nil
 }
 
+// UpdateProfile updates the profile fields (name, phone) for a user. Email is strictly ignored/immutable.
+func (s *userService) UpdateProfile(ctx context.Context, id string, req *domain.UpdateProfileRequest) (*domain.UserResponse, error) {
+	objectID, err := bson.ObjectIDFromHex(id)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user ID format: %w", err)
+	}
+
+	updateReq := &domain.UpdateUserRequest{
+		Name:  req.Name,
+		Phone: req.Phone,
+		// Email and Role are intentionally omitted to enforce immutability
+	}
+
+	user, err := s.userRepo.Update(ctx, objectID, updateReq)
+	if err != nil {
+		return nil, err
+	}
+
+	return user.ToResponse(), nil
+}
+
+// ChangePassword allows a logged-in user to change their password after verifying their current password.
+func (s *userService) ChangePassword(ctx context.Context, id string, req *domain.ChangePasswordRequest) error {
+	if req.NewPassword != req.ConfirmPassword {
+		return fmt.Errorf("new password and confirmation password do not match")
+	}
+
+	if len(req.NewPassword) < 8 {
+		return fmt.Errorf("new password must be at least 8 characters long")
+	}
+
+	objectID, err := bson.ObjectIDFromHex(id)
+	if err != nil {
+		return fmt.Errorf("invalid user ID format: %w", err)
+	}
+
+	user, err := s.userRepo.FindByID(ctx, objectID)
+	if err != nil {
+		return fmt.Errorf("user not found")
+	}
+
+	// Verify current password
+	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.CurrentPassword))
+	if err != nil {
+		return fmt.Errorf("current password is incorrect")
+	}
+
+	// Ensure new password is different
+	if req.CurrentPassword == req.NewPassword {
+		return fmt.Errorf("new password must be different from current password")
+	}
+
+	// Hash new password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("failed to hash new password: %w", err)
+	}
+
+	return s.userRepo.UpdatePassword(ctx, objectID, string(hashedPassword))
+}
+
 // Delete removes a user by their ID.
 func (s *userService) Delete(ctx context.Context, id string) error {
 	objectID, err := bson.ObjectIDFromHex(id)
