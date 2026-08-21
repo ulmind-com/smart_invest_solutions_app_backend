@@ -50,6 +50,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 
 	// Initialize Email & Storage services
 	emailSvc := email.NewResendService(cfg)
+	storageSvc, _ := service.NewCloudinaryService(cfg)
 
 	// Initialize Repositories
 	userRepo := repository.NewUserRepository(db.Database)
@@ -57,6 +58,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	passResetRepo := repository.NewPasswordResetRepository(db.Database)
 	familyMemberRepo := repository.NewFamilyMemberRepository(db.Database)
 	generalInsuranceRepo := repository.NewGeneralInsuranceRepository(db.Database)
+	documentRepo := repository.NewDocumentRepository(db.Database)
 
 	// Initialize Services
 	userService := service.NewUserService(userRepo, cfg)
@@ -64,12 +66,14 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	passResetService := service.NewPasswordResetService(passResetRepo, userRepo, emailSvc)
 	familyMemberService := service.NewFamilyMemberService(familyMemberRepo)
 	generalInsuranceService := service.NewGeneralInsuranceService(generalInsuranceRepo)
+	documentService := service.NewDocumentService(documentRepo, storageSvc)
 
 	// Initialize Handlers
 	userHandler := handler.NewUserHandler(userService, passResetService)
 	accessReqHandler := handler.NewAccessRequestHandler(accessReqService)
 	familyMemberHandler := handler.NewFamilyMemberHandler(familyMemberService)
 	generalInsuranceHandler := handler.NewGeneralInsuranceHandler(generalInsuranceService)
+	documentHandler := handler.NewDocumentHandler(documentService)
 
 	// API v1 routes
 	v1 := router.Group("/api/v1")
@@ -156,6 +160,25 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			adminInsurance.Use(middleware.RequireRole("admin"))
 			{
 				adminInsurance.GET("/user/:userId", generalInsuranceHandler.GetInsurancesByUserIDAdmin)
+			}
+		}
+
+		// E-Vault Document routes
+		documents := v1.Group("/documents")
+		{
+			documents.Use(middleware.RequireAuth(cfg))
+
+			documents.POST("", documentHandler.UploadDocument)
+			documents.GET("", documentHandler.GetMyDocuments)
+			documents.GET("/:id", documentHandler.GetByID)
+			documents.PUT("/:id", documentHandler.UpdateDocument)
+			documents.DELETE("/:id", documentHandler.DeleteDocument)
+
+			// Admin route
+			adminDocs := documents.Group("")
+			adminDocs.Use(middleware.RequireRole("admin"))
+			{
+				adminDocs.GET("/user/:userId", documentHandler.GetDocumentsByUserIDAdmin)
 			}
 		}
 	}

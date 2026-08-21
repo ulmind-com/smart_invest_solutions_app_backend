@@ -118,6 +118,42 @@ definitions:
     - name
     - password
     type: object
+  github_com_smart-invest-solutions_backend_internal_domain.Document:
+    properties:
+      category:
+        description: e.g. Aadhaar Card, PAN Card, Bank Passbook, Policy, Custom
+        type: string
+      created_at:
+        type: string
+      document_url:
+        type: string
+      file_size:
+        description: in bytes
+        type: integer
+      file_type:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      public_id:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    required:
+    - name
+    type: object
+  github_com_smart-invest-solutions_backend_internal_domain.DocumentListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.Document'
+        type: array
+      total:
+        type: integer
+    type: object
   github_com_smart-invest-solutions_backend_internal_domain.FamilyMember:
     properties:
       blood_group:
@@ -558,6 +594,242 @@ paths:
       summary: Reject Access Request (Admin Only)
       tags:
       - Access Requests (Admin)
+  /documents:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves list of all documents uploaded by the user with optional
+        search query filter `q`.
+      parameters:
+      - description: Search filter by name or category (e.g. aadhaar, pan, passbook)
+        in: query
+        name: q
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Documents retrieved successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.DocumentListResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get & Search E-Vault documents
+      tags:
+      - E-Vault Documents
+    post:
+      consumes:
+      - multipart/form-data
+      description: Uploads a PDF or image file with auto-compression to Cloudinary
+        and saves metadata to MongoDB E-Vault.
+      parameters:
+      - description: Document File (PDF, PNG, JPG, JPEG)
+        in: formData
+        name: file
+        required: true
+        type: file
+      - description: Document Name (e.g., Aadhaar Card)
+        in: formData
+        name: name
+        required: true
+        type: string
+      - description: Category (Aadhaar, PAN, Bank Passbook, Policy, Custom)
+        in: formData
+        name: category
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Document uploaded successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.Document'
+              type: object
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Upload document to E-Vault
+      tags:
+      - E-Vault Documents
+  /documents/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Deletes document record from MongoDB and purges file from Cloudinary
+        storage.
+      parameters:
+      - description: Document ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Document deleted successfully
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete document
+      tags:
+      - E-Vault Documents
+    get:
+      consumes:
+      - application/json
+      description: Retrieves detailed info and secure link for a single document.
+      parameters:
+      - description: Document ID (MongoDB ObjectID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Document retrieved successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.Document'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "404":
+          description: Document not found
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get document by ID
+      tags:
+      - E-Vault Documents
+    put:
+      consumes:
+      - multipart/form-data
+      description: Updates document name/category or replaces file. Replacing a file
+        purges the old Cloudinary asset automatically.
+      parameters:
+      - description: Document ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: New Document Name
+        in: formData
+        name: name
+        type: string
+      - description: New Category
+        in: formData
+        name: category
+        type: string
+      - description: New Replacement File (PDF, PNG, JPG)
+        in: formData
+        name: file
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Document updated successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.Document'
+              type: object
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "404":
+          description: Document not found
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Update / Replace document
+      tags:
+      - E-Vault Documents
+  /documents/user/{userId}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves all E-Vault documents for a target client user.
+      parameters:
+      - description: Target Client User ID
+        in: path
+        name: userId
+        required: true
+        type: string
+      - description: Search filter
+        in: query
+        name: q
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Documents retrieved successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.DocumentListResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "403":
+          description: Forbidden — Admin role required
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user's E-Vault documents (Admin Only)
+      tags:
+      - E-Vault Documents (Admin)
   /family-members:
     get:
       consumes:

@@ -94,3 +94,21 @@ model GeneralInsurance {
 
   @@map("general_insurances")
 }
+
+// =============================================
+// E-Vault Document Model
+// =============================================
+model Document {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @map("user_id") @db.ObjectId
+  name        String
+  category    String?  // Aadhaar Card, PAN Card, Bank Passbook, Policy, Custom
+  documentUrl String   @map("document_url")
+  publicId    String?  @map("public_id")
+  fileType    String?  @map("file_type")
+  fileSize    Int?     @map("file_size")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("documents")
+}
