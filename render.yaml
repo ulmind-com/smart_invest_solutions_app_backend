@@ -1,9 +1,8 @@
 services:
   - type: web
     name: smart-invest-backend
-    env: go
-    buildCommand: go build -o bin/server ./cmd/server
-    startCommand: ./bin/server
+    env: docker
+    dockerfilePath: ./Dockerfile
     healthCheckPath: /health
     envVars:
       - key: ENV
