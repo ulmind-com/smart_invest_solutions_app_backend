@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
 
@@ -56,12 +57,7 @@ type resendResponse struct {
 
 // SendWelcomeEmail sends an automatic welcome email upon successful user registration.
 func (s *ResendService) SendWelcomeEmail(ctx context.Context, toEmail, name string) error {
-	if s.apiKey == "" {
-		return fmt.Errorf("RESEND_API_KEY is not configured")
-	}
-
 	subject := "🎉 Welcome to Smart Invest Solutions! Account Under Verification"
-	fromHeader := fmt.Sprintf("Smart Invest Solutions <%s>", s.fromAddress)
 
 	htmlBody := fmt.Sprintf(`
 <!DOCTYPE html>
@@ -103,38 +99,12 @@ func (s *ResendService) SendWelcomeEmail(ctx context.Context, toEmail, name stri
 </html>
 `, name)
 
-	reqBody := resendSendRequest{
-		From:    fromHeader,
-		To:      []string{toEmail},
-		Subject: subject,
-		HTML:    htmlBody,
-	}
-
-	jsonBytes, _ := json.Marshal(reqBody)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.resend.com/emails", bytes.NewBuffer(jsonBytes))
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+s.apiKey)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := s.httpClient.Do(req)
-	if err == nil {
-		resp.Body.Close()
-	}
-
-	return nil
+	return s.sendResendRequest(ctx, subject, toEmail, htmlBody)
 }
 
-// SendCredentialsEmail sends an email containing generated login credentials to an approved client.
+// SendCredentialsEmail sends an email containing login confirmation/credentials to an approved client.
 func (s *ResendService) SendCredentialsEmail(ctx context.Context, toEmail, name, password string) error {
-	if s.apiKey == "" {
-		return fmt.Errorf("RESEND_API_KEY is not configured")
-	}
-
 	subject := "🎉 Your Access Has Been Approved — Smart Invest Solutions"
-	fromHeader := fmt.Sprintf("Smart Invest Solutions <%s>", s.fromAddress)
 
 	htmlBody := fmt.Sprintf(`
 <!DOCTYPE html>
@@ -153,7 +123,6 @@ func (s *ResendService) SendCredentialsEmail(ctx context.Context, toEmail, name,
         .field-label { font-size: 12px; text-transform: uppercase; color: #64748b; font-weight: bold; letter-spacing: 0.5px; }
         .field-value { font-size: 18px; color: #0f172a; font-family: monospace; font-weight: bold; }
         .footer { background: #f1f5f9; padding: 15px; text-align: center; font-size: 12px; color: #64748b; }
-        .btn { display: inline-block; background: #2a5298; color: #ffffff; text-decoration: none; padding: 12px 25px; border-radius: 6px; font-weight: bold; margin-top: 15px; }
     </style>
 </head>
 <body>
@@ -165,7 +134,7 @@ func (s *ResendService) SendCredentialsEmail(ctx context.Context, toEmail, name,
         <div class="content">
             <h2>Hello %s,</h2>
             <p>Great news! Your access request to <strong>Smart Invest Solutions</strong> has been approved by the Admin.</p>
-            <p>You can now log in to your account using the generated credentials below:</p>
+            <p>You can now log in to your account using your registered credentials:</p>
 
             <div class="credentials-box">
                 <div class="field">
@@ -173,72 +142,27 @@ func (s *ResendService) SendCredentialsEmail(ctx context.Context, toEmail, name,
                     <div class="field-value">%s</div>
                 </div>
                 <div class="field" style="margin-bottom: 0;">
-                    <div class="field-label">Temporary Password</div>
+                    <div class="field-label">Password Status</div>
                     <div class="field-value">%s</div>
                 </div>
             </div>
 
-            <p style="font-size: 13px; color: #ef4444;">⚠️ <em>For security reasons, please change your password after your initial login.</em></p>
-
-            <p>Open the <strong>Smart Invest Solutions App</strong> to access your dashboard, policies, and investment insights.</p>
+            <p>Open the <strong>Smart Invest Solutions App</strong> to access your dashboard, E-Vault, family details, and policies.</p>
         </div>
         <div class="footer">
-            &copy; Smart Invest Solutions. All rights reserved.<br>
-            Sent via %s
+            &copy; Smart Invest Solutions. All rights reserved.
         </div>
     </div>
 </body>
 </html>
-`, name, toEmail, password, s.fromAddress)
+`, name, toEmail, password)
 
-	reqBody := resendSendRequest{
-		From:    fromHeader,
-		To:      []string{toEmail},
-		Subject: subject,
-		HTML:    htmlBody,
-	}
-
-	jsonBytes, err := json.Marshal(reqBody)
-	if err != nil {
-		return fmt.Errorf("failed to marshal email request: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.resend.com/emails", bytes.NewBuffer(jsonBytes))
-	if err != nil {
-		return fmt.Errorf("failed to create http request: %w", err)
-	}
-
-	req.Header.Set("Authorization", "Bearer "+s.apiKey)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to execute http request to Resend: %w", err)
-	}
-	defer resp.Body.Close()
-
-	bodyBytes, _ := io.ReadAll(resp.Body)
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("resend API returned error (status %d): %s", resp.StatusCode, string(bodyBytes))
-	}
-
-	var resResp resendResponse
-	if err := json.Unmarshal(bodyBytes, &resResp); err == nil && resResp.Error != nil {
-		return fmt.Errorf("resend API error: %s", resResp.Error.Message)
-	}
-
-	return nil
+	return s.sendResendRequest(ctx, subject, toEmail, htmlBody)
 }
 
-// SendRejectionEmail sends a notification if an access request is rejected.
+// SendRejectionEmail sends a notification if an access request or account status is set to inactive.
 func (s *ResendService) SendRejectionEmail(ctx context.Context, toEmail, name, reason string) error {
-	if s.apiKey == "" {
-		return nil // Non-fatal if key not set
-	}
-
 	subject := "Update on Your Access Request — Smart Invest Solutions"
-	fromHeader := fmt.Sprintf("Smart Invest Solutions <%s>", s.fromAddress)
 
 	if reason == "" {
 		reason = "We are unable to verify your submitted details at this time."
@@ -250,48 +174,20 @@ func (s *ResendService) SendRejectionEmail(ctx context.Context, toEmail, name, r
 <body style="font-family: sans-serif; padding: 20px; color: #333;">
     <h2>Hello %s,</h2>
     <p>Thank you for your interest in Smart Invest Solutions.</p>
-    <p>Regrettably, your request for access could not be approved at this time.</p>
-    <p><strong>Reason:</strong> %s</p>
-    <p>If you believe this is in error, please feel free to submit a new request with updated information.</p>
+    <p>Regrettably, your account status update: <strong>%s</strong></p>
+    <p>If you believe this is in error, please feel free to contact support.</p>
     <br>
     <p>Best regards,<br>Smart Invest Solutions Team</p>
 </body>
 </html>
 `, name, reason)
 
-	reqBody := resendSendRequest{
-		From:    fromHeader,
-		To:      []string{toEmail},
-		Subject: subject,
-		HTML:    htmlBody,
-	}
-
-	jsonBytes, _ := json.Marshal(reqBody)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.resend.com/emails", bytes.NewBuffer(jsonBytes))
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+s.apiKey)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	return nil
+	return s.sendResendRequest(ctx, subject, toEmail, htmlBody)
 }
 
 // SendOTPEmail sends a 6-digit OTP code for password reset.
 func (s *ResendService) SendOTPEmail(ctx context.Context, toEmail, otpCode string) error {
-	if s.apiKey == "" {
-		return fmt.Errorf("RESEND_API_KEY is not configured")
-	}
-
 	subject := "🔑 Your Password Reset OTP — Smart Invest Solutions"
-	fromHeader := fmt.Sprintf("Smart Invest Solutions <%s>", s.fromAddress)
 
 	htmlBody := fmt.Sprintf(`
 <!DOCTYPE html>
@@ -328,44 +224,12 @@ func (s *ResendService) SendOTPEmail(ctx context.Context, toEmail, otpCode strin
 </html>
 `, otpCode)
 
-	reqBody := resendSendRequest{
-		From:    fromHeader,
-		To:      []string{toEmail},
-		Subject: subject,
-		HTML:    htmlBody,
-	}
-
-	jsonBytes, _ := json.Marshal(reqBody)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.resend.com/emails", bytes.NewBuffer(jsonBytes))
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+s.apiKey)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("resend API returned status %d: %s", resp.StatusCode, string(bodyBytes))
-	}
-
-	return nil
+	return s.sendResendRequest(ctx, subject, toEmail, htmlBody)
 }
 
 // SendPasswordResetConfirmationEmail sends a security alert email after successful password reset.
 func (s *ResendService) SendPasswordResetConfirmationEmail(ctx context.Context, toEmail string) error {
-	if s.apiKey == "" {
-		return nil
-	}
-
 	subject := "✅ Password Successfully Reset — Smart Invest Solutions"
-	fromHeader := fmt.Sprintf("Smart Invest Solutions <%s>", s.fromAddress)
 
 	htmlBody := `
 <!DOCTYPE html>
@@ -381,14 +245,47 @@ func (s *ResendService) SendPasswordResetConfirmationEmail(ctx context.Context, 
 </html>
 `
 
+	return s.sendResendRequest(ctx, subject, toEmail, htmlBody)
+}
+
+// sendResendRequest executes the HTTP POST to Resend API with logging and automatic onboarding@resend.dev fallback.
+func (s *ResendService) sendResendRequest(ctx context.Context, subject, toEmail, htmlContent string) error {
+	if s.apiKey == "" {
+		log.Printf("[Resend Error] RESEND_API_KEY is missing in environment")
+		return fmt.Errorf("RESEND_API_KEY is not configured")
+	}
+
+	fromAddress := s.fromAddress
+	if fromAddress == "" {
+		fromAddress = "onboarding@resend.dev"
+	}
+
+	fromHeader := fmt.Sprintf("Smart Invest Solutions <%s>", fromAddress)
+
 	reqBody := resendSendRequest{
 		From:    fromHeader,
 		To:      []string{toEmail},
 		Subject: subject,
-		HTML:    htmlBody,
+		HTML:    htmlContent,
 	}
 
-	jsonBytes, _ := json.Marshal(reqBody)
+	jsonBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return err
+	}
+
+	err = s.executePost(ctx, jsonBytes)
+	if err != nil && fromAddress != "onboarding@resend.dev" {
+		log.Printf("[Resend Fallback] Primary sender %s failed (%v). Retrying with onboarding@resend.dev...", fromAddress, err)
+		reqBody.From = "Smart Invest Solutions <onboarding@resend.dev>"
+		fallbackBytes, _ := json.Marshal(reqBody)
+		err = s.executePost(ctx, fallbackBytes)
+	}
+
+	return err
+}
+
+func (s *ResendService) executePost(ctx context.Context, jsonBytes []byte) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.resend.com/emails", bytes.NewBuffer(jsonBytes))
 	if err != nil {
 		return err
@@ -398,9 +295,18 @@ func (s *ResendService) SendPasswordResetConfirmationEmail(ctx context.Context, 
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := s.httpClient.Do(req)
-	if err == nil {
-		resp.Body.Close()
+	if err != nil {
+		log.Printf("[Resend HTTP Error] %v", err)
+		return err
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		log.Printf("[Resend API Error %d] %s", resp.StatusCode, string(bodyBytes))
+		return fmt.Errorf("resend status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
+	log.Printf("[Resend Success %d] Email delivered successfully", resp.StatusCode)
 	return nil
 }
