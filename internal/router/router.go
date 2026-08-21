@@ -54,13 +54,15 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	// Initialize Repositories
 	userRepo := repository.NewUserRepository(db.Database)
 	accessReqRepo := repository.NewAccessRequestRepository(db.Database)
+	passResetRepo := repository.NewPasswordResetRepository(db.Database)
 
 	// Initialize Services
 	userService := service.NewUserService(userRepo, cfg)
 	accessReqService := service.NewAccessRequestService(accessReqRepo, userRepo, userService, emailSvc)
+	passResetService := service.NewPasswordResetService(passResetRepo, userRepo, emailSvc)
 
 	// Initialize Handlers
-	userHandler := handler.NewUserHandler(userService)
+	userHandler := handler.NewUserHandler(userService, passResetService)
 	accessReqHandler := handler.NewAccessRequestHandler(accessReqService)
 
 	// API v1 routes
@@ -72,6 +74,9 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			// Public routes
 			users.POST("/register", userHandler.Register)
 			users.POST("/login", userHandler.Login)
+			users.POST("/forgot-password", userHandler.ForgotPassword)
+			users.POST("/verify-otp", userHandler.VerifyOTP)
+			users.POST("/reset-password", userHandler.ResetPassword)
 
 			// Protected routes (Require Login)
 			users.Use(middleware.RequireAuth(cfg))

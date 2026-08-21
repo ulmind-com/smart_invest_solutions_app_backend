@@ -12,13 +12,15 @@ import (
 
 // UserHandler handles HTTP requests for user operations.
 type UserHandler struct {
-	userService domain.UserService
+	userService      domain.UserService
+	passResetService domain.PasswordResetService
 }
 
 // NewUserHandler creates a new user handler.
-func NewUserHandler(userService domain.UserService) *UserHandler {
+func NewUserHandler(userService domain.UserService, passResetService domain.PasswordResetService) *UserHandler {
 	return &UserHandler{
-		userService: userService,
+		userService:      userService,
+		passResetService: passResetService,
 	}
 }
 
@@ -278,4 +280,77 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 	}
 
 	response.Success(c, "Password changed successfully", nil)
+}
+
+// ForgotPassword handles requesting a password reset OTP.
+// @Summary      Request password reset OTP
+// @Description  Sends a 6-digit OTP code to the registered email address if an account exists.
+// @Tags         Authentication
+// @Accept       json
+// @Produce      json
+// @Param        request  body      domain.ForgotPasswordRequest  true  "Registered Email Address"
+// @Success      200      {object}  response.APIResponse  "If an account exists with this email, an OTP has been sent."
+// @Failure      422      {object}  response.APIResponse  "Validation error"
+// @Router       /users/forgot-password [post]
+func (h *UserHandler) ForgotPassword(c *gin.Context) {
+	var req domain.ForgotPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ValidationError(c, err.Error())
+		return
+	}
+
+	_ = h.passResetService.SendOTP(c.Request.Context(), &req)
+	response.Success(c, "If an account exists with this email, an OTP has been sent.", nil)
+}
+
+// VerifyOTP handles verifying the 6-digit OTP code.
+// @Summary      Verify password reset OTP
+// @Description  Validates if the provided 6-digit OTP code is valid, unexpired, and unused.
+// @Tags         Authentication
+// @Accept       json
+// @Produce      json
+// @Param        request  body      domain.VerifyOTPRequest  true  "Email & 6-digit OTP"
+// @Success      200      {object}  response.APIResponse  "OTP verified successfully"
+// @Failure      400      {object}  response.APIResponse  "Invalid or expired OTP code"
+// @Failure      422      {object}  response.APIResponse  "Validation error"
+// @Router       /users/verify-otp [post]
+func (h *UserHandler) VerifyOTP(c *gin.Context) {
+	var req domain.VerifyOTPRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ValidationError(c, err.Error())
+		return
+	}
+
+	if err := h.passResetService.VerifyOTP(c.Request.Context(), &req); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	response.Success(c, "OTP verified successfully", nil)
+}
+
+// ResetPassword handles setting a new password using a valid OTP code.
+// @Summary      Reset password using OTP
+// @Description  Verifies the OTP code and updates the user's password in the database.
+// @Tags         Authentication
+// @Accept       json
+// @Produce      json
+// @Param        request  body      domain.ResetPasswordRequest  true  "Email, OTP & New Password payload"
+// @Success      200      {object}  response.APIResponse  "Password reset successfully"
+// @Failure      400      {object}  response.APIResponse  "Invalid OTP, password mismatch or weak password"
+// @Failure      422      {object}  response.APIResponse  "Validation error"
+// @Router       /users/reset-password [post]
+func (h *UserHandler) ResetPassword(c *gin.Context) {
+	var req domain.ResetPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ValidationError(c, err.Error())
+		return
+	}
+
+	if err := h.passResetService.ResetPassword(c.Request.Context(), &req); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	response.Success(c, "Password reset successfully", nil)
 }

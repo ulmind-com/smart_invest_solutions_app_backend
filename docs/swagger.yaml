@@ -78,6 +78,13 @@ definitions:
     - name
     - password
     type: object
+  github_com_smart-invest-solutions_backend_internal_domain.ForgotPasswordRequest:
+    properties:
+      email:
+        type: string
+    required:
+    - email
+    type: object
   github_com_smart-invest-solutions_backend_internal_domain.LoginRequest:
     properties:
       email:
@@ -99,6 +106,23 @@ definitions:
     properties:
       reason:
         type: string
+    type: object
+  github_com_smart-invest-solutions_backend_internal_domain.ResetPasswordRequest:
+    properties:
+      confirm_password:
+        type: string
+      email:
+        type: string
+      new_password:
+        minLength: 8
+        type: string
+      otp:
+        type: string
+    required:
+    - confirm_password
+    - email
+    - new_password
+    - otp
     type: object
   github_com_smart-invest-solutions_backend_internal_domain.UpdateProfileRequest:
     properties:
@@ -136,6 +160,16 @@ definitions:
         type: string
       updated_at:
         type: string
+    type: object
+  github_com_smart-invest-solutions_backend_internal_domain.VerifyOTPRequest:
+    properties:
+      email:
+        type: string
+      otp:
+        type: string
+    required:
+    - email
+    - otp
     type: object
   github_com_smart-invest-solutions_backend_pkg_response.APIResponse:
     properties:
@@ -574,6 +608,33 @@ paths:
       summary: Change password
       tags:
       - Profile
+  /users/forgot-password:
+    post:
+      consumes:
+      - application/json
+      description: Sends a 6-digit OTP code to the registered email address if an
+        account exists.
+      parameters:
+      - description: Registered Email Address
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ForgotPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: If an account exists with this email, an OTP has been sent.
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "422":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      summary: Request password reset OTP
+      tags:
+      - Authentication
   /users/login:
     post:
       consumes:
@@ -713,6 +774,67 @@ paths:
           schema:
             $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       summary: Register a new user
+      tags:
+      - Authentication
+  /users/reset-password:
+    post:
+      consumes:
+      - application/json
+      description: Verifies the OTP code and updates the user's password in the database.
+      parameters:
+      - description: Email, OTP & New Password payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ResetPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Password reset successfully
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "400":
+          description: Invalid OTP, password mismatch or weak password
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "422":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      summary: Reset password using OTP
+      tags:
+      - Authentication
+  /users/verify-otp:
+    post:
+      consumes:
+      - application/json
+      description: Validates if the provided 6-digit OTP code is valid, unexpired,
+        and unused.
+      parameters:
+      - description: Email & 6-digit OTP
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.VerifyOTPRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OTP verified successfully
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "400":
+          description: Invalid or expired OTP code
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "422":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      summary: Verify password reset OTP
       tags:
       - Authentication
 securityDefinitions:

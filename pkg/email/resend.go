@@ -16,6 +16,8 @@ import (
 type EmailService interface {
 	SendCredentialsEmail(ctx context.Context, toEmail, name, password string) error
 	SendRejectionEmail(ctx context.Context, toEmail, name, reason string) error
+	SendOTPEmail(ctx context.Context, toEmail, otpCode string) error
+	SendPasswordResetConfirmationEmail(ctx context.Context, toEmail string) error
 }
 
 // ResendService implements EmailService using the Resend HTTP API.
@@ -204,6 +206,127 @@ func (s *ResendService) SendRejectionEmail(ctx context.Context, toEmail, name, r
 		return err
 	}
 	defer resp.Body.Close()
+
+	return nil
+}
+
+// SendOTPEmail sends a 6-digit OTP code for password reset.
+func (s *ResendService) SendOTPEmail(ctx context.Context, toEmail, otpCode string) error {
+	if s.apiKey == "" {
+		return fmt.Errorf("RESEND_API_KEY is not configured")
+	}
+
+	subject := "🔑 Your Password Reset OTP — Smart Invest Solutions"
+	fromHeader := fmt.Sprintf("Smart Invest Solutions <%s>", s.fromAddress)
+
+	htmlBody := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0f172a; margin: 0; padding: 20px; color: #f8fafc; }
+        .container { max-width: 500px; margin: 0 auto; background: #1e293b; border-radius: 16px; padding: 30px; border: 1px solid #334155; }
+        .header { text-align: center; margin-bottom: 24px; }
+        .header h1 { color: #38bdf8; font-size: 22px; margin: 0; }
+        .otp-box { background: #0f172a; border: 2px dashed #38bdf8; border-radius: 12px; padding: 20px; text-align: center; margin: 24px 0; }
+        .otp-code { font-size: 36px; font-weight: bold; font-family: monospace; letter-spacing: 8px; color: #34d399; }
+        .info { color: #94a3b8; font-size: 14px; line-height: 1.5; text-align: center; }
+        .footer { text-align: center; margin-top: 24px; font-size: 12px; color: #64748b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Smart Invest Solutions</h1>
+            <p style="color: #94a3b8; font-size: 14px; margin-top: 4px;">Password Reset Request</p>
+        </div>
+        <p class="info">You requested to reset your password. Use the verification OTP code below to proceed:</p>
+        
+        <div class="otp-box">
+            <div class="otp-code">%s</div>
+        </div>
+
+        <p class="info">⏰ This code is valid for <strong>10 minutes</strong>. Do not share this code with anyone.</p>
+        <div class="footer">&copy; Smart Invest Solutions. If you did not request this, please ignore.</div>
+    </div>
+</body>
+</html>
+`, otpCode)
+
+	reqBody := resendSendRequest{
+		From:    fromHeader,
+		To:      []string{toEmail},
+		Subject: subject,
+		HTML:    htmlBody,
+	}
+
+	jsonBytes, _ := json.Marshal(reqBody)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.resend.com/emails", bytes.NewBuffer(jsonBytes))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+s.apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("resend API returned status %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	return nil
+}
+
+// SendPasswordResetConfirmationEmail sends a security alert email after successful password reset.
+func (s *ResendService) SendPasswordResetConfirmationEmail(ctx context.Context, toEmail string) error {
+	if s.apiKey == "" {
+		return nil
+	}
+
+	subject := "✅ Password Successfully Reset — Smart Invest Solutions"
+	fromHeader := fmt.Sprintf("Smart Invest Solutions <%s>", s.fromAddress)
+
+	htmlBody := `
+<!DOCTYPE html>
+<html>
+<body style="font-family: sans-serif; padding: 20px; background-color: #0f172a; color: #f8fafc;">
+    <div style="max-width: 500px; margin: 0 auto; background: #1e293b; padding: 24px; border-radius: 12px;">
+        <h2 style="color: #34d399;">Password Changed Successfully</h2>
+        <p>Your password for Smart Invest Solutions has been successfully updated.</p>
+        <p style="color: #94a3b8; font-size: 13px;">If you performed this action, no further steps are needed.</p>
+        <p style="color: #ef4444; font-size: 13px;">If you did NOT request this change, please contact support immediately.</p>
+    </div>
+</body>
+</html>
+`
+
+	reqBody := resendSendRequest{
+		From:    fromHeader,
+		To:      []string{toEmail},
+		Subject: subject,
+		HTML:    htmlBody,
+	}
+
+	jsonBytes, _ := json.Marshal(reqBody)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.resend.com/emails", bytes.NewBuffer(jsonBytes))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+s.apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := s.httpClient.Do(req)
+	if err == nil {
+		resp.Body.Close()
+	}
 
 	return nil
 }
