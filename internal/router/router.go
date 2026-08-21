@@ -10,6 +10,10 @@ import (
 	"github.com/smart-invest-solutions/backend/internal/middleware"
 	"github.com/smart-invest-solutions/backend/internal/repository"
 	"github.com/smart-invest-solutions/backend/internal/service"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+
+	_ "github.com/smart-invest-solutions/backend/docs" // Swagger generated docs
 )
 
 // Setup initializes the Gin router with all routes and middleware.
@@ -35,6 +39,9 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			"message": "Smart Invest Solutions API is running",
 		})
 	})
+
+	// Swagger Documentation UI — visit http://localhost:8080/swagger/index.html
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// Initialize layers
 	userRepo := repository.NewUserRepository(db.Database)

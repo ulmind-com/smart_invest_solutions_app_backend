@@ -17,6 +17,22 @@ import (
 	"github.com/smart-invest-solutions/backend/migrations"
 )
 
+// @title           Smart Invest Solutions API
+// @version         1.0
+// @description     Backend API for Smart Invest Solutions — a LIC Policy & Investment Management Platform.
+// @description     This API provides user registration, authentication with JWT, role-based access control, and more.
+
+// @contact.name    ULMIND Team
+// @contact.email   support@ulmind.com
+
+// @host            localhost:8080
+// @BasePath        /api/v1
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Enter your Bearer token in the format: **Bearer &lt;token&gt;**
+
 func main() {
 	// Load configuration
 	cfg := config.Load()

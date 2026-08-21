@@ -60,6 +60,21 @@ check: vet lint test
 	@echo "All checks passed!"
 
 # ==========================================
+# Swagger Documentation
+# ==========================================
+
+# Generate Swagger docs from annotations
+swagger-gen:
+	@echo "Generating Swagger docs..."
+	@if command -v swag > /dev/null 2>&1; then \
+		swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal; \
+	elif [ -f "$(HOME)/go/bin/swag" ]; then \
+		$(HOME)/go/bin/swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal; \
+	else \
+		echo "swag not found. Install: go install github.com/swaggo/swag/cmd/swag@latest"; \
+	fi
+
+# ==========================================
 # Prisma Schema Management
 # ==========================================
 
