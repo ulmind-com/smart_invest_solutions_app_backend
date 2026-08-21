@@ -38,10 +38,11 @@ type CreateUserRequest struct {
 
 // UpdateUserRequest represents the request payload for updating a user (Admin/Internal).
 type UpdateUserRequest struct {
-	Name  *string `json:"name,omitempty"`
-	Email *string `json:"email,omitempty"`
-	Phone *string `json:"phone,omitempty"`
-	Role  *string `json:"role,omitempty"`
+	Name     *string `json:"name,omitempty"`
+	Email    *string `json:"email,omitempty"`
+	Phone    *string `json:"phone,omitempty"`
+	Role     *string `json:"role,omitempty"`
+	IsActive *bool   `json:"is_active,omitempty"`
 }
 
 // UpdateProfileRequest represents the payload when a logged-in user updates their own profile.

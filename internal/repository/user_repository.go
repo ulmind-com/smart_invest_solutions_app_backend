@@ -118,6 +118,12 @@ func (r *userRepository) Update(ctx context.Context, id bson.ObjectID, req *doma
 	if req.Phone != nil {
 		updateFields["phone"] = *req.Phone
 	}
+	if req.Role != nil {
+		updateFields["role"] = *req.Role
+	}
+	if req.IsActive != nil {
+		updateFields["is_active"] = *req.IsActive
+	}
 
 	filter := bson.M{"_id": id}
 	update := bson.M{"$set": updateFields}

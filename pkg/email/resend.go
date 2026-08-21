@@ -14,6 +14,7 @@ import (
 
 // EmailService defines the interface for sending emails.
 type EmailService interface {
+	SendWelcomeEmail(ctx context.Context, toEmail, name string) error
 	SendCredentialsEmail(ctx context.Context, toEmail, name, password string) error
 	SendRejectionEmail(ctx context.Context, toEmail, name, reason string) error
 	SendOTPEmail(ctx context.Context, toEmail, otpCode string) error
@@ -51,6 +52,79 @@ type resendResponse struct {
 		Message string `json:"message"`
 		Name    string `json:"name"`
 	} `json:"error,omitempty"`
+}
+
+// SendWelcomeEmail sends an automatic welcome email upon successful user registration.
+func (s *ResendService) SendWelcomeEmail(ctx context.Context, toEmail, name string) error {
+	if s.apiKey == "" {
+		return fmt.Errorf("RESEND_API_KEY is not configured")
+	}
+
+	subject := "🎉 Welcome to Smart Invest Solutions! Account Under Verification"
+	fromHeader := fmt.Sprintf("Smart Invest Solutions <%s>", s.fromAddress)
+
+	htmlBody := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0f172a; margin: 0; padding: 20px; color: #f8fafc; }
+        .container { max-width: 550px; margin: 0 auto; background: #1e293b; border-radius: 16px; padding: 30px; border: 1px solid #334155; }
+        .header { text-align: center; margin-bottom: 24px; }
+        .header h1 { color: #38bdf8; font-size: 24px; margin: 0; }
+        .welcome-box { background: #0f172a; border-left: 4px solid #38bdf8; border-radius: 8px; padding: 20px; margin: 20px 0; }
+        .status-badge { display: inline-block; background: #f59e0b; color: #0f172a; font-weight: bold; font-size: 12px; padding: 4px 12px; border-radius: 12px; text-transform: uppercase; }
+        .footer { text-align: center; margin-top: 24px; font-size: 12px; color: #64748b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Smart Invest Solutions</h1>
+            <p style="color: #94a3b8; font-size: 14px; margin-top: 4px;">LIC Policy & Investment Management</p>
+        </div>
+        
+        <h2>Welcome, %s! 👋</h2>
+        <p>Thank you for creating an account with <strong>Smart Invest Solutions</strong>.</p>
+        
+        <div class="welcome-box">
+            <p style="margin: 0 0 10px 0;">Account Status: <span class="status-badge">⏳ Pending Admin Verification</span></p>
+            <p style="font-size: 13px; color: #cbd5e1; margin: 0;">
+                Your account registration details have been submitted to our Admin team. Once verified, you will receive an approval email allowing full access to your Dashboard, E-Vault, Family Details, and Insurance policies.
+            </p>
+        </div>
+
+        <p style="font-size: 13px; color: #94a3b8;">If you have any urgent queries, feel free to reply directly to this email.</p>
+        
+        <div class="footer">&copy; Smart Invest Solutions. All rights reserved.</div>
+    </div>
+</body>
+</html>
+`, name)
+
+	reqBody := resendSendRequest{
+		From:    fromHeader,
+		To:      []string{toEmail},
+		Subject: subject,
+		HTML:    htmlBody,
+	}
+
+	jsonBytes, _ := json.Marshal(reqBody)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.resend.com/emails", bytes.NewBuffer(jsonBytes))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+s.apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := s.httpClient.Do(req)
+	if err == nil {
+		resp.Body.Close()
+	}
+
+	return nil
 }
 
 // SendCredentialsEmail sends an email containing generated login credentials to an approved client.

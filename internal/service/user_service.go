@@ -7,6 +7,7 @@ import (
 
 	"github.com/smart-invest-solutions/backend/internal/config"
 	"github.com/smart-invest-solutions/backend/internal/domain"
+	"github.com/smart-invest-solutions/backend/pkg/email"
 	"github.com/smart-invest-solutions/backend/pkg/utils"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"golang.org/x/crypto/bcrypt"
@@ -16,17 +17,19 @@ import (
 type userService struct {
 	userRepo domain.UserRepository
 	config   *config.Config
+	emailSvc email.EmailService
 }
 
-// NewUserService creates a new user service with the given repository and config.
-func NewUserService(userRepo domain.UserRepository, cfg *config.Config) domain.UserService {
+// NewUserService creates a new user service with the given repository, config, and email service.
+func NewUserService(userRepo domain.UserRepository, cfg *config.Config, emailSvc email.EmailService) domain.UserService {
 	return &userService{
 		userRepo: userRepo,
 		config:   cfg,
+		emailSvc: emailSvc,
 	}
 }
 
-// Register creates a new user with a hashed password.
+// Register creates a new user with a hashed password, setting IsActive to false (pending verification) and sending a Welcome email.
 func (s *userService) Register(ctx context.Context, req *domain.CreateUserRequest) (*domain.UserResponse, error) {
 	// Check if user with this email already exists
 	existing, _ := s.userRepo.FindByEmail(ctx, req.Email)
@@ -40,13 +43,14 @@ func (s *userService) Register(ctx context.Context, req *domain.CreateUserReques
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	// Default role is client for user creation
+	// Default role is client; account is pending Admin verification (IsActive = false)
 	user := &domain.User{
 		Name:     req.Name,
 		Email:    req.Email,
 		Password: string(hashedPassword),
 		Phone:    req.Phone,
 		Role:     domain.RoleClient,
+		IsActive: false, // Pending Admin verification
 	}
 
 	createdUser, err := s.userRepo.Create(ctx, user)
@@ -54,10 +58,17 @@ func (s *userService) Register(ctx context.Context, req *domain.CreateUserReques
 		return nil, err
 	}
 
+	// Send automatic Welcome Email asynchronously
+	if s.emailSvc != nil {
+		go func() {
+			_ = s.emailSvc.SendWelcomeEmail(context.Background(), createdUser.Email, createdUser.Name)
+		}()
+	}
+
 	return createdUser.ToResponse(), nil
 }
 
-// Login authenticates a user and generates a JWT token.
+// Login authenticates a user and generates a JWT token after verifying active status.
 func (s *userService) Login(ctx context.Context, req *domain.LoginRequest) (*domain.LoginResponse, error) {
 	// Find user by email
 	user, err := s.userRepo.FindByEmail(ctx, req.Email)
@@ -65,9 +76,9 @@ func (s *userService) Login(ctx context.Context, req *domain.LoginRequest) (*dom
 		return nil, fmt.Errorf("invalid credentials")
 	}
 
-	// Check if user is active
+	// Check if user is active (Admin verified)
 	if !user.IsActive {
-		return nil, fmt.Errorf("account is disabled")
+		return nil, fmt.Errorf("your account is pending verification by Admin. You will receive an email once approved.")
 	}
 
 	// Compare passwords
@@ -131,19 +142,36 @@ func (s *userService) GetAll(ctx context.Context, page, limit int64) ([]*domain.
 	return responses, total, nil
 }
 
-// Update modifies an existing user.
+// Update modifies an existing user and triggers Approval / Rejection email if IsActive status changes.
 func (s *userService) Update(ctx context.Context, id string, req *domain.UpdateUserRequest) (*domain.UserResponse, error) {
 	objectID, err := bson.ObjectIDFromHex(id)
 	if err != nil {
 		return nil, fmt.Errorf("invalid user ID format: %w", err)
 	}
 
-	user, err := s.userRepo.Update(ctx, objectID, req)
+	existingUser, _ := s.userRepo.FindByID(ctx, objectID)
+
+	updatedUser, err := s.userRepo.Update(ctx, objectID, req)
 	if err != nil {
 		return nil, err
 	}
 
-	return user.ToResponse(), nil
+	// Trigger email notifications if Admin toggles account active status
+	if existingUser != nil && req.IsActive != nil && existingUser.IsActive != *req.IsActive && s.emailSvc != nil {
+		if *req.IsActive {
+			// Account Verified / Approved
+			go func() {
+				_ = s.emailSvc.SendCredentialsEmail(context.Background(), updatedUser.Email, updatedUser.Name, "[Your Registered Password]")
+			}()
+		} else {
+			// Account Deactivated / Rejected
+			go func() {
+				_ = s.emailSvc.SendRejectionEmail(context.Background(), updatedUser.Email, updatedUser.Name, "Your account has been set to inactive by Admin.")
+			}()
+		}
+	}
+
+	return updatedUser.ToResponse(), nil
 }
 
 // UpdateProfile updates the profile fields (name, phone) for a user. Email is strictly ignored/immutable.

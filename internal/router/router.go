@@ -61,7 +61,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	documentRepo := repository.NewDocumentRepository(db.Database)
 
 	// Initialize Services
-	userService := service.NewUserService(userRepo, cfg)
+	userService := service.NewUserService(userRepo, cfg, emailSvc)
 	accessReqService := service.NewAccessRequestService(accessReqRepo, userRepo, userService, emailSvc)
 	passResetService := service.NewPasswordResetService(passResetRepo, userRepo, emailSvc)
 	familyMemberService := service.NewFamilyMemberService(familyMemberRepo)
