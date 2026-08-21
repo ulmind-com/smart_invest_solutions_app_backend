@@ -247,6 +247,33 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	response.Success(c, "Profile updated successfully", user)
 }
 
+// DeleteMyAccount handles deleting the logged-in user's own account.
+// @Summary      Delete logged-in user account
+// @Description  Permanently deletes the authenticated user's account and wipes all associated E-Vault documents (from Cloudinary), family details, and insurance policies.
+// @Tags         Profile
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  response.APIResponse  "Account permanently deleted"
+// @Failure      401  {object}  response.APIResponse  "Unauthorized"
+// @Failure      500  {object}  response.APIResponse  "Failed to delete account"
+// @Security     BearerAuth
+// @Router       /users/me [delete]
+func (h *UserHandler) DeleteMyAccount(c *gin.Context) {
+	userIDVal, exists := c.Get(middleware.AuthCtxKey)
+	if !exists {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	userID := userIDVal.(string)
+
+	if err := h.userService.DeleteMyAccount(c.Request.Context(), userID); err != nil {
+		response.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	response.Success(c, "Account and associated data permanently deleted successfully", nil)
+}
+
 // ChangePassword handles changing the authenticated user's password.
 // @Summary      Change password
 // @Description  Changes the authenticated user's password after validating current password.

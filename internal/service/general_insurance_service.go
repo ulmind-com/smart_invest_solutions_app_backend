@@ -143,3 +143,12 @@ func (s *generalInsuranceService) GetInsurancesByUserIDAdmin(ctx context.Context
 		Data:  policies,
 	}, nil
 }
+
+// DeleteAllByUserID removes all general insurance policies associated with a user ID string.
+func (s *generalInsuranceService) DeleteAllByUserID(ctx context.Context, userIDStr string) error {
+	userID, err := bson.ObjectIDFromHex(userIDStr)
+	if err != nil {
+		return fmt.Errorf("invalid user ID format: %w", err)
+	}
+	return s.repo.DeleteAllByUserID(ctx, userID)
+}

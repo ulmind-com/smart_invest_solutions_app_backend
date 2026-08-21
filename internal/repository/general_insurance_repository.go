@@ -137,3 +137,9 @@ func (r *generalInsuranceRepository) Delete(ctx context.Context, id, userID bson
 
 	return nil
 }
+
+// DeleteAllByUserID deletes all general insurance policy records belonging to a user.
+func (r *generalInsuranceRepository) DeleteAllByUserID(ctx context.Context, userID bson.ObjectID) error {
+	_, err := r.collection.DeleteMany(ctx, bson.M{"user_id": userID})
+	return err
+}

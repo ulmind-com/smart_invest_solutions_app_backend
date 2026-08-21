@@ -54,6 +54,7 @@ type GeneralInsuranceRepository interface {
 	FindByID(ctx context.Context, id bson.ObjectID) (*GeneralInsurance, error)
 	Update(ctx context.Context, id, userID bson.ObjectID, update *UpdateGeneralInsuranceDTO) (*GeneralInsurance, error)
 	Delete(ctx context.Context, id, userID bson.ObjectID) error
+	DeleteAllByUserID(ctx context.Context, userID bson.ObjectID) error
 }
 
 // GeneralInsuranceService defines business logic operations for general insurances.
@@ -64,4 +65,5 @@ type GeneralInsuranceService interface {
 	UpdateInsurance(ctx context.Context, idStr, userIDStr string, dto *UpdateGeneralInsuranceDTO) (*GeneralInsurance, error)
 	DeleteInsurance(ctx context.Context, idStr, userIDStr string) error
 	GetInsurancesByUserIDAdmin(ctx context.Context, targetUserIDStr string) (*GeneralInsuranceListResponse, error)
+	DeleteAllByUserID(ctx context.Context, userIDStr string) error
 }

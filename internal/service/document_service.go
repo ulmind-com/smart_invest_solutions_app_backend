@@ -200,3 +200,23 @@ func (s *documentService) GetDocumentsByUserIDAdmin(ctx context.Context, targetU
 		Data:  docs,
 	}, nil
 }
+
+// DeleteAllByUserID purges all Cloudinary files belonging to a user and deletes all document records from MongoDB.
+func (s *documentService) DeleteAllByUserID(ctx context.Context, userIDStr string) error {
+	userID, err := bson.ObjectIDFromHex(userIDStr)
+	if err != nil {
+		return fmt.Errorf("invalid user ID format: %w", err)
+	}
+
+	// Fetch all documents for this user to purge their Cloudinary files
+	docs, _, err := s.repo.FindAllByUserID(ctx, userID, "")
+	if err == nil {
+		for _, doc := range docs {
+			if doc.PublicID != "" {
+				_ = s.storageSvc.DeleteImage(ctx, doc.PublicID)
+			}
+		}
+	}
+
+	return s.repo.DeleteAllByUserID(ctx, userID)
+}

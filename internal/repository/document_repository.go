@@ -148,3 +148,9 @@ func (r *documentRepository) Delete(ctx context.Context, id, userID bson.ObjectI
 
 	return nil
 }
+
+// DeleteAllByUserID removes all document records belonging to a specific user.
+func (r *documentRepository) DeleteAllByUserID(ctx context.Context, userID bson.ObjectID) error {
+	_, err := r.collection.DeleteMany(ctx, bson.M{"user_id": userID})
+	return err
+}

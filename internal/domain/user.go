@@ -118,4 +118,5 @@ type UserService interface {
 	UpdateProfile(ctx context.Context, id string, req *UpdateProfileRequest) (*UserResponse, error)
 	ChangePassword(ctx context.Context, id string, req *ChangePasswordRequest) error
 	Delete(ctx context.Context, id string) error
+	DeleteMyAccount(ctx context.Context, userID string) error
 }

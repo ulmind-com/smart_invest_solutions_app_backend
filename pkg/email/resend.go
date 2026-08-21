@@ -20,6 +20,7 @@ type EmailService interface {
 	SendRejectionEmail(ctx context.Context, toEmail, name, reason string) error
 	SendOTPEmail(ctx context.Context, toEmail, otpCode string) error
 	SendPasswordResetConfirmationEmail(ctx context.Context, toEmail string) error
+	SendAccountDeletionEmail(ctx context.Context, toEmail, name string) error
 }
 
 // ResendService implements EmailService using the Resend HTTP API.
@@ -244,6 +245,27 @@ func (s *ResendService) SendPasswordResetConfirmationEmail(ctx context.Context, 
 </body>
 </html>
 `
+
+	return s.sendResendRequest(ctx, subject, toEmail, htmlBody)
+}
+
+// SendAccountDeletionEmail sends a confirmation email notifying the user of permanent account & data erasure.
+func (s *ResendService) SendAccountDeletionEmail(ctx context.Context, toEmail, name string) error {
+	subject := "⚠️ Account & Data Permanently Deleted — Smart Invest Solutions"
+
+	htmlBody := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<body style="font-family: sans-serif; padding: 20px; background-color: #0f172a; color: #f8fafc;">
+    <div style="max-width: 500px; margin: 0 auto; background: #1e293b; padding: 24px; border-radius: 12px; border: 1px solid #ef4444;">
+        <h2 style="color: #ef4444;">Account Permanently Deleted</h2>
+        <p>Hello %s,</p>
+        <p>Your account with <strong>Smart Invest Solutions</strong> and all associated data (including E-Vault documents, family details, and insurance policies) have been permanently erased from our system.</p>
+        <p style="color: #94a3b8; font-size: 13px;">Thank you for using Smart Invest Solutions. If you did not request this account deletion, please contact support immediately.</p>
+    </div>
+</body>
+</html>
+`, name)
 
 	return s.sendResendRequest(ctx, subject, toEmail, htmlBody)
 }

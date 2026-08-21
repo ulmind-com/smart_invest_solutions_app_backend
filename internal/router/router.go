@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/smart-invest-solutions/backend/internal/config"
 	"github.com/smart-invest-solutions/backend/internal/database"
+	"github.com/smart-invest-solutions/backend/internal/domain"
 	"github.com/smart-invest-solutions/backend/internal/handler"
 	"github.com/smart-invest-solutions/backend/internal/middleware"
 	"github.com/smart-invest-solutions/backend/internal/repository"
@@ -61,7 +62,14 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	documentRepo := repository.NewDocumentRepository(db.Database)
 
 	// Initialize Services
-	userService := service.NewUserService(userRepo, cfg, emailSvc)
+	userSvcConcrete := service.NewUserService(userRepo, cfg, emailSvc)
+	if setter, ok := userSvcConcrete.(interface {
+		SetCascadeDependencies(domain.FamilyMemberRepository, domain.GeneralInsuranceRepository, domain.DocumentRepository, service.StorageService)
+	}); ok {
+		setter.SetCascadeDependencies(familyMemberRepo, generalInsuranceRepo, documentRepo, storageSvc)
+	}
+	userService := userSvcConcrete
+
 	accessReqService := service.NewAccessRequestService(accessReqRepo, userRepo, userService, emailSvc)
 	passResetService := service.NewPasswordResetService(passResetRepo, userRepo, emailSvc)
 	familyMemberService := service.NewFamilyMemberService(familyMemberRepo)
@@ -93,6 +101,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 
 			users.GET("/me", userHandler.GetProfile)
 			users.PUT("/me", userHandler.UpdateProfile)
+			users.DELETE("/me", userHandler.DeleteMyAccount)
 			users.PUT("/change-password", userHandler.ChangePassword)
 
 			users.GET("/:id", userHandler.GetByID)

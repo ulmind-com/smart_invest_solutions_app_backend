@@ -137,3 +137,9 @@ func (r *familyMemberRepository) Delete(ctx context.Context, id, userID bson.Obj
 
 	return nil
 }
+
+// DeleteAllByUserID deletes all family member records belonging to a user.
+func (r *familyMemberRepository) DeleteAllByUserID(ctx context.Context, userID bson.ObjectID) error {
+	_, err := r.collection.DeleteMany(ctx, bson.M{"user_id": userID})
+	return err
+}

@@ -15,9 +15,13 @@ import (
 
 // userService implements domain.UserService.
 type userService struct {
-	userRepo domain.UserRepository
-	config   *config.Config
-	emailSvc email.EmailService
+	userRepo             domain.UserRepository
+	config               *config.Config
+	emailSvc             email.EmailService
+	familyMemberRepo     domain.FamilyMemberRepository
+	generalInsuranceRepo domain.GeneralInsuranceRepository
+	documentRepo         domain.DocumentRepository
+	storageSvc           StorageService
 }
 
 // NewUserService creates a new user service with the given repository, config, and email service.
@@ -27,6 +31,14 @@ func NewUserService(userRepo domain.UserRepository, cfg *config.Config, emailSvc
 		config:   cfg,
 		emailSvc: emailSvc,
 	}
+}
+
+// SetCascadeDependencies wires repositories for full cascade account deletion.
+func (s *userService) SetCascadeDependencies(familyMemberRepo domain.FamilyMemberRepository, generalInsuranceRepo domain.GeneralInsuranceRepository, documentRepo domain.DocumentRepository, storageSvc StorageService) {
+	s.familyMemberRepo = familyMemberRepo
+	s.generalInsuranceRepo = generalInsuranceRepo
+	s.documentRepo = documentRepo
+	s.storageSvc = storageSvc
 }
 
 // Register creates a new user with a hashed password, setting IsActive to false (pending verification) and sending a Welcome email.
@@ -239,4 +251,53 @@ func (s *userService) Delete(ctx context.Context, id string) error {
 	}
 
 	return s.userRepo.Delete(ctx, objectID)
+}
+
+// DeleteMyAccount permanently deletes the logged in user account and wipes all associated records and Cloudinary files.
+func (s *userService) DeleteMyAccount(ctx context.Context, userIDStr string) error {
+	objectID, err := bson.ObjectIDFromHex(userIDStr)
+	if err != nil {
+		return fmt.Errorf("invalid user ID format: %w", err)
+	}
+
+	user, err := s.userRepo.FindByID(ctx, objectID)
+	if err != nil || user == nil {
+		return fmt.Errorf("user account not found")
+	}
+
+	// 1. Purge all user E-Vault documents from Cloudinary and delete database records
+	if s.documentRepo != nil {
+		docs, _, _ := s.documentRepo.FindAllByUserID(ctx, objectID, "")
+		for _, doc := range docs {
+			if doc.PublicID != "" && s.storageSvc != nil {
+				_ = s.storageSvc.DeleteImage(ctx, doc.PublicID)
+			}
+		}
+		_ = s.documentRepo.DeleteAllByUserID(ctx, objectID)
+	}
+
+	// 2. Cascade delete family members
+	if s.familyMemberRepo != nil {
+		_ = s.familyMemberRepo.DeleteAllByUserID(ctx, objectID)
+	}
+
+	// 3. Cascade delete general insurance records
+	if s.generalInsuranceRepo != nil {
+		_ = s.generalInsuranceRepo.DeleteAllByUserID(ctx, objectID)
+	}
+
+	// 4. Delete user profile document from MongoDB
+	err = s.userRepo.Delete(ctx, objectID)
+	if err != nil {
+		return fmt.Errorf("failed to delete user account: %w", err)
+	}
+
+	// 5. Send account deletion notification email asynchronously
+	if s.emailSvc != nil {
+		go func() {
+			_ = s.emailSvc.SendAccountDeletionEmail(context.Background(), user.Email, user.Name)
+		}()
+	}
+
+	return nil
 }

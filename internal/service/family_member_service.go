@@ -128,3 +128,12 @@ func (s *familyMemberService) GetMembersByUserIDAdmin(ctx context.Context, targe
 		Data:  members,
 	}, nil
 }
+
+// DeleteAllByUserID removes all family member records associated with a user ID string.
+func (s *familyMemberService) DeleteAllByUserID(ctx context.Context, userIDStr string) error {
+	userID, err := bson.ObjectIDFromHex(userIDStr)
+	if err != nil {
+		return fmt.Errorf("invalid user ID format: %w", err)
+	}
+	return s.repo.DeleteAllByUserID(ctx, userID)
+}

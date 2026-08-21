@@ -1524,6 +1524,32 @@ paths:
       tags:
       - Authentication
   /users/me:
+    delete:
+      consumes:
+      - application/json
+      description: Permanently deletes the authenticated user's account and wipes
+        all associated E-Vault documents (from Cloudinary), family details, and insurance
+        policies.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Account permanently deleted
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "500":
+          description: Failed to delete account
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete logged-in user account
+      tags:
+      - Profile
     get:
       consumes:
       - application/json

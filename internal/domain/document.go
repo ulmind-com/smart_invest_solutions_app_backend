@@ -55,6 +55,7 @@ type DocumentRepository interface {
 	FindByID(ctx context.Context, id bson.ObjectID) (*Document, error)
 	Update(ctx context.Context, id, userID bson.ObjectID, update *UpdateDocumentDTO) (*Document, error)
 	Delete(ctx context.Context, id, userID bson.ObjectID) error
+	DeleteAllByUserID(ctx context.Context, userID bson.ObjectID) error
 }
 
 // DocumentService defines business logic operations for documents.
@@ -65,4 +66,5 @@ type DocumentService interface {
 	UpdateDocument(ctx context.Context, idStr, userIDStr string, dto *UpdateDocumentDTO, newFile io.Reader, filename string) (*Document, error)
 	DeleteDocument(ctx context.Context, idStr, userIDStr string) error
 	GetDocumentsByUserIDAdmin(ctx context.Context, targetUserIDStr, searchQuery string) (*DocumentListResponse, error)
+	DeleteAllByUserID(ctx context.Context, userIDStr string) error
 }

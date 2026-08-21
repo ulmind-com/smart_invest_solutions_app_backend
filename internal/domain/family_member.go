@@ -54,6 +54,7 @@ type FamilyMemberRepository interface {
 	FindByID(ctx context.Context, id bson.ObjectID) (*FamilyMember, error)
 	Update(ctx context.Context, id, userID bson.ObjectID, update *UpdateFamilyMemberDTO) (*FamilyMember, error)
 	Delete(ctx context.Context, id, userID bson.ObjectID) error
+	DeleteAllByUserID(ctx context.Context, userID bson.ObjectID) error
 }
 
 // FamilyMemberService defines business logic operations for family members.
@@ -64,4 +65,5 @@ type FamilyMemberService interface {
 	UpdateMember(ctx context.Context, idStr, userIDStr string, dto *UpdateFamilyMemberDTO) (*FamilyMember, error)
 	DeleteMember(ctx context.Context, idStr, userIDStr string) error
 	GetMembersByUserIDAdmin(ctx context.Context, targetUserIDStr string) (*FamilyMemberListResponse, error)
+	DeleteAllByUserID(ctx context.Context, userIDStr string) error
 }
