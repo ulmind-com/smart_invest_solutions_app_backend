@@ -1342,6 +1342,309 @@
                 }
             }
         },
+        "/fixed-deposits": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Clients receive their own Fixed Deposits (unpaginated list + total). Admin/super_admin receive a paginated master list across all clients (page, limit, is_mapped query params), each row enriched with the customer's name and contact number.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Fixed Deposit"
+                ],
+                "summary": "Get Fixed Deposits",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page number — Admin only (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Items per page — Admin only (default: 10, max: 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Filter by mapped status — Admin only",
+                        "name": "is_mapped",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Fixed Deposits retrieved successfully",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a new Fixed Deposit / Postal instrument mapped to a specific family member (1st Holder). Clients create FDs under their own account; admin/super_admin may target any client by passing user_id in the body.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Fixed Deposit"
+                ],
+                "summary": "Add Fixed Deposit",
+                "parameters": [
+                    {
+                        "description": "Fixed Deposit Details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreateFixedDepositDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Fixed Deposit added successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.FixedDeposit"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/fixed-deposits/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves detailed info for a single Fixed Deposit. Clients can only access their own; admin/super_admin can access any.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Fixed Deposit"
+                ],
+                "summary": "Get Fixed Deposit by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Fixed Deposit ID (MongoDB ObjectID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Fixed Deposit retrieved successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.FixedDeposit"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Fixed Deposit not found or access denied",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates FD fields. Clients can only update their own FDs; admin/super_admin can update any. The is_mapped admin-tracking flag can ONLY be changed by admin/super_admin — if a client includes it in the request body, it is silently ignored and the existing value is preserved.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Fixed Deposit"
+                ],
+                "summary": "Update / Edit Fixed Deposit",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Fixed Deposit ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to update",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UpdateFixedDepositDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Fixed Deposit updated successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.FixedDeposit"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Fixed Deposit not found or access denied",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Removes a Fixed Deposit. Clients can only delete their own; admin/super_admin can delete any.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Fixed Deposit"
+                ],
+                "summary": "Delete Fixed Deposit",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Fixed Deposit ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Fixed Deposit deleted successfully",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request or access denied",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/general-insurances": {
             "get": {
                 "security": [
@@ -2972,6 +3275,71 @@
                 }
             }
         },
+        "github_com_smart-invest-solutions_backend_internal_domain.CreateFixedDepositDTO": {
+            "type": "object",
+            "required": [
+                "account_type",
+                "address",
+                "company_name",
+                "family_member_id",
+                "fd_name",
+                "fd_number",
+                "maturity_amount",
+                "maturity_date",
+                "nominee_name",
+                "opening_date",
+                "principal_amount",
+                "term_months"
+            ],
+            "properties": {
+                "account_type": {
+                    "type": "string"
+                },
+                "address": {
+                    "type": "string"
+                },
+                "company_name": {
+                    "type": "string"
+                },
+                "family_member_id": {
+                    "type": "string"
+                },
+                "fd_name": {
+                    "type": "string"
+                },
+                "fd_number": {
+                    "type": "string"
+                },
+                "is_mapped": {
+                    "type": "boolean"
+                },
+                "maturity_amount": {
+                    "type": "number"
+                },
+                "maturity_date": {
+                    "type": "string"
+                },
+                "nominee_name": {
+                    "type": "string"
+                },
+                "opening_date": {
+                    "type": "string"
+                },
+                "principal_amount": {
+                    "type": "number"
+                },
+                "second_holder_name": {
+                    "type": "string"
+                },
+                "term_months": {
+                    "type": "integer"
+                },
+                "user_id": {
+                    "type": "string",
+                    "example": "64f1a2b3c4d5e6f7a8b9c0d1"
+                }
+            }
+        },
         "github_com_smart-invest-solutions_backend_internal_domain.CreateGeneralInsuranceDTO": {
             "type": "object",
             "required": [
@@ -3224,6 +3592,70 @@
                 },
                 "total": {
                     "type": "integer"
+                }
+            }
+        },
+        "github_com_smart-invest-solutions_backend_internal_domain.FixedDeposit": {
+            "type": "object",
+            "properties": {
+                "account_type": {
+                    "type": "string"
+                },
+                "address": {
+                    "description": "Branch / Post office address",
+                    "type": "string"
+                },
+                "company_name": {
+                    "description": "Bank / Institution",
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "family_member_id": {
+                    "description": "1st Holder",
+                    "type": "string"
+                },
+                "fd_name": {
+                    "type": "string"
+                },
+                "fd_number": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_mapped": {
+                    "description": "Admin tracking flag — admin/super_admin only can change on update",
+                    "type": "boolean"
+                },
+                "maturity_amount": {
+                    "type": "number"
+                },
+                "maturity_date": {
+                    "type": "string"
+                },
+                "nominee_name": {
+                    "type": "string"
+                },
+                "opening_date": {
+                    "type": "string"
+                },
+                "principal_amount": {
+                    "type": "number"
+                },
+                "second_holder_name": {
+                    "type": "string"
+                },
+                "term_months": {
+                    "description": "Duration in months",
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
                 }
             }
         },
@@ -3481,6 +3913,53 @@
                 },
                 "relation_with_hof": {
                     "type": "string"
+                }
+            }
+        },
+        "github_com_smart-invest-solutions_backend_internal_domain.UpdateFixedDepositDTO": {
+            "type": "object",
+            "properties": {
+                "account_type": {
+                    "type": "string"
+                },
+                "address": {
+                    "type": "string"
+                },
+                "company_name": {
+                    "type": "string"
+                },
+                "family_member_id": {
+                    "type": "string"
+                },
+                "fd_name": {
+                    "type": "string"
+                },
+                "fd_number": {
+                    "type": "string"
+                },
+                "is_mapped": {
+                    "type": "boolean"
+                },
+                "maturity_amount": {
+                    "type": "number"
+                },
+                "maturity_date": {
+                    "type": "string"
+                },
+                "nominee_name": {
+                    "type": "string"
+                },
+                "opening_date": {
+                    "type": "string"
+                },
+                "principal_amount": {
+                    "type": "number"
+                },
+                "second_holder_name": {
+                    "type": "string"
+                },
+                "term_months": {
+                    "type": "integer"
                 }
             }
         },

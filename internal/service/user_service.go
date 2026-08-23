@@ -30,6 +30,7 @@ type userService struct {
 	generalInsuranceRepo domain.GeneralInsuranceRepository
 	documentRepo         domain.DocumentRepository
 	lifeInsuranceRepo    domain.LifeInsuranceRepository
+	fixedDepositRepo     domain.FixedDepositRepository
 	storageSvc           StorageService
 }
 
@@ -43,11 +44,12 @@ func NewUserService(userRepo domain.UserRepository, cfg *config.Config, emailSvc
 }
 
 // SetCascadeDependencies wires repositories for full cascade account deletion.
-func (s *userService) SetCascadeDependencies(familyMemberRepo domain.FamilyMemberRepository, generalInsuranceRepo domain.GeneralInsuranceRepository, documentRepo domain.DocumentRepository, lifeInsuranceRepo domain.LifeInsuranceRepository, storageSvc StorageService) {
+func (s *userService) SetCascadeDependencies(familyMemberRepo domain.FamilyMemberRepository, generalInsuranceRepo domain.GeneralInsuranceRepository, documentRepo domain.DocumentRepository, lifeInsuranceRepo domain.LifeInsuranceRepository, fixedDepositRepo domain.FixedDepositRepository, storageSvc StorageService) {
 	s.familyMemberRepo = familyMemberRepo
 	s.generalInsuranceRepo = generalInsuranceRepo
 	s.documentRepo = documentRepo
 	s.lifeInsuranceRepo = lifeInsuranceRepo
+	s.fixedDepositRepo = fixedDepositRepo
 	s.storageSvc = storageSvc
 }
 
@@ -341,7 +343,8 @@ func (s *userService) Delete(ctx context.Context, requesterRole, id string) erro
 }
 
 // cascadeWipeUserData purges a user's E-Vault documents (including Cloudinary assets), family members,
-// general insurance records, and life insurance policies. Shared by DeleteMyAccount and DeleteAdmin.
+// general insurance records, life insurance policies, and fixed deposits. Shared by DeleteMyAccount
+// and DeleteAdmin.
 func (s *userService) cascadeWipeUserData(ctx context.Context, objectID bson.ObjectID) {
 	if s.documentRepo != nil {
 		docs, _, _ := s.documentRepo.FindAllByUserID(ctx, objectID, "")
@@ -363,6 +366,10 @@ func (s *userService) cascadeWipeUserData(ctx context.Context, objectID bson.Obj
 
 	if s.lifeInsuranceRepo != nil {
 		_ = s.lifeInsuranceRepo.DeleteAllByUserID(ctx, objectID)
+	}
+
+	if s.fixedDepositRepo != nil {
+		_ = s.fixedDepositRepo.DeleteAllByUserID(ctx, objectID)
 	}
 }
 

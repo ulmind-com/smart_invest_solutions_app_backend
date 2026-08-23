@@ -61,13 +61,14 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	generalInsuranceRepo := repository.NewGeneralInsuranceRepository(db.Database)
 	documentRepo := repository.NewDocumentRepository(db.Database)
 	lifeInsuranceRepo := repository.NewLifeInsuranceRepository(db.Database)
+	fixedDepositRepo := repository.NewFixedDepositRepository(db.Database)
 
 	// Initialize Services
 	userSvcConcrete := service.NewUserService(userRepo, cfg, emailSvc)
 	if setter, ok := userSvcConcrete.(interface {
-		SetCascadeDependencies(domain.FamilyMemberRepository, domain.GeneralInsuranceRepository, domain.DocumentRepository, domain.LifeInsuranceRepository, service.StorageService)
+		SetCascadeDependencies(domain.FamilyMemberRepository, domain.GeneralInsuranceRepository, domain.DocumentRepository, domain.LifeInsuranceRepository, domain.FixedDepositRepository, service.StorageService)
 	}); ok {
-		setter.SetCascadeDependencies(familyMemberRepo, generalInsuranceRepo, documentRepo, lifeInsuranceRepo, storageSvc)
+		setter.SetCascadeDependencies(familyMemberRepo, generalInsuranceRepo, documentRepo, lifeInsuranceRepo, fixedDepositRepo, storageSvc)
 	}
 	userService := userSvcConcrete
 
@@ -77,6 +78,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	generalInsuranceService := service.NewGeneralInsuranceService(generalInsuranceRepo)
 	documentService := service.NewDocumentService(documentRepo, storageSvc)
 	lifeInsuranceService := service.NewLifeInsuranceService(lifeInsuranceRepo, userRepo, familyMemberRepo)
+	fixedDepositService := service.NewFixedDepositService(fixedDepositRepo, userRepo, familyMemberRepo)
 
 	// Initialize Handlers
 	userHandler := handler.NewUserHandler(userService, passResetService)
@@ -85,6 +87,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	generalInsuranceHandler := handler.NewGeneralInsuranceHandler(generalInsuranceService)
 	documentHandler := handler.NewDocumentHandler(documentService)
 	lifeInsuranceHandler := handler.NewLifeInsuranceHandler(lifeInsuranceService)
+	fixedDepositHandler := handler.NewFixedDepositHandler(fixedDepositService)
 
 	// API v1 routes
 	v1 := router.Group("/api/v1")
@@ -224,6 +227,20 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			lifeInsurances.GET("/:id", lifeInsuranceHandler.GetByID)
 			lifeInsurances.PUT("/:id", lifeInsuranceHandler.UpdatePolicy)
 			lifeInsurances.DELETE("/:id", lifeInsuranceHandler.DeletePolicy)
+		}
+
+		// Fixed Deposit / Postal routes — RBAC (client-owns-only vs admin-bypass, plus the
+		// admin-only is_mapped modification rule) is enforced inside the service layer, so no
+		// RequireRole gate is needed at the router level; every route just requires authentication.
+		fixedDeposits := v1.Group("/fixed-deposits")
+		{
+			fixedDeposits.Use(middleware.RequireAuth(cfg))
+
+			fixedDeposits.POST("", fixedDepositHandler.CreateFD)
+			fixedDeposits.GET("", fixedDepositHandler.GetFDs)
+			fixedDeposits.GET("/:id", fixedDepositHandler.GetByID)
+			fixedDeposits.PUT("/:id", fixedDepositHandler.UpdateFD)
+			fixedDeposits.DELETE("/:id", fixedDepositHandler.DeleteFD)
 		}
 	}
 
