@@ -1774,6 +1774,309 @@ const docTemplate = `{
                 }
             }
         },
+        "/life-insurances": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Clients receive their own policies (unpaginated list + total). Admin/super_admin receive a paginated master list across all clients (page, limit, is_mapped query params), each row enriched with the customer's name and contact number.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Life Insurance"
+                ],
+                "summary": "Get Life Insurance policies",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page number — Admin only (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Items per page — Admin only (default: 10, max: 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Filter by mapped status — Admin only",
+                        "name": "is_mapped",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Policies retrieved successfully",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a new life insurance policy mapped to a specific family member. Clients create policies under their own account; admin/super_admin may target any client by passing user_id in the body (\"Select Member\" flow).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Life Insurance"
+                ],
+                "summary": "Add Life Insurance policy",
+                "parameters": [
+                    {
+                        "description": "Life Insurance Policy Details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreateLifeInsuranceDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Life Insurance policy added successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.LifeInsurance"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/life-insurances/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves detailed info for a single life insurance policy. Clients can only access their own; admin/super_admin can access any.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Life Insurance"
+                ],
+                "summary": "Get Life Insurance policy by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Life Insurance Policy ID (MongoDB ObjectID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Policy retrieved successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.LifeInsurance"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Policy not found or access denied",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates policy/premium fields. Clients can only update their own policies; admin/super_admin can update any. Reassigning family_member_id re-validates ownership and refreshes the cached life_insured_name.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Life Insurance"
+                ],
+                "summary": "Update / Edit Life Insurance policy",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Policy ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to update",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UpdateLifeInsuranceDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Policy updated successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.LifeInsurance"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Policy not found or access denied",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Removes a life insurance policy. Clients can only delete their own; admin/super_admin can delete any.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Life Insurance"
+                ],
+                "summary": "Delete Life Insurance policy",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Policy ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Policy deleted successfully",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request or access denied",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/users": {
             "get": {
                 "security": [
@@ -2705,6 +3008,100 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_smart-invest-solutions_backend_internal_domain.CreateLifeInsuranceDTO": {
+            "type": "object",
+            "required": [
+                "company_name",
+                "family_member_id",
+                "policy_details",
+                "premium_details"
+            ],
+            "properties": {
+                "company_name": {
+                    "type": "string"
+                },
+                "family_member_id": {
+                    "type": "string"
+                },
+                "is_mapped": {
+                    "type": "boolean"
+                },
+                "policy_details": {
+                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreatePolicyDetailsDTO"
+                },
+                "premium_details": {
+                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreatePremiumDetailsDTO"
+                },
+                "user_id": {
+                    "type": "string",
+                    "example": "64f1a2b3c4d5e6f7a8b9c0d1"
+                }
+            }
+        },
+        "github_com_smart-invest-solutions_backend_internal_domain.CreatePolicyDetailsDTO": {
+            "type": "object",
+            "required": [
+                "doc",
+                "maturity_date",
+                "nominee_name",
+                "plan_name",
+                "policy_no",
+                "ppt",
+                "sum_assured",
+                "term"
+            ],
+            "properties": {
+                "doc": {
+                    "type": "string"
+                },
+                "maturity_date": {
+                    "type": "string"
+                },
+                "nominee_name": {
+                    "type": "string"
+                },
+                "plan_name": {
+                    "type": "string"
+                },
+                "policy_no": {
+                    "type": "string"
+                },
+                "ppt": {
+                    "type": "integer"
+                },
+                "sum_assured": {
+                    "type": "number"
+                },
+                "term": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_smart-invest-solutions_backend_internal_domain.CreatePremiumDetailsDTO": {
+            "type": "object",
+            "required": [
+                "installment_premium",
+                "next_due_date",
+                "payment_mode"
+            ],
+            "properties": {
+                "installment_premium": {
+                    "type": "number"
+                },
+                "next_due_date": {
+                    "type": "string"
+                },
+                "payment_mode": {
+                    "type": "string",
+                    "enum": [
+                        "Yearly",
+                        "Half-Yearly",
+                        "Quarterly",
+                        "Monthly"
+                    ]
+                }
+            }
+        },
         "github_com_smart-invest-solutions_backend_internal_domain.CreateUserRequest": {
             "type": "object",
             "required": [
@@ -2945,6 +3342,39 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_smart-invest-solutions_backend_internal_domain.LifeInsurance": {
+            "type": "object",
+            "properties": {
+                "company_name": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "family_member_id": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_mapped": {
+                    "description": "Admin flag: formally mapped to their agency portfolio",
+                    "type": "boolean"
+                },
+                "policy_details": {
+                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.PolicyDetails"
+                },
+                "premium_details": {
+                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.PremiumDetails"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_smart-invest-solutions_backend_internal_domain.LoginResponse": {
             "type": "object",
             "properties": {
@@ -2953,6 +3383,57 @@ const docTemplate = `{
                 },
                 "user": {
                     "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserResponse"
+                }
+            }
+        },
+        "github_com_smart-invest-solutions_backend_internal_domain.PolicyDetails": {
+            "type": "object",
+            "properties": {
+                "doc": {
+                    "description": "Date of Commencement",
+                    "type": "string"
+                },
+                "life_insured_name": {
+                    "description": "Cached from the linked family member",
+                    "type": "string"
+                },
+                "maturity_date": {
+                    "type": "string"
+                },
+                "nominee_name": {
+                    "type": "string"
+                },
+                "plan_name": {
+                    "type": "string"
+                },
+                "policy_no": {
+                    "type": "string"
+                },
+                "ppt": {
+                    "description": "Premium Paying Term in years",
+                    "type": "integer"
+                },
+                "sum_assured": {
+                    "type": "number"
+                },
+                "term": {
+                    "description": "Total policy duration in years",
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_smart-invest-solutions_backend_internal_domain.PremiumDetails": {
+            "type": "object",
+            "properties": {
+                "installment_premium": {
+                    "type": "number"
+                },
+                "next_due_date": {
+                    "description": "Indexed — powers premium-reminder/dashboard queries",
+                    "type": "string"
+                },
+                "payment_mode": {
+                    "type": "string"
                 }
             }
         },
@@ -3030,6 +3511,59 @@ const docTemplate = `{
                 },
                 "vehicle_no": {
                     "type": "string"
+                }
+            }
+        },
+        "github_com_smart-invest-solutions_backend_internal_domain.UpdateLifeInsuranceDTO": {
+            "type": "object",
+            "properties": {
+                "company_name": {
+                    "type": "string"
+                },
+                "doc": {
+                    "type": "string"
+                },
+                "family_member_id": {
+                    "type": "string"
+                },
+                "installment_premium": {
+                    "type": "number"
+                },
+                "is_mapped": {
+                    "type": "boolean"
+                },
+                "maturity_date": {
+                    "type": "string"
+                },
+                "next_due_date": {
+                    "type": "string"
+                },
+                "nominee_name": {
+                    "type": "string"
+                },
+                "payment_mode": {
+                    "type": "string",
+                    "enum": [
+                        "Yearly",
+                        "Half-Yearly",
+                        "Quarterly",
+                        "Monthly"
+                    ]
+                },
+                "plan_name": {
+                    "type": "string"
+                },
+                "policy_no": {
+                    "type": "string"
+                },
+                "ppt": {
+                    "type": "integer"
+                },
+                "sum_assured": {
+                    "type": "number"
+                },
+                "term": {
+                    "type": "integer"
                 }
             }
         },

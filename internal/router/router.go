@@ -60,13 +60,14 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	familyMemberRepo := repository.NewFamilyMemberRepository(db.Database)
 	generalInsuranceRepo := repository.NewGeneralInsuranceRepository(db.Database)
 	documentRepo := repository.NewDocumentRepository(db.Database)
+	lifeInsuranceRepo := repository.NewLifeInsuranceRepository(db.Database)
 
 	// Initialize Services
 	userSvcConcrete := service.NewUserService(userRepo, cfg, emailSvc)
 	if setter, ok := userSvcConcrete.(interface {
-		SetCascadeDependencies(domain.FamilyMemberRepository, domain.GeneralInsuranceRepository, domain.DocumentRepository, service.StorageService)
+		SetCascadeDependencies(domain.FamilyMemberRepository, domain.GeneralInsuranceRepository, domain.DocumentRepository, domain.LifeInsuranceRepository, service.StorageService)
 	}); ok {
-		setter.SetCascadeDependencies(familyMemberRepo, generalInsuranceRepo, documentRepo, storageSvc)
+		setter.SetCascadeDependencies(familyMemberRepo, generalInsuranceRepo, documentRepo, lifeInsuranceRepo, storageSvc)
 	}
 	userService := userSvcConcrete
 
@@ -75,6 +76,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	familyMemberService := service.NewFamilyMemberService(familyMemberRepo)
 	generalInsuranceService := service.NewGeneralInsuranceService(generalInsuranceRepo)
 	documentService := service.NewDocumentService(documentRepo, storageSvc)
+	lifeInsuranceService := service.NewLifeInsuranceService(lifeInsuranceRepo, userRepo, familyMemberRepo)
 
 	// Initialize Handlers
 	userHandler := handler.NewUserHandler(userService, passResetService)
@@ -82,6 +84,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	familyMemberHandler := handler.NewFamilyMemberHandler(familyMemberService)
 	generalInsuranceHandler := handler.NewGeneralInsuranceHandler(generalInsuranceService)
 	documentHandler := handler.NewDocumentHandler(documentService)
+	lifeInsuranceHandler := handler.NewLifeInsuranceHandler(lifeInsuranceService)
 
 	// API v1 routes
 	v1 := router.Group("/api/v1")
@@ -207,6 +210,20 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			{
 				adminDocs.GET("/user/:userId", documentHandler.GetDocumentsByUserIDAdmin)
 			}
+		}
+
+		// Life Insurance routes — RBAC (client-owns-only vs admin-bypass) is enforced inside the
+		// service layer per policy, so no RequireRole gate is needed at the router level; every
+		// route just requires authentication.
+		lifeInsurances := v1.Group("/life-insurances")
+		{
+			lifeInsurances.Use(middleware.RequireAuth(cfg))
+
+			lifeInsurances.POST("", lifeInsuranceHandler.CreatePolicy)
+			lifeInsurances.GET("", lifeInsuranceHandler.GetPolicies)
+			lifeInsurances.GET("/:id", lifeInsuranceHandler.GetByID)
+			lifeInsurances.PUT("/:id", lifeInsuranceHandler.UpdatePolicy)
+			lifeInsurances.DELETE("/:id", lifeInsuranceHandler.DeletePolicy)
 		}
 	}
 
