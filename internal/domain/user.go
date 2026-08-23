@@ -63,15 +63,18 @@ type ChangePasswordRequest struct {
 	ConfirmPassword string `json:"confirm_password" binding:"required"`
 }
 
-// LoginRequest represents the request payload for user login.
-// Clients authenticate with Email + Password. Admin/Super Admin accounts may additionally
-// authenticate with AdminID in place of Email, and/or PIN in place of Password — any
-// combination of identifier (Email or AdminID) + credential (Password or PIN) is accepted.
-type LoginRequest struct {
-	Email    string `json:"email,omitempty" example:"user@example.com"`
-	AdminID  string `json:"admin_id,omitempty" example:"ADM-7F3K9Q"`
-	Password string `json:"password,omitempty" example:"MyP@ssw0rd"`
-	PIN      string `json:"pin,omitempty" example:"1234"`
+// UserLoginRequest represents the request payload for normal user (client/advisor) login.
+// Only Email + Password is accepted — admin_id/pin credentials are rejected here.
+type UserLoginRequest struct {
+	Email    string `json:"email" binding:"required,email" example:"user@example.com"`
+	Password string `json:"password" binding:"required" example:"MyP@ssw0rd"`
+}
+
+// AdminLoginRequest represents the request payload for admin/super_admin login.
+// Only AdminID + PIN is accepted — email/password credentials are rejected here.
+type AdminLoginRequest struct {
+	AdminID string `json:"admin_id" binding:"required" example:"ADM-7F3K9Q"`
+	PIN     string `json:"pin" binding:"required" example:"1234"`
 }
 
 // LoginResponse represents the response containing the token and user details.
@@ -132,7 +135,7 @@ type UserRepository interface {
 	Create(ctx context.Context, user *User) (*User, error)
 	FindByID(ctx context.Context, id bson.ObjectID) (*User, error)
 	FindByEmail(ctx context.Context, email string) (*User, error)
-	FindByEmailOrAdminID(ctx context.Context, identifier string) (*User, error)
+	FindByAdminID(ctx context.Context, adminID string) (*User, error)
 	FindAll(ctx context.Context, page, limit int64) ([]*User, int64, error)
 	FindAllByRoles(ctx context.Context, roles []string, page, limit int64) ([]*User, int64, error)
 	Update(ctx context.Context, id bson.ObjectID, update *UpdateUserRequest) (*User, error)
@@ -146,7 +149,8 @@ type UserRepository interface {
 // UserService defines the interface for user business logic operations.
 type UserService interface {
 	Register(ctx context.Context, req *CreateUserRequest) (*UserResponse, error)
-	Login(ctx context.Context, req *LoginRequest) (*LoginResponse, error)
+	Login(ctx context.Context, req *UserLoginRequest) (*LoginResponse, error)
+	AdminLogin(ctx context.Context, req *AdminLoginRequest) (*LoginResponse, error)
 	GetByID(ctx context.Context, id string) (*UserResponse, error)
 	GetAll(ctx context.Context, page, limit int64) ([]*UserResponse, int64, error)
 	Update(ctx context.Context, requesterRole, id string, req *UpdateUserRequest) (*UserResponse, error)

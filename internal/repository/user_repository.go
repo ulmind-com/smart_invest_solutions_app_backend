@@ -74,14 +74,10 @@ func (r *userRepository) FindByEmail(ctx context.Context, email string) (*domain
 	return &user, nil
 }
 
-// FindByEmailOrAdminID retrieves a user matching either the given email or admin_id.
-func (r *userRepository) FindByEmailOrAdminID(ctx context.Context, identifier string) (*domain.User, error) {
+// FindByAdminID retrieves a user matching the given admin_id.
+func (r *userRepository) FindByAdminID(ctx context.Context, adminID string) (*domain.User, error) {
 	var user domain.User
-	filter := bson.M{"$or": []bson.M{
-		{"email": identifier},
-		{"admin_id": identifier},
-	}}
-	err := r.collection.FindOne(ctx, filter).Decode(&user)
+	err := r.collection.FindOne(ctx, bson.M{"admin_id": adminID}).Decode(&user)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, fmt.Errorf("user not found")

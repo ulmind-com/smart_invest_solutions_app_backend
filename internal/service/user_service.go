@@ -88,26 +88,12 @@ func (s *userService) Register(ctx context.Context, req *domain.CreateUserReques
 	return createdUser.ToResponse(), nil
 }
 
-// Login authenticates a user by identifier (Email or AdminID) + credential (Password or PIN) and
-// generates a JWT token after verifying active status and account lock state. The resulting token
-// carries the user's role, so downstream RequireRole checks naturally grant role-appropriate access
-// (client / admin / super_admin) — this single endpoint serves every role.
-func (s *userService) Login(ctx context.Context, req *domain.LoginRequest) (*domain.LoginResponse, error) {
-	identifier := req.Email
-	if identifier == "" {
-		identifier = req.AdminID
-	}
-	credential := req.Password
-	if credential == "" {
-		credential = req.PIN
-	}
-
-	if identifier == "" || credential == "" {
-		return nil, fmt.Errorf("email/admin_id and password/pin are required")
-	}
-
-	// Find user by email or admin ID
-	user, err := s.userRepo.FindByEmailOrAdminID(ctx, identifier)
+// Login authenticates a normal user (client/advisor) by Email + Password. Admin/super_admin
+// accounts cannot sign in through this endpoint — they must use AdminLogin instead. The password
+// is checked before the role gate so that a wrong-endpoint hint is only ever revealed to someone
+// who already proved they know the correct password (no new information is leaked to an attacker).
+func (s *userService) Login(ctx context.Context, req *domain.UserLoginRequest) (*domain.LoginResponse, error) {
+	user, err := s.userRepo.FindByEmail(ctx, req.Email)
 	if err != nil || user == nil {
 		return nil, fmt.Errorf("invalid credentials")
 	}
@@ -123,13 +109,49 @@ func (s *userService) Login(ctx context.Context, req *domain.LoginRequest) (*dom
 		return nil, fmt.Errorf("your account is pending verification by Admin. You will receive an email once approved.")
 	}
 
-	// Compare credential against password, falling back to PIN (admin/super_admin accounts only)
-	matched := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(credential)) == nil
-	if !matched && user.PIN != "" {
-		matched = bcrypt.CompareHashAndPassword([]byte(user.PIN), []byte(credential)) == nil
+	if bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)) != nil {
+		attempts, recErr := s.userRepo.RecordFailedLogin(ctx, user.ID)
+		if recErr == nil && attempts >= maxFailedLoginAttempts {
+			_ = s.userRepo.LockAccount(ctx, user.ID, time.Now().UTC().Add(accountLockDuration))
+		}
+		return nil, fmt.Errorf("invalid credentials")
 	}
 
-	if !matched {
+	// Admin/super_admin accounts are restricted to the AdminLogin (AdminID + PIN) flow
+	if user.Role == domain.RoleAdmin || user.Role == domain.RoleSuperAdmin {
+		return nil, fmt.Errorf("admin accounts must sign in with Admin ID and PIN via the admin login")
+	}
+
+	_ = s.userRepo.ClearFailedLogins(ctx, user.ID)
+
+	return s.issueToken(user)
+}
+
+// AdminLogin authenticates an admin/super_admin account by AdminID + PIN. Normal users (client/
+// advisor) have no admin_id/pin and can never match here, and non-admin roles are rejected even in
+// the (unreachable in practice) case where an admin_id collision existed.
+func (s *userService) AdminLogin(ctx context.Context, req *domain.AdminLoginRequest) (*domain.LoginResponse, error) {
+	user, err := s.userRepo.FindByAdminID(ctx, req.AdminID)
+	if err != nil || user == nil {
+		return nil, fmt.Errorf("invalid credentials")
+	}
+
+	if user.Role != domain.RoleAdmin && user.Role != domain.RoleSuperAdmin {
+		return nil, fmt.Errorf("invalid credentials")
+	}
+
+	// Check if account is temporarily locked due to repeated failed attempts
+	if user.LockedUntil != nil && user.LockedUntil.After(time.Now().UTC()) {
+		remaining := time.Until(*user.LockedUntil).Round(time.Minute)
+		return nil, fmt.Errorf("account temporarily locked due to multiple failed login attempts. Try again in %s", remaining)
+	}
+
+	// Check if user is active (Super Admin verified)
+	if !user.IsActive {
+		return nil, fmt.Errorf("your account is pending verification by Admin. You will receive an email once approved.")
+	}
+
+	if user.PIN == "" || bcrypt.CompareHashAndPassword([]byte(user.PIN), []byte(req.PIN)) != nil {
 		attempts, recErr := s.userRepo.RecordFailedLogin(ctx, user.ID)
 		if recErr == nil && attempts >= maxFailedLoginAttempts {
 			_ = s.userRepo.LockAccount(ctx, user.ID, time.Now().UTC().Add(accountLockDuration))
@@ -139,13 +161,17 @@ func (s *userService) Login(ctx context.Context, req *domain.LoginRequest) (*dom
 
 	_ = s.userRepo.ClearFailedLogins(ctx, user.ID)
 
-	// Parse expiry hours from config
+	return s.issueToken(user)
+}
+
+// issueToken generates a JWT (carrying the user's role) and wraps it with the user's public
+// profile into a LoginResponse. Shared by Login and AdminLogin.
+func (s *userService) issueToken(user *domain.User) (*domain.LoginResponse, error) {
 	expiryHours, err := strconv.Atoi(s.config.JWTExpiryHours)
 	if err != nil || expiryHours <= 0 {
 		expiryHours = 24 // default fallback
 	}
 
-	// Generate JWT
 	token, err := utils.GenerateJWT(user.ID, user.Role, s.config.JWTSecret, expiryHours)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
@@ -386,7 +412,7 @@ func (s *userService) CreateAdmin(ctx context.Context, req *domain.CreateAdminRe
 		if genErr != nil {
 			return nil, fmt.Errorf("failed to generate admin ID: %w", genErr)
 		}
-		if existingByID, _ := s.userRepo.FindByEmailOrAdminID(ctx, candidate); existingByID == nil {
+		if existingByID, _ := s.userRepo.FindByAdminID(ctx, candidate); existingByID == nil {
 			adminID = candidate
 			break
 		}

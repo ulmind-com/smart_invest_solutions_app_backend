@@ -100,6 +100,15 @@ func GetMigrations() []Migration {
 					return fmt.Errorf("failed to hash seed super_admin password: %w", err)
 				}
 
+				pin, err := utils.GenerateNumericCode(4)
+				if err != nil {
+					return fmt.Errorf("failed to generate seed super_admin PIN: %w", err)
+				}
+				hashedPIN, err := bcrypt.GenerateFromPassword([]byte(pin), bcrypt.DefaultCost)
+				if err != nil {
+					return fmt.Errorf("failed to hash seed super_admin PIN: %w", err)
+				}
+
 				adminID, err := utils.GenerateAdminID()
 				if err != nil {
 					return fmt.Errorf("failed to generate seed super_admin ID: %w", err)
@@ -110,6 +119,7 @@ func GetMigrations() []Migration {
 					Name:      "Super Admin",
 					Email:     seedSuperAdminEmail,
 					Password:  string(hashedPassword),
+					PIN:       string(hashedPIN),
 					Role:      domain.RoleSuperAdmin,
 					IsActive:  true,
 					AdminID:   adminID,
@@ -126,7 +136,57 @@ func GetMigrations() []Migration {
 					return fmt.Errorf("failed to seed super_admin: %w", err)
 				}
 
-				log.Info().Str("admin_id", adminID).Msg("Seed super_admin created successfully")
+				log.Warn().Str("admin_id", adminID).Str("pin", pin).Msg("Seed super_admin created successfully — record this PIN now, it cannot be retrieved again")
+				return nil
+			},
+		},
+		{
+			Version:     4,
+			Description: "Backfill PIN for admin/super_admin accounts missing one",
+			Up: func(ctx context.Context, db *mongo.Database) error {
+				collection := db.Collection("users")
+
+				filter := bson.M{
+					"role": bson.M{"$in": []string{domain.RoleAdmin, domain.RoleSuperAdmin}},
+					"$or": []bson.M{
+						{"pin": bson.M{"$exists": false}},
+						{"pin": ""},
+					},
+				}
+
+				cursor, err := collection.Find(ctx, filter)
+				if err != nil {
+					return fmt.Errorf("failed to find admin accounts missing a PIN: %w", err)
+				}
+				defer cursor.Close(ctx)
+
+				var accounts []domain.User
+				if err := cursor.All(ctx, &accounts); err != nil {
+					return fmt.Errorf("failed to decode admin accounts: %w", err)
+				}
+
+				for _, account := range accounts {
+					pin, err := utils.GenerateNumericCode(4)
+					if err != nil {
+						return fmt.Errorf("failed to generate backfill PIN for %s: %w", account.Email, err)
+					}
+					hashedPIN, err := bcrypt.GenerateFromPassword([]byte(pin), bcrypt.DefaultCost)
+					if err != nil {
+						return fmt.Errorf("failed to hash backfill PIN for %s: %w", account.Email, err)
+					}
+
+					update := bson.M{"$set": bson.M{"pin": string(hashedPIN), "updated_at": time.Now().UTC()}}
+					if _, err := collection.UpdateOne(ctx, bson.M{"_id": account.ID}, update); err != nil {
+						return fmt.Errorf("failed to backfill PIN for %s: %w", account.Email, err)
+					}
+
+					log.Warn().
+						Str("email", account.Email).
+						Str("admin_id", account.AdminID).
+						Str("pin", pin).
+						Msg("Backfilled a new PIN for an existing admin account that had none — record this PIN now and have the admin change it after logging in")
+				}
+
 				return nil
 			},
 		},

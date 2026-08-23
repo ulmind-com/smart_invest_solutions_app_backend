@@ -51,25 +51,53 @@ func (h *UserHandler) Register(c *gin.Context) {
 	response.Created(c, "User registered successfully", user)
 }
 
-// Login handles unified authentication for every role (client, advisor, admin, super_admin).
-// @Summary      Login (unified — all roles)
-// @Description  Authenticates using an identifier (Email for any role, or AdminID for admin/super_admin) plus a credential (Password for any role, or PIN for admin/super_admin). Any valid identifier+credential combination is accepted. Returns a JWT token containing the user's role — the frontend should use the role to redirect to the correct dashboard/feature set. Accounts lock for 15 minutes after 5 consecutive failed attempts.
+// Login handles authentication for normal users (client, advisor) using Email + Password.
+// Admin/super_admin accounts are rejected here — they must use POST /admins/login instead.
+// @Summary      Login (client/advisor)
+// @Description  Authenticates a normal user (client or advisor) using registered Email + Password. Admin/super_admin accounts cannot log in through this endpoint — use POST /admins/login instead. Returns a JWT token containing the user's role. Accounts lock for 15 minutes after 5 consecutive failed attempts.
 // @Tags         Authentication
 // @Accept       json
 // @Produce      json
-// @Param        request  body      domain.LoginRequest  true  "Login credentials — e.g. {\"email\":\"user@example.com\",\"password\":\"secret\"} or {\"admin_id\":\"ADM-7F3K9Q\",\"pin\":\"1234\"}"
+// @Param        request  body      domain.UserLoginRequest  true  "Login credentials — registered Email and Password"
 // @Success      200      {object}  response.APIResponse{data=domain.LoginResponse}  "Login successful — returns JWT token and user details with role"
 // @Failure      401      {object}  response.APIResponse  "Invalid credentials, account disabled, or account temporarily locked"
 // @Failure      422      {object}  response.APIResponse  "Validation error"
 // @Router       /users/login [post]
 func (h *UserHandler) Login(c *gin.Context) {
-	var req domain.LoginRequest
+	var req domain.UserLoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.ValidationError(c, err.Error())
 		return
 	}
 
 	loginResp, err := h.userService.Login(c.Request.Context(), &req)
+	if err != nil {
+		response.Error(c, http.StatusUnauthorized, err.Error())
+		return
+	}
+
+	response.Success(c, "Login successful", loginResp)
+}
+
+// AdminLogin handles authentication for admin/super_admin accounts using AdminID + PIN.
+// @Summary      Login (admin/super_admin)
+// @Description  Authenticates an admin or super_admin account using AdminID + PIN. Normal users (client/advisor) cannot log in through this endpoint — use POST /users/login instead. Returns a JWT token containing the user's role. Accounts lock for 15 minutes after 5 consecutive failed attempts.
+// @Tags         Authentication
+// @Accept       json
+// @Produce      json
+// @Param        request  body      domain.AdminLoginRequest  true  "Login credentials — Admin ID and 4-digit PIN"
+// @Success      200      {object}  response.APIResponse{data=domain.LoginResponse}  "Login successful — returns JWT token and user details with role"
+// @Failure      401      {object}  response.APIResponse  "Invalid credentials, account disabled, or account temporarily locked"
+// @Failure      422      {object}  response.APIResponse  "Validation error"
+// @Router       /admins/login [post]
+func (h *UserHandler) AdminLogin(c *gin.Context) {
+	var req domain.AdminLoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ValidationError(c, err.Error())
+		return
+	}
+
+	loginResp, err := h.userService.AdminLogin(c.Request.Context(), &req)
 	if err != nil {
 		response.Error(c, http.StatusUnauthorized, err.Error())
 		return

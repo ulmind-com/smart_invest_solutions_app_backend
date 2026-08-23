@@ -496,6 +496,64 @@ const docTemplate = `{
                 }
             }
         },
+        "/admins/login": {
+            "post": {
+                "description": "Authenticates an admin or super_admin account using AdminID + PIN. Normal users (client/advisor) cannot log in through this endpoint — use POST /users/login instead. Returns a JWT token containing the user's role. Accounts lock for 15 minutes after 5 consecutive failed attempts.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Login (admin/super_admin)",
+                "parameters": [
+                    {
+                        "description": "Login credentials — Admin ID and 4-digit PIN",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.AdminLoginRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Login successful — returns JWT token and user details with role",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.LoginResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid credentials, account disabled, or account temporarily locked",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/admins/{id}": {
             "delete": {
                 "security": [
@@ -1821,7 +1879,7 @@ const docTemplate = `{
         },
         "/users/login": {
             "post": {
-                "description": "Authenticates using an identifier (Email for any role, or AdminID for admin/super_admin) plus a credential (Password for any role, or PIN for admin/super_admin). Any valid identifier+credential combination is accepted. Returns a JWT token containing the user's role — the frontend should use the role to redirect to the correct dashboard/feature set. Accounts lock for 15 minutes after 5 consecutive failed attempts.",
+                "description": "Authenticates a normal user (client or advisor) using registered Email + Password. Admin/super_admin accounts cannot log in through this endpoint — use POST /admins/login instead. Returns a JWT token containing the user's role. Accounts lock for 15 minutes after 5 consecutive failed attempts.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1831,15 +1889,15 @@ const docTemplate = `{
                 "tags": [
                     "Authentication"
                 ],
-                "summary": "Login (unified — all roles)",
+                "summary": "Login (client/advisor)",
                 "parameters": [
                     {
-                        "description": "Login credentials — e.g. {\\",
+                        "description": "Login credentials — registered Email and Password",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.LoginRequest"
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserLoginRequest"
                         }
                     }
                 ],
@@ -2412,6 +2470,23 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_smart-invest-solutions_backend_internal_domain.AdminLoginRequest": {
+            "type": "object",
+            "required": [
+                "admin_id",
+                "pin"
+            ],
+            "properties": {
+                "admin_id": {
+                    "type": "string",
+                    "example": "ADM-7F3K9Q"
+                },
+                "pin": {
+                    "type": "string",
+                    "example": "1234"
+                }
+            }
+        },
         "github_com_smart-invest-solutions_backend_internal_domain.ApproveAccessRequestDTO": {
             "type": "object",
             "properties": {
@@ -2760,27 +2835,6 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.LoginRequest": {
-            "type": "object",
-            "properties": {
-                "admin_id": {
-                    "type": "string",
-                    "example": "ADM-7F3K9Q"
-                },
-                "email": {
-                    "type": "string",
-                    "example": "user@example.com"
-                },
-                "password": {
-                    "type": "string",
-                    "example": "MyP@ssw0rd"
-                },
-                "pin": {
-                    "type": "string",
-                    "example": "1234"
-                }
-            }
-        },
         "github_com_smart-invest-solutions_backend_internal_domain.LoginResponse": {
             "type": "object",
             "properties": {
@@ -2897,6 +2951,23 @@ const docTemplate = `{
                 },
                 "role": {
                     "type": "string"
+                }
+            }
+        },
+        "github_com_smart-invest-solutions_backend_internal_domain.UserLoginRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "password"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "example": "user@example.com"
+                },
+                "password": {
+                    "type": "string",
+                    "example": "MyP@ssw0rd"
                 }
             }
         },
