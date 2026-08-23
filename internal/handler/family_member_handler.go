@@ -35,12 +35,11 @@ func NewFamilyMemberHandler(service domain.FamilyMemberService) *FamilyMemberHan
 // @Security     BearerAuth
 // @Router       /family-members [post]
 func (h *FamilyMemberHandler) AddMember(c *gin.Context) {
-	userIDVal, exists := c.Get(middleware.AuthCtxKey)
-	if !exists {
+	userIDStr, ok := middleware.GetUserID(c)
+	if !ok {
 		response.Error(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	userIDStr := userIDVal.(string)
 
 	var dto domain.CreateFamilyMemberDTO
 	if err := c.ShouldBindJSON(&dto); err != nil {
@@ -68,12 +67,11 @@ func (h *FamilyMemberHandler) AddMember(c *gin.Context) {
 // @Security     BearerAuth
 // @Router       /family-members [get]
 func (h *FamilyMemberHandler) GetMyMembers(c *gin.Context) {
-	userIDVal, exists := c.Get(middleware.AuthCtxKey)
-	if !exists {
+	userIDStr, ok := middleware.GetUserID(c)
+	if !ok {
 		response.Error(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	userIDStr := userIDVal.(string)
 
 	respData, err := h.service.GetMyMembers(c.Request.Context(), userIDStr)
 	if err != nil {
@@ -97,12 +95,11 @@ func (h *FamilyMemberHandler) GetMyMembers(c *gin.Context) {
 // @Security     BearerAuth
 // @Router       /family-members/{id} [get]
 func (h *FamilyMemberHandler) GetByID(c *gin.Context) {
-	userIDVal, exists := c.Get(middleware.AuthCtxKey)
-	if !exists {
+	userIDStr, ok := middleware.GetUserID(c)
+	if !ok {
 		response.Error(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	userIDStr := userIDVal.(string)
 
 	idStr := c.Param("id")
 
@@ -130,12 +127,11 @@ func (h *FamilyMemberHandler) GetByID(c *gin.Context) {
 // @Security     BearerAuth
 // @Router       /family-members/{id} [put]
 func (h *FamilyMemberHandler) UpdateMember(c *gin.Context) {
-	userIDVal, exists := c.Get(middleware.AuthCtxKey)
-	if !exists {
+	userIDStr, ok := middleware.GetUserID(c)
+	if !ok {
 		response.Error(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	userIDStr := userIDVal.(string)
 
 	idStr := c.Param("id")
 
@@ -167,12 +163,11 @@ func (h *FamilyMemberHandler) UpdateMember(c *gin.Context) {
 // @Security     BearerAuth
 // @Router       /family-members/{id} [delete]
 func (h *FamilyMemberHandler) DeleteMember(c *gin.Context) {
-	userIDVal, exists := c.Get(middleware.AuthCtxKey)
-	if !exists {
+	userIDStr, ok := middleware.GetUserID(c)
+	if !ok {
 		response.Error(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	userIDStr := userIDVal.(string)
 
 	idStr := c.Param("id")
 

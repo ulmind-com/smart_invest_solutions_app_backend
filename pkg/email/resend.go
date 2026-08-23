@@ -21,6 +21,7 @@ type EmailService interface {
 	SendOTPEmail(ctx context.Context, toEmail, otpCode string) error
 	SendPasswordResetConfirmationEmail(ctx context.Context, toEmail string) error
 	SendAccountDeletionEmail(ctx context.Context, toEmail, name string) error
+	SendAdminCredentialsEmail(ctx context.Context, toEmail, name, adminID, password, pin string) error
 }
 
 // ResendService implements EmailService using the Resend HTTP API.
@@ -266,6 +267,73 @@ func (s *ResendService) SendAccountDeletionEmail(ctx context.Context, toEmail, n
 </body>
 </html>
 `, name)
+
+	return s.sendResendRequest(ctx, subject, toEmail, htmlBody)
+}
+
+// SendAdminCredentialsEmail sends an email containing Admin Portal login credentials (Admin ID, Email,
+// Password, PIN) to a newly created Admin account.
+func (s *ResendService) SendAdminCredentialsEmail(ctx context.Context, toEmail, name, adminID, password, pin string) error {
+	subject := "🔐 Your Admin Portal Access — Smart Invest Solutions"
+
+	htmlBody := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0f172a; margin: 0; padding: 20px; color: #f8fafc; }
+        .container { max-width: 550px; margin: 0 auto; background: #1e293b; border-radius: 16px; padding: 30px; border: 1px solid #334155; }
+        .header { text-align: center; margin-bottom: 24px; }
+        .header h1 { color: #38bdf8; font-size: 24px; margin: 0; }
+        .role-badge { display: inline-block; background: #6366f1; color: #ffffff; font-weight: bold; font-size: 12px; padding: 4px 12px; border-radius: 12px; text-transform: uppercase; }
+        .credentials-box { background: #0f172a; border-left: 4px solid #6366f1; border-radius: 8px; padding: 20px; margin: 24px 0; }
+        .field { margin-bottom: 14px; }
+        .field-label { font-size: 12px; text-transform: uppercase; color: #94a3b8; font-weight: bold; letter-spacing: 0.5px; }
+        .field-value { font-size: 18px; color: #f8fafc; font-family: monospace; font-weight: bold; }
+        .info { color: #94a3b8; font-size: 13px; line-height: 1.6; }
+        .footer { text-align: center; margin-top: 24px; font-size: 12px; color: #64748b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Smart Invest Solutions</h1>
+            <p style="color: #94a3b8; font-size: 14px; margin-top: 4px;">Admin Portal Access Granted</p>
+        </div>
+
+        <h2>Hello %s,</h2>
+        <p>An <span class="role-badge">Admin</span> account has been created for you by the Super Admin.
+        You can now log in to the Admin Portal using either your Email or Admin ID, combined with either
+        your Password or PIN.</p>
+
+        <div class="credentials-box">
+            <div class="field">
+                <div class="field-label">Admin ID</div>
+                <div class="field-value">%s</div>
+            </div>
+            <div class="field">
+                <div class="field-label">Email</div>
+                <div class="field-value">%s</div>
+            </div>
+            <div class="field">
+                <div class="field-label">Password</div>
+                <div class="field-value">%s</div>
+            </div>
+            <div class="field" style="margin-bottom: 0;">
+                <div class="field-label">PIN</div>
+                <div class="field-value">%s</div>
+            </div>
+        </div>
+
+        <p class="info">⚠️ Keep these credentials confidential. For your security, please change your
+        password after your first login.</p>
+
+        <div class="footer">&copy; Smart Invest Solutions. All rights reserved.</div>
+    </div>
+</body>
+</html>
+`, name, adminID, toEmail, password, pin)
 
 	return s.sendResendRequest(ctx, subject, toEmail, htmlBody)
 }

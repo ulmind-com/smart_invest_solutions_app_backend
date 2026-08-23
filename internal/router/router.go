@@ -116,6 +116,16 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			}
 		}
 
+		// Admin Account Management routes (Super Admin only)
+		admins := v1.Group("/admins")
+		admins.Use(middleware.RequireAuth(cfg))
+		admins.Use(middleware.RequireRole("super_admin"))
+		{
+			admins.POST("", userHandler.CreateAdmin)
+			admins.GET("", userHandler.GetAllAdmins)
+			admins.DELETE("/:id", userHandler.DeleteAdmin)
+		}
+
 		// Access Request routes
 		accessReqs := v1.Group("/access-requests")
 		{

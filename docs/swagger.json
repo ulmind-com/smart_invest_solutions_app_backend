@@ -347,6 +347,203 @@
                 }
             }
         },
+        "/admins": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves a paginated list of all admin and super_admin accounts. Only accessible by super_admin.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin Accounts"
+                ],
+                "summary": "Get all Admin accounts (Super Admin only)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Items per page (default: 10, max: 100)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Admin accounts retrieved successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.PaginatedResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden — super_admin role required",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a new Admin account from Name/Email/Phone. Auto-generates a unique Admin ID, a random password, and a 4-digit PIN, then emails the credentials to the new admin. The response also returns the plaintext password/PIN once, so the Super Admin can share them even if the email fails to deliver. Only accessible by super_admin.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin Accounts"
+                ],
+                "summary": "Create Admin account (Super Admin only)",
+                "parameters": [
+                    {
+                        "description": "New Admin details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreateAdminRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Admin account created successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreateAdminResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request (e.g. email already in use)",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden — super_admin role required",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admins/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Permanently deletes an admin account and its associated data. Self-deletion is disallowed — use the account settings delete option instead. Only accessible by super_admin.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin Accounts"
+                ],
+                "summary": "Delete Admin account (Super Admin only)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Admin User ID (MongoDB ObjectID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Admin account deleted successfully",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden — super_admin role required",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/documents": {
             "get": {
                 "security": [
@@ -1617,7 +1814,7 @@
         },
         "/users/login": {
             "post": {
-                "description": "Authenticates a user with email and password. Returns a JWT token containing the user's role (client/advisor/admin/super_admin). The frontend should use the role to redirect to the correct dashboard.",
+                "description": "Authenticates using an identifier (Email for any role, or AdminID for admin/super_admin) plus a credential (Password for any role, or PIN for admin/super_admin). Any valid identifier+credential combination is accepted. Returns a JWT token containing the user's role — the frontend should use the role to redirect to the correct dashboard/feature set. Accounts lock for 15 minutes after 5 consecutive failed attempts.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1627,10 +1824,10 @@
                 "tags": [
                     "Authentication"
                 ],
-                "summary": "Login user",
+                "summary": "Login (unified — all roles)",
                 "parameters": [
                     {
-                        "description": "Login credentials",
+                        "description": "Login credentials — e.g. {\\",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -1659,7 +1856,7 @@
                         }
                     },
                     "401": {
-                        "description": "Invalid credentials or account disabled",
+                        "description": "Invalid credentials, account disabled, or account temporarily locked",
                         "schema": {
                             "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
                         }
@@ -1724,7 +1921,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Updates authenticated user's name and contact phone number. Email is immutable and cannot be modified.",
+                "description": "Updates authenticated user's name and contact phone number. Works for every role (client, advisor, admin, super_admin) — an admin can update their own name/phone the same way. Email is immutable and cannot be modified by anyone through this endpoint.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1791,7 +1988,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Permanently deletes the authenticated user's account and wipes all associated E-Vault documents (from Cloudinary), family details, and insurance policies.",
+                "description": "Permanently deletes the authenticated user's account and wipes all associated E-Vault documents (from Cloudinary), family details, and insurance policies. Not available for admin/super_admin accounts — an admin account can only be deleted by a super_admin via DELETE /admins/{id}.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1805,6 +2002,12 @@
                 "responses": {
                     "200": {
                         "description": "Account permanently deleted",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Admin/super_admin accounts cannot be self-deleted",
                         "schema": {
                             "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
                         }
@@ -2034,7 +2237,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Updates user details (name, email, phone, role). Requires authentication.",
+                "description": "Updates user details (name, email, phone, role). Requires authentication. Only a super_admin may modify an existing admin/super_admin account or assign the admin/super_admin role.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2094,6 +2297,12 @@
                             "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
                         }
                     },
+                    "403": {
+                        "description": "Forbidden — only super_admin can modify admin accounts or assign admin roles",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
                     "422": {
                         "description": "Validation error",
                         "schema": {
@@ -2108,7 +2317,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Deletes a user by ID. Only accessible by admin and super_admin roles.",
+                "description": "Deletes a user by ID. Only accessible by admin and super_admin roles. Only a super_admin may delete an existing admin/super_admin account.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2148,7 +2357,7 @@
                         }
                     },
                     "403": {
-                        "description": "Forbidden — admin role required",
+                        "description": "Forbidden — admin role required, or only super_admin can delete admin accounts",
                         "schema": {
                             "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
                         }
@@ -2241,6 +2450,48 @@
                     "type": "string"
                 },
                 "phone": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_smart-invest-solutions_backend_internal_domain.CreateAdminRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "name",
+                "phone"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "phone": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_smart-invest-solutions_backend_internal_domain.CreateAdminResponse": {
+            "type": "object",
+            "properties": {
+                "admin": {
+                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserResponse"
+                },
+                "admin_id": {
+                    "type": "string"
+                },
+                "credentials_email_sent": {
+                    "type": "boolean"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "temporary_password": {
+                    "type": "string"
+                },
+                "temporary_pin": {
                     "type": "string"
                 }
             }
@@ -2504,16 +2755,22 @@
         },
         "github_com_smart-invest-solutions_backend_internal_domain.LoginRequest": {
             "type": "object",
-            "required": [
-                "email",
-                "password"
-            ],
             "properties": {
+                "admin_id": {
+                    "type": "string",
+                    "example": "ADM-7F3K9Q"
+                },
                 "email": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "user@example.com"
                 },
                 "password": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "MyP@ssw0rd"
+                },
+                "pin": {
+                    "type": "string",
+                    "example": "1234"
                 }
             }
         },
@@ -2639,6 +2896,9 @@
         "github_com_smart-invest-solutions_backend_internal_domain.UserResponse": {
             "type": "object",
             "properties": {
+                "admin_id": {
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string"
                 },

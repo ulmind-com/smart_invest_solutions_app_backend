@@ -48,21 +48,38 @@ func RequireAuth(cfg *config.Config) gin.HandlerFunc {
 	}
 }
 
+// GetClaims retrieves the authenticated user's JWT claims from the Gin context.
+// Must be called after RequireAuth. Returns false if claims are missing or malformed.
+func GetClaims(c *gin.Context) (*utils.Claims, bool) {
+	claimsVal, exists := c.Get(AuthCtxKey)
+	if !exists {
+		return nil, false
+	}
+	claims, ok := claimsVal.(*utils.Claims)
+	if !ok {
+		return nil, false
+	}
+	return claims, true
+}
+
+// GetUserID retrieves the authenticated user's ID (hex string) from the Gin context.
+// Must be called after RequireAuth. Returns false if claims are missing or malformed.
+func GetUserID(c *gin.Context) (string, bool) {
+	claims, ok := GetClaims(c)
+	if !ok {
+		return "", false
+	}
+	return claims.UserID.Hex(), true
+}
+
 // RequireRole checks if the authenticated user has one of the allowed roles.
 // Must be used after RequireAuth.
 func RequireRole(allowedRoles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get claims from context
-		claimsVal, exists := c.Get(AuthCtxKey)
-		if !exists {
-			response.Error(c, http.StatusUnauthorized, "Authentication required")
-			c.Abort()
-			return
-		}
-
-		claims, ok := claimsVal.(*utils.Claims)
+		claims, ok := GetClaims(c)
 		if !ok {
-			response.Error(c, http.StatusInternalServerError, "Invalid user claims")
+			response.Error(c, http.StatusUnauthorized, "Authentication required")
 			c.Abort()
 			return
 		}

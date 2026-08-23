@@ -6,9 +6,17 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"github.com/smart-invest-solutions/backend/internal/domain"
+	"github.com/smart-invest-solutions/backend/pkg/utils"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
+	"golang.org/x/crypto/bcrypt"
+)
+
+const (
+	seedSuperAdminEmail    = "super@admin.com"
+	seedSuperAdminPassword = "superadmin123"
 )
 
 // Migration represents a single database migration.
@@ -58,6 +66,68 @@ func GetMigrations() []Migration {
 					roleIndex,
 				})
 				return err
+			},
+		},
+		{
+			Version:     2,
+			Description: "Create unique sparse index on users.admin_id",
+			Up: func(ctx context.Context, db *mongo.Database) error {
+				collection := db.Collection("users")
+
+				adminIDIndex := mongo.IndexModel{
+					Keys:    bson.D{{Key: "admin_id", Value: 1}},
+					Options: options.Index().SetUnique(true).SetSparse(true),
+				}
+
+				_, err := collection.Indexes().CreateOne(ctx, adminIDIndex)
+				return err
+			},
+		},
+		{
+			Version:     3,
+			Description: "Seed default super_admin account",
+			Up: func(ctx context.Context, db *mongo.Database) error {
+				collection := db.Collection("users")
+
+				existing := collection.FindOne(ctx, bson.M{"email": seedSuperAdminEmail})
+				if existing.Err() == nil {
+					log.Info().Msg("Seed super_admin already exists, skipping")
+					return nil
+				}
+
+				hashedPassword, err := bcrypt.GenerateFromPassword([]byte(seedSuperAdminPassword), bcrypt.DefaultCost)
+				if err != nil {
+					return fmt.Errorf("failed to hash seed super_admin password: %w", err)
+				}
+
+				adminID, err := utils.GenerateAdminID()
+				if err != nil {
+					return fmt.Errorf("failed to generate seed super_admin ID: %w", err)
+				}
+
+				now := time.Now().UTC()
+				superAdmin := domain.User{
+					Name:      "Super Admin",
+					Email:     seedSuperAdminEmail,
+					Password:  string(hashedPassword),
+					Role:      domain.RoleSuperAdmin,
+					IsActive:  true,
+					AdminID:   adminID,
+					CreatedAt: now,
+					UpdatedAt: now,
+				}
+
+				_, err = collection.InsertOne(ctx, superAdmin)
+				if err != nil {
+					if mongo.IsDuplicateKeyError(err) {
+						log.Warn().Msg("Seed super_admin insert hit a duplicate key, skipping")
+						return nil
+					}
+					return fmt.Errorf("failed to seed super_admin: %w", err)
+				}
+
+				log.Info().Str("admin_id", adminID).Msg("Seed super_admin created successfully")
+				return nil
 			},
 		},
 	}

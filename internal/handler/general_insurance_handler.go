@@ -35,12 +35,11 @@ func NewGeneralInsuranceHandler(service domain.GeneralInsuranceService) *General
 // @Security     BearerAuth
 // @Router       /general-insurances [post]
 func (h *GeneralInsuranceHandler) AddInsurance(c *gin.Context) {
-	userIDVal, exists := c.Get(middleware.AuthCtxKey)
-	if !exists {
+	userIDStr, ok := middleware.GetUserID(c)
+	if !ok {
 		response.Error(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	userIDStr := userIDVal.(string)
 
 	var dto domain.CreateGeneralInsuranceDTO
 	if err := c.ShouldBindJSON(&dto); err != nil {
@@ -68,12 +67,11 @@ func (h *GeneralInsuranceHandler) AddInsurance(c *gin.Context) {
 // @Security     BearerAuth
 // @Router       /general-insurances [get]
 func (h *GeneralInsuranceHandler) GetMyInsurances(c *gin.Context) {
-	userIDVal, exists := c.Get(middleware.AuthCtxKey)
-	if !exists {
+	userIDStr, ok := middleware.GetUserID(c)
+	if !ok {
 		response.Error(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	userIDStr := userIDVal.(string)
 
 	respData, err := h.service.GetMyInsurances(c.Request.Context(), userIDStr)
 	if err != nil {
@@ -97,12 +95,11 @@ func (h *GeneralInsuranceHandler) GetMyInsurances(c *gin.Context) {
 // @Security     BearerAuth
 // @Router       /general-insurances/{id} [get]
 func (h *GeneralInsuranceHandler) GetByID(c *gin.Context) {
-	userIDVal, exists := c.Get(middleware.AuthCtxKey)
-	if !exists {
+	userIDStr, ok := middleware.GetUserID(c)
+	if !ok {
 		response.Error(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	userIDStr := userIDVal.(string)
 
 	idStr := c.Param("id")
 
@@ -130,12 +127,11 @@ func (h *GeneralInsuranceHandler) GetByID(c *gin.Context) {
 // @Security     BearerAuth
 // @Router       /general-insurances/{id} [put]
 func (h *GeneralInsuranceHandler) UpdateInsurance(c *gin.Context) {
-	userIDVal, exists := c.Get(middleware.AuthCtxKey)
-	if !exists {
+	userIDStr, ok := middleware.GetUserID(c)
+	if !ok {
 		response.Error(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	userIDStr := userIDVal.(string)
 
 	idStr := c.Param("id")
 
@@ -167,12 +163,11 @@ func (h *GeneralInsuranceHandler) UpdateInsurance(c *gin.Context) {
 // @Security     BearerAuth
 // @Router       /general-insurances/{id} [delete]
 func (h *GeneralInsuranceHandler) DeleteInsurance(c *gin.Context) {
-	userIDVal, exists := c.Get(middleware.AuthCtxKey)
-	if !exists {
+	userIDStr, ok := middleware.GetUserID(c)
+	if !ok {
 		response.Error(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	userIDStr := userIDVal.(string)
 
 	idStr := c.Param("id")
 

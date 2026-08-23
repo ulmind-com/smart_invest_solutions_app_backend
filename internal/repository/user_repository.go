@@ -26,13 +26,14 @@ func NewUserRepository(db *mongo.Database) domain.UserRepository {
 }
 
 // Create inserts a new user document into the database.
+// IsActive is intentionally NOT overridden here — the service layer decides the initial value
+// (false for public client self-registration pending Admin approval, true for Admin-created accounts).
 func (r *userRepository) Create(ctx context.Context, user *domain.User) (*domain.User, error) {
 	now := time.Now().UTC()
 	user.CreatedAt = now
 	user.UpdatedAt = now
-	user.IsActive = true
 	if user.Role == "" {
-		user.Role = "user"
+		user.Role = domain.RoleClient
 	}
 
 	result, err := r.collection.InsertOne(ctx, user)
@@ -71,6 +72,52 @@ func (r *userRepository) FindByEmail(ctx context.Context, email string) (*domain
 		return nil, fmt.Errorf("failed to find user by email: %w", err)
 	}
 	return &user, nil
+}
+
+// FindByEmailOrAdminID retrieves a user matching either the given email or admin_id.
+func (r *userRepository) FindByEmailOrAdminID(ctx context.Context, identifier string) (*domain.User, error) {
+	var user domain.User
+	filter := bson.M{"$or": []bson.M{
+		{"email": identifier},
+		{"admin_id": identifier},
+	}}
+	err := r.collection.FindOne(ctx, filter).Decode(&user)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, fmt.Errorf("user not found")
+		}
+		return nil, fmt.Errorf("failed to find user: %w", err)
+	}
+	return &user, nil
+}
+
+// FindAllByRoles retrieves a paginated list of users whose role is in the given set.
+func (r *userRepository) FindAllByRoles(ctx context.Context, roles []string, page, limit int64) ([]*domain.User, int64, error) {
+	skip := (page - 1) * limit
+	filter := bson.M{"role": bson.M{"$in": roles}}
+
+	total, err := r.collection.CountDocuments(ctx, filter)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count users: %w", err)
+	}
+
+	opts := options.Find().
+		SetSkip(skip).
+		SetLimit(limit).
+		SetSort(bson.D{{Key: "created_at", Value: -1}})
+
+	cursor, err := r.collection.Find(ctx, filter, opts)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to find users: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var users []*domain.User
+	if err := cursor.All(ctx, &users); err != nil {
+		return nil, 0, fmt.Errorf("failed to decode users: %w", err)
+	}
+
+	return users, total, nil
 }
 
 // FindAll retrieves a paginated list of users.
@@ -170,6 +217,45 @@ func (r *userRepository) Delete(ctx context.Context, id bson.ObjectID) error {
 	}
 	if result.DeletedCount == 0 {
 		return fmt.Errorf("user not found")
+	}
+	return nil
+}
+
+// RecordFailedLogin increments the failed login attempt counter and returns the new count.
+func (r *userRepository) RecordFailedLogin(ctx context.Context, id bson.ObjectID) (int, error) {
+	filter := bson.M{"_id": id}
+	update := bson.M{"$inc": bson.M{"failed_login_attempts": 1}}
+	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
+
+	var user domain.User
+	err := r.collection.FindOneAndUpdate(ctx, filter, update, opts).Decode(&user)
+	if err != nil {
+		return 0, fmt.Errorf("failed to record failed login: %w", err)
+	}
+	return user.FailedLoginAttempts, nil
+}
+
+// ClearFailedLogins resets the failed login attempt counter and lifts any active lock.
+func (r *userRepository) ClearFailedLogins(ctx context.Context, id bson.ObjectID) error {
+	filter := bson.M{"_id": id}
+	update := bson.M{
+		"$set":   bson.M{"failed_login_attempts": 0},
+		"$unset": bson.M{"locked_until": ""},
+	}
+	_, err := r.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to clear failed logins: %w", err)
+	}
+	return nil
+}
+
+// LockAccount sets a lock expiry timestamp on the user account, blocking login until then.
+func (r *userRepository) LockAccount(ctx context.Context, id bson.ObjectID, until time.Time) error {
+	filter := bson.M{"_id": id}
+	update := bson.M{"$set": bson.M{"locked_until": until}}
+	_, err := r.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to lock account: %w", err)
 	}
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/smart-invest-solutions/backend/internal/config"
 	"github.com/smart-invest-solutions/backend/internal/domain"
@@ -11,6 +12,13 @@ import (
 	"github.com/smart-invest-solutions/backend/pkg/utils"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"golang.org/x/crypto/bcrypt"
+)
+
+// maxFailedLoginAttempts is the number of consecutive failed login attempts allowed before an
+// account is temporarily locked. accountLockDuration is how long the lock lasts.
+const (
+	maxFailedLoginAttempts = 5
+	accountLockDuration    = 15 * time.Minute
 )
 
 // userService implements domain.UserService.
@@ -80,12 +88,34 @@ func (s *userService) Register(ctx context.Context, req *domain.CreateUserReques
 	return createdUser.ToResponse(), nil
 }
 
-// Login authenticates a user and generates a JWT token after verifying active status.
+// Login authenticates a user by identifier (Email or AdminID) + credential (Password or PIN) and
+// generates a JWT token after verifying active status and account lock state. The resulting token
+// carries the user's role, so downstream RequireRole checks naturally grant role-appropriate access
+// (client / admin / super_admin) — this single endpoint serves every role.
 func (s *userService) Login(ctx context.Context, req *domain.LoginRequest) (*domain.LoginResponse, error) {
-	// Find user by email
-	user, err := s.userRepo.FindByEmail(ctx, req.Email)
+	identifier := req.Email
+	if identifier == "" {
+		identifier = req.AdminID
+	}
+	credential := req.Password
+	if credential == "" {
+		credential = req.PIN
+	}
+
+	if identifier == "" || credential == "" {
+		return nil, fmt.Errorf("email/admin_id and password/pin are required")
+	}
+
+	// Find user by email or admin ID
+	user, err := s.userRepo.FindByEmailOrAdminID(ctx, identifier)
 	if err != nil || user == nil {
 		return nil, fmt.Errorf("invalid credentials")
+	}
+
+	// Check if account is temporarily locked due to repeated failed attempts
+	if user.LockedUntil != nil && user.LockedUntil.After(time.Now().UTC()) {
+		remaining := time.Until(*user.LockedUntil).Round(time.Minute)
+		return nil, fmt.Errorf("account temporarily locked due to multiple failed login attempts. Try again in %s", remaining)
 	}
 
 	// Check if user is active (Admin verified)
@@ -93,11 +123,21 @@ func (s *userService) Login(ctx context.Context, req *domain.LoginRequest) (*dom
 		return nil, fmt.Errorf("your account is pending verification by Admin. You will receive an email once approved.")
 	}
 
-	// Compare passwords
-	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password))
-	if err != nil {
+	// Compare credential against password, falling back to PIN (admin/super_admin accounts only)
+	matched := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(credential)) == nil
+	if !matched && user.PIN != "" {
+		matched = bcrypt.CompareHashAndPassword([]byte(user.PIN), []byte(credential)) == nil
+	}
+
+	if !matched {
+		attempts, recErr := s.userRepo.RecordFailedLogin(ctx, user.ID)
+		if recErr == nil && attempts >= maxFailedLoginAttempts {
+			_ = s.userRepo.LockAccount(ctx, user.ID, time.Now().UTC().Add(accountLockDuration))
+		}
 		return nil, fmt.Errorf("invalid credentials")
 	}
+
+	_ = s.userRepo.ClearFailedLogins(ctx, user.ID)
 
 	// Parse expiry hours from config
 	expiryHours, err := strconv.Atoi(s.config.JWTExpiryHours)
@@ -155,13 +195,25 @@ func (s *userService) GetAll(ctx context.Context, page, limit int64) ([]*domain.
 }
 
 // Update modifies an existing user and triggers Approval / Rejection email if IsActive status changes.
-func (s *userService) Update(ctx context.Context, id string, req *domain.UpdateUserRequest) (*domain.UserResponse, error) {
+// Only a super_admin may modify an existing admin/super_admin account, or promote any user to
+// admin/super_admin — this closes a privilege-escalation hole where a plain admin could otherwise
+// tamper with other admin accounts or self-promote via this generic endpoint.
+func (s *userService) Update(ctx context.Context, requesterRole, id string, req *domain.UpdateUserRequest) (*domain.UserResponse, error) {
 	objectID, err := bson.ObjectIDFromHex(id)
 	if err != nil {
 		return nil, fmt.Errorf("invalid user ID format: %w", err)
 	}
 
 	existingUser, _ := s.userRepo.FindByID(ctx, objectID)
+
+	if requesterRole != domain.RoleSuperAdmin {
+		if existingUser != nil && (existingUser.Role == domain.RoleAdmin || existingUser.Role == domain.RoleSuperAdmin) {
+			return nil, fmt.Errorf("only a super_admin can modify an admin account")
+		}
+		if req.Role != nil && (*req.Role == domain.RoleAdmin || *req.Role == domain.RoleSuperAdmin) {
+			return nil, fmt.Errorf("only a super_admin can assign the admin or super_admin role")
+		}
+	}
 
 	updatedUser, err := s.userRepo.Update(ctx, objectID, req)
 	if err != nil {
@@ -243,14 +295,43 @@ func (s *userService) ChangePassword(ctx context.Context, id string, req *domain
 	return s.userRepo.UpdatePassword(ctx, objectID, string(hashedPassword))
 }
 
-// Delete removes a user by their ID.
-func (s *userService) Delete(ctx context.Context, id string) error {
+// Delete removes a user by their ID. Only a super_admin may delete an existing admin/super_admin account.
+func (s *userService) Delete(ctx context.Context, requesterRole, id string) error {
 	objectID, err := bson.ObjectIDFromHex(id)
 	if err != nil {
 		return fmt.Errorf("invalid user ID format: %w", err)
 	}
 
+	if requesterRole != domain.RoleSuperAdmin {
+		target, _ := s.userRepo.FindByID(ctx, objectID)
+		if target != nil && (target.Role == domain.RoleAdmin || target.Role == domain.RoleSuperAdmin) {
+			return fmt.Errorf("only a super_admin can delete an admin account")
+		}
+	}
+
 	return s.userRepo.Delete(ctx, objectID)
+}
+
+// cascadeWipeUserData purges a user's E-Vault documents (including Cloudinary assets), family members,
+// and general insurance records. Shared by DeleteMyAccount and DeleteAdmin.
+func (s *userService) cascadeWipeUserData(ctx context.Context, objectID bson.ObjectID) {
+	if s.documentRepo != nil {
+		docs, _, _ := s.documentRepo.FindAllByUserID(ctx, objectID, "")
+		for _, doc := range docs {
+			if doc.PublicID != "" && s.storageSvc != nil {
+				_ = s.storageSvc.DeleteImage(ctx, doc.PublicID)
+			}
+		}
+		_ = s.documentRepo.DeleteAllByUserID(ctx, objectID)
+	}
+
+	if s.familyMemberRepo != nil {
+		_ = s.familyMemberRepo.DeleteAllByUserID(ctx, objectID)
+	}
+
+	if s.generalInsuranceRepo != nil {
+		_ = s.generalInsuranceRepo.DeleteAllByUserID(ctx, objectID)
+	}
 }
 
 // DeleteMyAccount permanently deletes the logged in user account and wipes all associated records and Cloudinary files.
@@ -265,37 +346,160 @@ func (s *userService) DeleteMyAccount(ctx context.Context, userIDStr string) err
 		return fmt.Errorf("user account not found")
 	}
 
-	// 1. Purge all user E-Vault documents from Cloudinary and delete database records
-	if s.documentRepo != nil {
-		docs, _, _ := s.documentRepo.FindAllByUserID(ctx, objectID, "")
-		for _, doc := range docs {
-			if doc.PublicID != "" && s.storageSvc != nil {
-				_ = s.storageSvc.DeleteImage(ctx, doc.PublicID)
-			}
-		}
-		_ = s.documentRepo.DeleteAllByUserID(ctx, objectID)
+	// Admin/super_admin accounts cannot self-delete — only a super_admin can remove an admin account
+	// (via DeleteAdmin), which also prevents an admin from accidentally locking everyone out.
+	if user.Role == domain.RoleAdmin || user.Role == domain.RoleSuperAdmin {
+		return fmt.Errorf("admin accounts cannot be deleted via self-service; please contact a super_admin to remove your access")
 	}
 
-	// 2. Cascade delete family members
-	if s.familyMemberRepo != nil {
-		_ = s.familyMemberRepo.DeleteAllByUserID(ctx, objectID)
-	}
+	s.cascadeWipeUserData(ctx, objectID)
 
-	// 3. Cascade delete general insurance records
-	if s.generalInsuranceRepo != nil {
-		_ = s.generalInsuranceRepo.DeleteAllByUserID(ctx, objectID)
-	}
-
-	// 4. Delete user profile document from MongoDB
+	// Delete user profile document from MongoDB
 	err = s.userRepo.Delete(ctx, objectID)
 	if err != nil {
 		return fmt.Errorf("failed to delete user account: %w", err)
 	}
 
-	// 5. Send account deletion notification email asynchronously
+	// Send account deletion notification email asynchronously
 	if s.emailSvc != nil {
 		go func() {
 			_ = s.emailSvc.SendAccountDeletionEmail(context.Background(), user.Email, user.Name)
+		}()
+	}
+
+	return nil
+}
+
+// CreateAdmin creates a new Admin account (Super Admin only, enforced at the router level). It
+// generates a unique Admin ID, a random password, and a 4-digit PIN, then emails the credentials
+// to the new admin. The account is immediately active since a super_admin has already vetted it.
+func (s *userService) CreateAdmin(ctx context.Context, req *domain.CreateAdminRequest) (*domain.CreateAdminResponse, error) {
+	existing, _ := s.userRepo.FindByEmail(ctx, req.Email)
+	if existing != nil {
+		return nil, fmt.Errorf("a user with email %s already exists", req.Email)
+	}
+
+	// Generate a unique Admin ID (astronomically unlikely to collide, but retry defensively)
+	var adminID string
+	for attempt := 0; attempt < 5; attempt++ {
+		candidate, genErr := utils.GenerateAdminID()
+		if genErr != nil {
+			return nil, fmt.Errorf("failed to generate admin ID: %w", genErr)
+		}
+		if existingByID, _ := s.userRepo.FindByEmailOrAdminID(ctx, candidate); existingByID == nil {
+			adminID = candidate
+			break
+		}
+	}
+	if adminID == "" {
+		return nil, fmt.Errorf("failed to generate a unique admin ID, please retry")
+	}
+
+	password, err := utils.GenerateRandomPassword(10)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate password: %w", err)
+	}
+
+	pin, err := utils.GenerateNumericCode(4)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate PIN: %w", err)
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash password: %w", err)
+	}
+	hashedPIN, err := bcrypt.GenerateFromPassword([]byte(pin), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash PIN: %w", err)
+	}
+
+	newAdmin := &domain.User{
+		Name:     req.Name,
+		Email:    req.Email,
+		Phone:    req.Phone,
+		Password: string(hashedPassword),
+		PIN:      string(hashedPIN),
+		AdminID:  adminID,
+		Role:     domain.RoleAdmin,
+		IsActive: true,
+	}
+
+	createdAdmin, err := s.userRepo.Create(ctx, newAdmin)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create admin account: %w", err)
+	}
+
+	// Send credentials synchronously — this is a rare, sensitive action where delivery status matters,
+	// unlike the fire-and-forget pattern used for high-volume notification emails elsewhere.
+	emailSent := false
+	if s.emailSvc != nil {
+		if sendErr := s.emailSvc.SendAdminCredentialsEmail(ctx, createdAdmin.Email, createdAdmin.Name, adminID, password, pin); sendErr == nil {
+			emailSent = true
+		}
+	}
+
+	return &domain.CreateAdminResponse{
+		Admin:                createdAdmin.ToResponse(),
+		AdminID:              adminID,
+		Email:                createdAdmin.Email,
+		TemporaryPassword:    password,
+		TemporaryPIN:         pin,
+		CredentialsEmailSent: emailSent,
+	}, nil
+}
+
+// GetAllAdmins retrieves a paginated list of all admin and super_admin accounts.
+func (s *userService) GetAllAdmins(ctx context.Context, page, limit int64) ([]*domain.UserResponse, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
+
+	admins, total, err := s.userRepo.FindAllByRoles(ctx, []string{domain.RoleAdmin, domain.RoleSuperAdmin}, page, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var responses []*domain.UserResponse
+	for _, admin := range admins {
+		responses = append(responses, admin.ToResponse())
+	}
+
+	return responses, total, nil
+}
+
+// DeleteAdmin permanently deletes an admin account and its associated data. Self-deletion is
+// disallowed here to prevent accidental Super Admin lockout — use the /users/me flow instead.
+func (s *userService) DeleteAdmin(ctx context.Context, requesterID, targetID string) error {
+	if requesterID == targetID {
+		return fmt.Errorf("cannot delete your own account via this endpoint; use the account settings delete option instead")
+	}
+
+	objectID, err := bson.ObjectIDFromHex(targetID)
+	if err != nil {
+		return fmt.Errorf("invalid admin ID format: %w", err)
+	}
+
+	target, err := s.userRepo.FindByID(ctx, objectID)
+	if err != nil || target == nil {
+		return fmt.Errorf("admin account not found")
+	}
+	if target.Role != domain.RoleAdmin && target.Role != domain.RoleSuperAdmin {
+		return fmt.Errorf("target account is not an admin account")
+	}
+
+	s.cascadeWipeUserData(ctx, objectID)
+
+	if err := s.userRepo.Delete(ctx, objectID); err != nil {
+		return fmt.Errorf("failed to delete admin account: %w", err)
+	}
+
+	if s.emailSvc != nil {
+		go func() {
+			_ = s.emailSvc.SendAccountDeletionEmail(context.Background(), target.Email, target.Name)
 		}()
 	}
 

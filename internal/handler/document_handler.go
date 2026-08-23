@@ -37,12 +37,11 @@ func NewDocumentHandler(service domain.DocumentService) *DocumentHandler {
 // @Security     BearerAuth
 // @Router       /documents [post]
 func (h *DocumentHandler) UploadDocument(c *gin.Context) {
-	userIDVal, exists := c.Get(middleware.AuthCtxKey)
-	if !exists {
+	userIDStr, ok := middleware.GetUserID(c)
+	if !ok {
 		response.Error(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	userIDStr := userIDVal.(string)
 
 	name := c.PostForm("name")
 	if name == "" {
@@ -89,12 +88,11 @@ func (h *DocumentHandler) UploadDocument(c *gin.Context) {
 // @Security     BearerAuth
 // @Router       /documents [get]
 func (h *DocumentHandler) GetMyDocuments(c *gin.Context) {
-	userIDVal, exists := c.Get(middleware.AuthCtxKey)
-	if !exists {
+	userIDStr, ok := middleware.GetUserID(c)
+	if !ok {
 		response.Error(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	userIDStr := userIDVal.(string)
 
 	searchQuery := c.Query("q")
 
@@ -120,12 +118,11 @@ func (h *DocumentHandler) GetMyDocuments(c *gin.Context) {
 // @Security     BearerAuth
 // @Router       /documents/{id} [get]
 func (h *DocumentHandler) GetByID(c *gin.Context) {
-	userIDVal, exists := c.Get(middleware.AuthCtxKey)
-	if !exists {
+	userIDStr, ok := middleware.GetUserID(c)
+	if !ok {
 		response.Error(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	userIDStr := userIDVal.(string)
 
 	idStr := c.Param("id")
 
@@ -155,12 +152,11 @@ func (h *DocumentHandler) GetByID(c *gin.Context) {
 // @Security     BearerAuth
 // @Router       /documents/{id} [put]
 func (h *DocumentHandler) UpdateDocument(c *gin.Context) {
-	userIDVal, exists := c.Get(middleware.AuthCtxKey)
-	if !exists {
+	userIDStr, ok := middleware.GetUserID(c)
+	if !ok {
 		response.Error(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	userIDStr := userIDVal.(string)
 
 	idStr := c.Param("id")
 
@@ -211,12 +207,11 @@ func (h *DocumentHandler) UpdateDocument(c *gin.Context) {
 // @Security     BearerAuth
 // @Router       /documents/{id} [delete]
 func (h *DocumentHandler) DeleteDocument(c *gin.Context) {
-	userIDVal, exists := c.Get(middleware.AuthCtxKey)
-	if !exists {
+	userIDStr, ok := middleware.GetUserID(c)
+	if !ok {
 		response.Error(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	userIDStr := userIDVal.(string)
 
 	idStr := c.Param("id")
 
