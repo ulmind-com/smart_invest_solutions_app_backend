@@ -609,6 +609,110 @@ const docTemplate = `{
                 }
             }
         },
+        "/dashboard/admin": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns platform-wide aggregated totals: active clients, pending access requests, and mapped/unmapped policy counts across Life, Health, General Insurance, and Fixed Deposits. Admin/super_admin only.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard"
+                ],
+                "summary": "Get admin dashboard",
+                "responses": {
+                    "200": {
+                        "description": "Dashboard retrieved successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.AdminDashboardDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden — admin role required",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/client": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the authenticated client's aggregated summary: total family members, total policies/FDs across every module, and Life/Health premiums due within the next 30 days. Client role only.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard"
+                ],
+                "summary": "Get client dashboard",
+                "responses": {
+                    "200": {
+                        "description": "Dashboard retrieved successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ClientDashboardDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden — client role required",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/documents": {
             "get": {
                 "security": [
@@ -3448,6 +3552,20 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_smart-invest-solutions_backend_internal_domain.AdminDashboardDTO": {
+            "type": "object",
+            "properties": {
+                "pending_access_requests": {
+                    "type": "integer"
+                },
+                "policy_stats": {
+                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.PolicyStats"
+                },
+                "total_active_clients": {
+                    "type": "integer"
+                }
+            }
+        },
         "github_com_smart-invest-solutions_backend_internal_domain.AdminLoginRequest": {
             "type": "object",
             "required": [
@@ -3489,6 +3607,33 @@ const docTemplate = `{
                 },
                 "new_password": {
                     "type": "string"
+                }
+            }
+        },
+        "github_com_smart-invest-solutions_backend_internal_domain.ClientDashboardDTO": {
+            "type": "object",
+            "properties": {
+                "total_family_members": {
+                    "type": "integer"
+                },
+                "total_fixed_deposits": {
+                    "type": "integer"
+                },
+                "total_general_policies": {
+                    "type": "integer"
+                },
+                "total_health_policies": {
+                    "type": "integer"
+                },
+                "total_life_policies": {
+                    "type": "integer"
+                },
+                "upcoming_premiums": {
+                    "description": "Life/Health premiums due within the next 30 days",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UpcomingPayment"
+                    }
                 }
             }
         },
@@ -4313,6 +4458,17 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_smart-invest-solutions_backend_internal_domain.PolicyStats": {
+            "type": "object",
+            "properties": {
+                "mapped": {
+                    "type": "integer"
+                },
+                "unmapped": {
+                    "type": "integer"
+                }
+            }
+        },
         "github_com_smart-invest-solutions_backend_internal_domain.PremiumDetails": {
             "type": "object",
             "properties": {
@@ -4356,6 +4512,27 @@ const docTemplate = `{
                 },
                 "otp": {
                     "type": "string"
+                }
+            }
+        },
+        "github_com_smart-invest-solutions_backend_internal_domain.UpcomingPayment": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "due_date": {
+                    "description": "Maps to next_due_date (premiums) or maturity_date (FDs)",
+                    "type": "string"
+                },
+                "entity_name": {
+                    "description": "Plan Name or FD Name",
+                    "type": "string"
+                },
+                "type": {
+                    "description": "\"Life Insurance\", \"Health Insurance\", \"Fixed Deposit\"",
+                    "type": "string",
+                    "example": "Life Insurance"
                 }
             }
         },

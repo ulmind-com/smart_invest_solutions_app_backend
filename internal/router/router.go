@@ -81,6 +81,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	lifeInsuranceService := service.NewLifeInsuranceService(lifeInsuranceRepo, userRepo, familyMemberRepo)
 	fixedDepositService := service.NewFixedDepositService(fixedDepositRepo, userRepo, familyMemberRepo)
 	healthInsuranceService := service.NewHealthInsuranceService(healthInsuranceRepo, userRepo, familyMemberRepo)
+	dashboardService := service.NewDashboardService(userRepo, familyMemberRepo, lifeInsuranceRepo, healthInsuranceRepo, generalInsuranceRepo, fixedDepositRepo, accessReqRepo)
 
 	// Initialize Handlers
 	userHandler := handler.NewUserHandler(userService, passResetService)
@@ -91,6 +92,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	lifeInsuranceHandler := handler.NewLifeInsuranceHandler(lifeInsuranceService)
 	fixedDepositHandler := handler.NewFixedDepositHandler(fixedDepositService)
 	healthInsuranceHandler := handler.NewHealthInsuranceHandler(healthInsuranceService)
+	dashboardHandler := handler.NewDashboardHandler(dashboardService)
 
 	// API v1 routes
 	v1 := router.Group("/api/v1")
@@ -258,6 +260,24 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			healthInsurances.GET("/:id", healthInsuranceHandler.GetByID)
 			healthInsurances.PUT("/:id", healthInsuranceHandler.UpdatePolicy)
 			healthInsurances.DELETE("/:id", healthInsuranceHandler.DeletePolicy)
+		}
+
+		// Dashboard routes — pure aggregation views over existing repositories, no own collection.
+		dashboard := v1.Group("/dashboard")
+		{
+			dashboard.Use(middleware.RequireAuth(cfg))
+
+			clientDashboard := dashboard.Group("")
+			clientDashboard.Use(middleware.RequireRole("client"))
+			{
+				clientDashboard.GET("/client", dashboardHandler.GetClientDashboard)
+			}
+
+			adminDashboard := dashboard.Group("")
+			adminDashboard.Use(middleware.RequireRole("admin"))
+			{
+				adminDashboard.GET("/admin", dashboardHandler.GetAdminDashboard)
+			}
 		}
 	}
 

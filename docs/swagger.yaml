@@ -26,6 +26,15 @@ definitions:
     - name
     - phone
     type: object
+  github_com_smart-invest-solutions_backend_internal_domain.AdminDashboardDTO:
+    properties:
+      pending_access_requests:
+        type: integer
+      policy_stats:
+        $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.PolicyStats'
+      total_active_clients:
+        type: integer
+    type: object
   github_com_smart-invest-solutions_backend_internal_domain.AdminLoginRequest:
     properties:
       admin_id:
@@ -55,6 +64,24 @@ definitions:
     - confirm_password
     - current_password
     - new_password
+    type: object
+  github_com_smart-invest-solutions_backend_internal_domain.ClientDashboardDTO:
+    properties:
+      total_family_members:
+        type: integer
+      total_fixed_deposits:
+        type: integer
+      total_general_policies:
+        type: integer
+      total_health_policies:
+        type: integer
+      total_life_policies:
+        type: integer
+      upcoming_premiums:
+        description: Life/Health premiums due within the next 30 days
+        items:
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UpcomingPayment'
+        type: array
     type: object
   github_com_smart-invest-solutions_backend_internal_domain.CreateAccessRequestDTO:
     properties:
@@ -620,6 +647,13 @@ definitions:
         description: Total policy duration in years
         type: integer
     type: object
+  github_com_smart-invest-solutions_backend_internal_domain.PolicyStats:
+    properties:
+      mapped:
+        type: integer
+      unmapped:
+        type: integer
+    type: object
   github_com_smart-invest-solutions_backend_internal_domain.PremiumDetails:
     properties:
       installment_premium:
@@ -650,6 +684,21 @@ definitions:
     - email
     - new_password
     - otp
+    type: object
+  github_com_smart-invest-solutions_backend_internal_domain.UpcomingPayment:
+    properties:
+      amount:
+        type: number
+      due_date:
+        description: Maps to next_due_date (premiums) or maturity_date (FDs)
+        type: string
+      entity_name:
+        description: Plan Name or FD Name
+        type: string
+      type:
+        description: '"Life Insurance", "Health Insurance", "Fixed Deposit"'
+        example: Life Insurance
+        type: string
     type: object
   github_com_smart-invest-solutions_backend_internal_domain.UpdateFamilyMemberDTO:
     properties:
@@ -1249,6 +1298,70 @@ paths:
       summary: Login (admin/super_admin)
       tags:
       - Authentication
+  /dashboard/admin:
+    get:
+      consumes:
+      - application/json
+      description: 'Returns platform-wide aggregated totals: active clients, pending
+        access requests, and mapped/unmapped policy counts across Life, Health, General
+        Insurance, and Fixed Deposits. Admin/super_admin only.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Dashboard retrieved successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.AdminDashboardDTO'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "403":
+          description: Forbidden — admin role required
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get admin dashboard
+      tags:
+      - Dashboard
+  /dashboard/client:
+    get:
+      consumes:
+      - application/json
+      description: 'Returns the authenticated client''s aggregated summary: total
+        family members, total policies/FDs across every module, and Life/Health premiums
+        due within the next 30 days. Client role only.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Dashboard retrieved successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ClientDashboardDTO'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "403":
+          description: Forbidden — client role required
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get client dashboard
+      tags:
+      - Dashboard
   /documents:
     get:
       consumes:
