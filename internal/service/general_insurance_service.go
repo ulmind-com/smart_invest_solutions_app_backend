@@ -152,3 +152,17 @@ func (s *generalInsuranceService) DeleteAllByUserID(ctx context.Context, userIDS
 	}
 	return s.repo.DeleteAllByUserID(ctx, userID)
 }
+
+// GetAllInsurancesAdmin returns a paginated master list of every general insurance policy across
+// all clients, each enriched with the owning customer's name and contact number — lets Admin/
+// Super Admin see at a glance which client holds which policy, vehicle, expiry date, and insurer.
+func (s *generalInsuranceService) GetAllInsurancesAdmin(ctx context.Context, page, limit int64) ([]*domain.GeneralInsuranceWithCustomer, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
+
+	return s.repo.FindAllAdmin(ctx, page, limit)
+}

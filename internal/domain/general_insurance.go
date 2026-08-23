@@ -47,6 +47,24 @@ type GeneralInsuranceListResponse struct {
 	Data  []*GeneralInsurance `json:"data"`
 }
 
+// GeneralInsuranceWithCustomer represents a general insurance policy enriched with the owning
+// customer's name and contact number — used for the Admin master list view (all clients' policies
+// at a glance) so the Admin doesn't have to look up each client separately.
+type GeneralInsuranceWithCustomer struct {
+	ID             bson.ObjectID `bson:"_id" json:"id"`
+	UserID         bson.ObjectID `bson:"user_id" json:"user_id"`
+	CustomerName   string        `bson:"customer_name" json:"customer_name"`
+	ContactNo      string        `bson:"contact_no" json:"contact_no"`
+	VehicleNo      string        `bson:"vehicle_no" json:"vehicle_no"`
+	PolicyNo       string        `bson:"policy_no" json:"policy_no"`
+	DateOfExpiry   string        `bson:"date_of_expiry" json:"date_of_expiry"`
+	CompanyName    string        `bson:"company_name" json:"company_name"`
+	AdvisorName    string        `bson:"advisor_name,omitempty" json:"advisor_name,omitempty"`
+	AdvisorContact string        `bson:"advisor_contact,omitempty" json:"advisor_contact,omitempty"`
+	CreatedAt      time.Time     `bson:"created_at" json:"created_at"`
+	UpdatedAt      time.Time     `bson:"updated_at" json:"updated_at"`
+}
+
 // GeneralInsuranceRepository defines database operations for general insurances.
 type GeneralInsuranceRepository interface {
 	Create(ctx context.Context, policy *GeneralInsurance) (*GeneralInsurance, error)
@@ -55,6 +73,7 @@ type GeneralInsuranceRepository interface {
 	Update(ctx context.Context, id, userID bson.ObjectID, update *UpdateGeneralInsuranceDTO) (*GeneralInsurance, error)
 	Delete(ctx context.Context, id, userID bson.ObjectID) error
 	DeleteAllByUserID(ctx context.Context, userID bson.ObjectID) error
+	FindAllAdmin(ctx context.Context, page, limit int64) ([]*GeneralInsuranceWithCustomer, int64, error)
 }
 
 // GeneralInsuranceService defines business logic operations for general insurances.
@@ -66,4 +85,5 @@ type GeneralInsuranceService interface {
 	DeleteInsurance(ctx context.Context, idStr, userIDStr string) error
 	GetInsurancesByUserIDAdmin(ctx context.Context, targetUserIDStr string) (*GeneralInsuranceListResponse, error)
 	DeleteAllByUserID(ctx context.Context, userIDStr string) error
+	GetAllInsurancesAdmin(ctx context.Context, page, limit int64) ([]*GeneralInsuranceWithCustomer, int64, error)
 }

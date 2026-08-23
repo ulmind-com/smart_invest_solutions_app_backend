@@ -185,6 +185,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			adminInsurance := generalInsurances.Group("")
 			adminInsurance.Use(middleware.RequireRole("admin"))
 			{
+				adminInsurance.GET("/all", generalInsuranceHandler.GetAllInsurancesAdmin)
 				adminInsurance.GET("/user/:userId", generalInsuranceHandler.GetInsurancesByUserIDAdmin)
 			}
 		}

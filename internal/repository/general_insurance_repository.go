@@ -143,3 +143,62 @@ func (r *generalInsuranceRepository) DeleteAllByUserID(ctx context.Context, user
 	_, err := r.collection.DeleteMany(ctx, bson.M{"user_id": userID})
 	return err
 }
+
+// FindAllAdmin retrieves a paginated master list of every general insurance policy across all
+// clients, each row enriched (via $lookup on the users collection) with the owning customer's
+// name and contact number — this is what powers the Admin "who has which policy" dashboard view.
+func (r *generalInsuranceRepository) FindAllAdmin(ctx context.Context, page, limit int64) ([]*domain.GeneralInsuranceWithCustomer, int64, error) {
+	skip := (page - 1) * limit
+
+	total, err := r.collection.CountDocuments(ctx, bson.M{})
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count general insurance policies: %w", err)
+	}
+
+	pipeline := mongo.Pipeline{
+		bson.D{{Key: "$sort", Value: bson.D{{Key: "created_at", Value: -1}}}},
+		bson.D{{Key: "$skip", Value: skip}},
+		bson.D{{Key: "$limit", Value: limit}},
+		bson.D{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: usersCollection},
+			{Key: "localField", Value: "user_id"},
+			{Key: "foreignField", Value: "_id"},
+			{Key: "as", Value: "customer"},
+		}}},
+		bson.D{{Key: "$unwind", Value: bson.D{
+			{Key: "path", Value: "$customer"},
+			{Key: "preserveNullAndEmptyArrays", Value: true},
+		}}},
+		bson.D{{Key: "$project", Value: bson.D{
+			{Key: "_id", Value: 1},
+			{Key: "user_id", Value: 1},
+			{Key: "customer_name", Value: "$customer.name"},
+			{Key: "contact_no", Value: "$customer.phone"},
+			{Key: "vehicle_no", Value: 1},
+			{Key: "policy_no", Value: 1},
+			{Key: "date_of_expiry", Value: 1},
+			{Key: "company_name", Value: 1},
+			{Key: "advisor_name", Value: 1},
+			{Key: "advisor_contact", Value: 1},
+			{Key: "created_at", Value: 1},
+			{Key: "updated_at", Value: 1},
+		}}},
+	}
+
+	cursor, err := r.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to query general insurance policies: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var policies []*domain.GeneralInsuranceWithCustomer
+	if err := cursor.All(ctx, &policies); err != nil {
+		return nil, 0, fmt.Errorf("failed to decode general insurance policies: %w", err)
+	}
+
+	if policies == nil {
+		policies = []*domain.GeneralInsuranceWithCustomer{}
+	}
+
+	return policies, total, nil
+}

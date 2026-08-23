@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/smart-invest-solutions/backend/internal/domain"
@@ -201,4 +202,32 @@ func (h *GeneralInsuranceHandler) GetInsurancesByUserIDAdmin(c *gin.Context) {
 	}
 
 	response.Success(c, "Policies retrieved successfully", respData)
+}
+
+// GetAllInsurancesAdmin handles fetching a paginated master list of every client's General
+// Insurance policy for the Admin dashboard — each row enriched with the customer's name and
+// contact number, so Admin can see at a glance which client holds which policy/vehicle/company.
+// @Summary      Get all clients' General Insurance policies (Admin Only)
+// @Description  Retrieves a paginated master list of every general/vehicle insurance policy across all clients — Customer Name, Contact No, Vehicle No, Policy No, Date of Expiry, Company Name — for the Admin dashboard. Accessible by admin and super_admin.
+// @Tags         General Insurance (Admin)
+// @Accept       json
+// @Produce      json
+// @Param        page   query     int  false  "Page number (default: 1)"
+// @Param        limit  query     int  false  "Items per page (default: 10, max: 100)"
+// @Success      200    {object}  response.PaginatedResponse{data=[]domain.GeneralInsuranceWithCustomer}  "Policies retrieved successfully"
+// @Failure      401    {object}  response.APIResponse  "Unauthorized"
+// @Failure      403    {object}  response.APIResponse  "Forbidden — Admin role required"
+// @Security     BearerAuth
+// @Router       /general-insurances/all [get]
+func (h *GeneralInsuranceHandler) GetAllInsurancesAdmin(c *gin.Context) {
+	page, _ := strconv.ParseInt(c.DefaultQuery("page", "1"), 10, 64)
+	limit, _ := strconv.ParseInt(c.DefaultQuery("limit", "10"), 10, 64)
+
+	policies, total, err := h.service.GetAllInsurancesAdmin(c.Request.Context(), page, limit)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	response.SuccessWithPagination(c, "Policies retrieved successfully", policies, page, limit, total)
 }

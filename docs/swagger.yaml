@@ -273,6 +273,33 @@ definitions:
       total:
         type: integer
     type: object
+  github_com_smart-invest-solutions_backend_internal_domain.GeneralInsuranceWithCustomer:
+    properties:
+      advisor_contact:
+        type: string
+      advisor_name:
+        type: string
+      company_name:
+        type: string
+      contact_no:
+        type: string
+      created_at:
+        type: string
+      customer_name:
+        type: string
+      date_of_expiry:
+        type: string
+      id:
+        type: string
+      policy_no:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: string
+      vehicle_no:
+        type: string
+    type: object
   github_com_smart-invest-solutions_backend_internal_domain.LoginResponse:
     properties:
       token:
@@ -1436,6 +1463,50 @@ paths:
       summary: Update / Edit General Insurance policy
       tags:
       - General Insurance
+  /general-insurances/all:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves a paginated master list of every general/vehicle insurance
+        policy across all clients — Customer Name, Contact No, Vehicle No, Policy
+        No, Date of Expiry, Company Name — for the Admin dashboard. Accessible by
+        admin and super_admin.
+      parameters:
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Items per page (default: 10, max: 100)'
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Policies retrieved successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.GeneralInsuranceWithCustomer'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "403":
+          description: Forbidden — Admin role required
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all clients' General Insurance policies (Admin Only)
+      tags:
+      - General Insurance (Admin)
   /general-insurances/user/{userId}:
     get:
       consumes:
