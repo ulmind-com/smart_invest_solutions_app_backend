@@ -63,13 +63,15 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	lifeInsuranceRepo := repository.NewLifeInsuranceRepository(db.Database)
 	fixedDepositRepo := repository.NewFixedDepositRepository(db.Database)
 	healthInsuranceRepo := repository.NewHealthInsuranceRepository(db.Database)
+	supportTicketRepo := repository.NewSupportTicketRepository(db.Database)
+	productRepo := repository.NewProductRepository(db.Database)
 
 	// Initialize Services
 	userSvcConcrete := service.NewUserService(userRepo, cfg, emailSvc)
 	if setter, ok := userSvcConcrete.(interface {
-		SetCascadeDependencies(domain.FamilyMemberRepository, domain.GeneralInsuranceRepository, domain.DocumentRepository, domain.LifeInsuranceRepository, domain.FixedDepositRepository, domain.HealthInsuranceRepository, service.StorageService)
+		SetCascadeDependencies(domain.FamilyMemberRepository, domain.GeneralInsuranceRepository, domain.DocumentRepository, domain.LifeInsuranceRepository, domain.FixedDepositRepository, domain.HealthInsuranceRepository, domain.SupportTicketRepository, service.StorageService)
 	}); ok {
-		setter.SetCascadeDependencies(familyMemberRepo, generalInsuranceRepo, documentRepo, lifeInsuranceRepo, fixedDepositRepo, healthInsuranceRepo, storageSvc)
+		setter.SetCascadeDependencies(familyMemberRepo, generalInsuranceRepo, documentRepo, lifeInsuranceRepo, fixedDepositRepo, healthInsuranceRepo, supportTicketRepo, storageSvc)
 	}
 	userService := userSvcConcrete
 
@@ -81,7 +83,10 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	lifeInsuranceService := service.NewLifeInsuranceService(lifeInsuranceRepo, userRepo, familyMemberRepo)
 	fixedDepositService := service.NewFixedDepositService(fixedDepositRepo, userRepo, familyMemberRepo)
 	healthInsuranceService := service.NewHealthInsuranceService(healthInsuranceRepo, userRepo, familyMemberRepo)
+	supportTicketService := service.NewSupportTicketService(supportTicketRepo, userRepo)
+	productService := service.NewProductService(productRepo, storageSvc)
 	dashboardService := service.NewDashboardService(userRepo, familyMemberRepo, lifeInsuranceRepo, healthInsuranceRepo, generalInsuranceRepo, fixedDepositRepo, accessReqRepo)
+	reportService := service.NewReportService(userRepo, familyMemberRepo, lifeInsuranceRepo, healthInsuranceRepo, generalInsuranceRepo, fixedDepositRepo)
 
 	// Initialize Handlers
 	userHandler := handler.NewUserHandler(userService, passResetService)
@@ -92,7 +97,10 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	lifeInsuranceHandler := handler.NewLifeInsuranceHandler(lifeInsuranceService)
 	fixedDepositHandler := handler.NewFixedDepositHandler(fixedDepositService)
 	healthInsuranceHandler := handler.NewHealthInsuranceHandler(healthInsuranceService)
+	supportTicketHandler := handler.NewSupportTicketHandler(supportTicketService)
+	productHandler := handler.NewProductHandler(productService)
 	dashboardHandler := handler.NewDashboardHandler(dashboardService)
+	reportHandler := handler.NewReportHandler(reportService)
 
 	// API v1 routes
 	v1 := router.Group("/api/v1")
@@ -262,6 +270,41 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			healthInsurances.DELETE("/:id", healthInsuranceHandler.DeletePolicy)
 		}
 
+		// Support Ticket routes — RBAC (client-owns-only vs admin-bypass, plus the
+		// Status/AdminNotes client-field-stripping rule) is enforced inside the service layer.
+		// DELETE is additionally restricted to super_admin at the router level.
+		tickets := v1.Group("/tickets")
+		{
+			tickets.Use(middleware.RequireAuth(cfg))
+
+			tickets.POST("", supportTicketHandler.CreateTicket)
+			tickets.GET("", supportTicketHandler.GetTickets)
+			tickets.GET("/:id", supportTicketHandler.GetByID)
+			tickets.PUT("/:id", supportTicketHandler.UpdateTicket)
+			tickets.DELETE("/:id", middleware.RequireRole(domain.RoleSuperAdmin), supportTicketHandler.DeleteTicket)
+		}
+
+		// Product Catalog routes — fulfills the "KNOW ABOUT ALL PRODUCT" requirement. GET routes
+		// are open to any authenticated role (client/advisor/admin/super_admin); the service layer
+		// forces client/advisor requesters to the published (is_active=true) subset. Writes
+		// (create/update/delete) are gated to admin/super_admin at the router level, with the
+		// service layer re-checking the role as defense in depth.
+		products := v1.Group("/products")
+		{
+			products.Use(middleware.RequireAuth(cfg))
+
+			products.GET("", productHandler.GetProducts)
+			products.GET("/:id", productHandler.GetByID)
+
+			adminProducts := products.Group("")
+			adminProducts.Use(middleware.RequireRole(domain.RoleAdmin))
+			{
+				adminProducts.POST("", productHandler.CreateProduct)
+				adminProducts.PUT("/:id", productHandler.UpdateProduct)
+				adminProducts.DELETE("/:id", productHandler.DeleteProduct)
+			}
+		}
+
 		// Dashboard routes — pure aggregation views over existing repositories, no own collection.
 		dashboard := v1.Group("/dashboard")
 		{
@@ -278,6 +321,17 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			{
 				adminDashboard.GET("/admin", dashboardHandler.GetAdminDashboard)
 			}
+		}
+
+		// Report routes — pure orchestration over existing repositories, no own collection. RBAC
+		// (client-self-only vs admin-can-target-any-client via ?user_id=) is enforced inside the
+		// handler, so no RequireRole gate is needed at the router level; the route just requires
+		// authentication.
+		reports := v1.Group("/reports")
+		{
+			reports.Use(middleware.RequireAuth(cfg))
+
+			reports.GET("/portfolio", reportHandler.GetClientPortfolio)
 		}
 	}
 

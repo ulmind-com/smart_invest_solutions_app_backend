@@ -32,6 +32,7 @@ type userService struct {
 	lifeInsuranceRepo    domain.LifeInsuranceRepository
 	fixedDepositRepo     domain.FixedDepositRepository
 	healthInsuranceRepo  domain.HealthInsuranceRepository
+	supportTicketRepo    domain.SupportTicketRepository
 	storageSvc           StorageService
 }
 
@@ -45,13 +46,14 @@ func NewUserService(userRepo domain.UserRepository, cfg *config.Config, emailSvc
 }
 
 // SetCascadeDependencies wires repositories for full cascade account deletion.
-func (s *userService) SetCascadeDependencies(familyMemberRepo domain.FamilyMemberRepository, generalInsuranceRepo domain.GeneralInsuranceRepository, documentRepo domain.DocumentRepository, lifeInsuranceRepo domain.LifeInsuranceRepository, fixedDepositRepo domain.FixedDepositRepository, healthInsuranceRepo domain.HealthInsuranceRepository, storageSvc StorageService) {
+func (s *userService) SetCascadeDependencies(familyMemberRepo domain.FamilyMemberRepository, generalInsuranceRepo domain.GeneralInsuranceRepository, documentRepo domain.DocumentRepository, lifeInsuranceRepo domain.LifeInsuranceRepository, fixedDepositRepo domain.FixedDepositRepository, healthInsuranceRepo domain.HealthInsuranceRepository, supportTicketRepo domain.SupportTicketRepository, storageSvc StorageService) {
 	s.familyMemberRepo = familyMemberRepo
 	s.generalInsuranceRepo = generalInsuranceRepo
 	s.documentRepo = documentRepo
 	s.lifeInsuranceRepo = lifeInsuranceRepo
 	s.fixedDepositRepo = fixedDepositRepo
 	s.healthInsuranceRepo = healthInsuranceRepo
+	s.supportTicketRepo = supportTicketRepo
 	s.storageSvc = storageSvc
 }
 
@@ -345,8 +347,8 @@ func (s *userService) Delete(ctx context.Context, requesterRole, id string) erro
 }
 
 // cascadeWipeUserData purges a user's E-Vault documents (including Cloudinary assets), family members,
-// general insurance records, life insurance policies, fixed deposits, and health insurance policies.
-// Shared by DeleteMyAccount and DeleteAdmin.
+// general insurance records, life insurance policies, fixed deposits, health insurance policies,
+// and support tickets. Shared by DeleteMyAccount and DeleteAdmin.
 func (s *userService) cascadeWipeUserData(ctx context.Context, objectID bson.ObjectID) {
 	if s.documentRepo != nil {
 		docs, _, _ := s.documentRepo.FindAllByUserID(ctx, objectID, "")
@@ -376,6 +378,10 @@ func (s *userService) cascadeWipeUserData(ctx context.Context, objectID bson.Obj
 
 	if s.healthInsuranceRepo != nil {
 		_ = s.healthInsuranceRepo.DeleteAllByUserID(ctx, objectID)
+	}
+
+	if s.supportTicketRepo != nil {
+		_ = s.supportTicketRepo.DeleteAllByUserID(ctx, objectID)
 	}
 }
 

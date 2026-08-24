@@ -26,6 +26,17 @@ func GenerateAdminID() (string, error) {
 	return fmt.Sprintf("ADM-%s", string(b)), nil
 }
 
+// GenerateTicketNumber creates a random 5-digit support ticket number in the form "TKT-XXXXX".
+// Callers are expected to retry with a fresh candidate on a duplicate-key error, since uniqueness
+// is enforced by the collection's unique index rather than by this generator.
+func GenerateTicketNumber() (string, error) {
+	code, err := GenerateNumericCode(5)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("TKT-%s", code), nil
+}
+
 // GenerateNumericCode creates a cryptographically secure numeric code (e.g. PIN/OTP) with the given
 // number of digits, zero-padded on the left.
 func GenerateNumericCode(digits int) (string, error) {
