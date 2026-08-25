@@ -33,6 +33,7 @@ type userService struct {
 	fixedDepositRepo     domain.FixedDepositRepository
 	healthInsuranceRepo  domain.HealthInsuranceRepository
 	supportTicketRepo    domain.SupportTicketRepository
+	accessReqRepo        domain.AccessRequestRepository
 	storageSvc           StorageService
 }
 
@@ -45,8 +46,8 @@ func NewUserService(userRepo domain.UserRepository, cfg *config.Config, emailSvc
 	}
 }
 
-// SetCascadeDependencies wires repositories for full cascade account deletion.
-func (s *userService) SetCascadeDependencies(familyMemberRepo domain.FamilyMemberRepository, generalInsuranceRepo domain.GeneralInsuranceRepository, documentRepo domain.DocumentRepository, lifeInsuranceRepo domain.LifeInsuranceRepository, fixedDepositRepo domain.FixedDepositRepository, healthInsuranceRepo domain.HealthInsuranceRepository, supportTicketRepo domain.SupportTicketRepository, storageSvc StorageService) {
+// SetCascadeDependencies wires repositories for full cascade account deletion and access request creation.
+func (s *userService) SetCascadeDependencies(familyMemberRepo domain.FamilyMemberRepository, generalInsuranceRepo domain.GeneralInsuranceRepository, documentRepo domain.DocumentRepository, lifeInsuranceRepo domain.LifeInsuranceRepository, fixedDepositRepo domain.FixedDepositRepository, healthInsuranceRepo domain.HealthInsuranceRepository, supportTicketRepo domain.SupportTicketRepository, accessReqRepo domain.AccessRequestRepository, storageSvc StorageService) {
 	s.familyMemberRepo = familyMemberRepo
 	s.generalInsuranceRepo = generalInsuranceRepo
 	s.documentRepo = documentRepo
@@ -54,10 +55,11 @@ func (s *userService) SetCascadeDependencies(familyMemberRepo domain.FamilyMembe
 	s.fixedDepositRepo = fixedDepositRepo
 	s.healthInsuranceRepo = healthInsuranceRepo
 	s.supportTicketRepo = supportTicketRepo
+	s.accessReqRepo = accessReqRepo
 	s.storageSvc = storageSvc
 }
 
-// Register creates a new user with a hashed password, setting IsActive to false (pending verification) and sending a Welcome email.
+// Register creates a new user with a hashed password, setting IsActive to false (pending verification), creating a pending AccessRequest for Admin review, and sending a Welcome email.
 func (s *userService) Register(ctx context.Context, req *domain.CreateUserRequest) (*domain.UserResponse, error) {
 	// Check if user with this email already exists
 	existing, _ := s.userRepo.FindByEmail(ctx, req.Email)
@@ -101,6 +103,21 @@ func (s *userService) Register(ctx context.Context, req *domain.CreateUserReques
 	createdUser, err := s.userRepo.Create(ctx, user)
 	if err != nil {
 		return nil, err
+	}
+
+	// Automatically create a pending AccessRequest for Admin verification queue
+	if s.accessReqRepo != nil {
+		existingReq, _ := s.accessReqRepo.FindByEmail(ctx, createdUser.Email)
+		if existingReq == nil {
+			accessReq := &domain.AccessRequest{
+				Name:   createdUser.Name,
+				Email:  createdUser.Email,
+				Phone:  createdUser.Phone,
+				Notes:  "Registered directly via client account creation flow",
+				Status: domain.AccessStatusPending,
+			}
+			_, _ = s.accessReqRepo.Create(ctx, accessReq)
+		}
 	}
 
 	// Send automatic Welcome Email asynchronously

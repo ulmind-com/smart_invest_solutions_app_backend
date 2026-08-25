@@ -71,9 +71,9 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	// Initialize Services
 	userSvcConcrete := service.NewUserService(userRepo, cfg, emailSvc)
 	if setter, ok := userSvcConcrete.(interface {
-		SetCascadeDependencies(domain.FamilyMemberRepository, domain.GeneralInsuranceRepository, domain.DocumentRepository, domain.LifeInsuranceRepository, domain.FixedDepositRepository, domain.HealthInsuranceRepository, domain.SupportTicketRepository, service.StorageService)
+		SetCascadeDependencies(domain.FamilyMemberRepository, domain.GeneralInsuranceRepository, domain.DocumentRepository, domain.LifeInsuranceRepository, domain.FixedDepositRepository, domain.HealthInsuranceRepository, domain.SupportTicketRepository, domain.AccessRequestRepository, service.StorageService)
 	}); ok {
-		setter.SetCascadeDependencies(familyMemberRepo, generalInsuranceRepo, documentRepo, lifeInsuranceRepo, fixedDepositRepo, healthInsuranceRepo, supportTicketRepo, storageSvc)
+		setter.SetCascadeDependencies(familyMemberRepo, generalInsuranceRepo, documentRepo, lifeInsuranceRepo, fixedDepositRepo, healthInsuranceRepo, supportTicketRepo, accessReqRepo, storageSvc)
 	}
 	userService := userSvcConcrete
 
