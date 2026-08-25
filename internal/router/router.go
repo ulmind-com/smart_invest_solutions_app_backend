@@ -66,6 +66,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	supportTicketRepo := repository.NewSupportTicketRepository(db.Database)
 	productRepo := repository.NewProductRepository(db.Database)
 	calculatorRepo := repository.NewCalculatorSettingsRepository(db.Database)
+	referralRepo := repository.NewReferralRepository(db.Database)
 
 	// Initialize Services
 	userSvcConcrete := service.NewUserService(userRepo, cfg, emailSvc)
@@ -76,7 +77,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	}
 	userService := userSvcConcrete
 
-	accessReqService := service.NewAccessRequestService(accessReqRepo, userRepo, userService, emailSvc)
+	accessReqService := service.NewAccessRequestService(accessReqRepo, userRepo, userService, emailSvc, referralRepo)
 	passResetService := service.NewPasswordResetService(passResetRepo, userRepo, emailSvc)
 	familyMemberService := service.NewFamilyMemberService(familyMemberRepo)
 	generalInsuranceService := service.NewGeneralInsuranceService(generalInsuranceRepo)
@@ -90,6 +91,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	reportService := service.NewReportService(userRepo, familyMemberRepo, lifeInsuranceRepo, healthInsuranceRepo, generalInsuranceRepo, fixedDepositRepo)
 	agencySyncService := service.NewAgencySyncService(lifeInsuranceRepo)
 	calculatorService := service.NewCalculatorService(calculatorRepo)
+	referralService := service.NewReferralService(referralRepo, userRepo)
 
 	// Initialize Handlers
 	userHandler := handler.NewUserHandler(userService, passResetService)
@@ -106,6 +108,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	reportHandler := handler.NewReportHandler(reportService)
 	agencySyncHandler := handler.NewAgencySyncHandler(agencySyncService)
 	calculatorHandler := handler.NewCalculatorHandler(calculatorService)
+	referralHandler := handler.NewReferralHandler(referralService)
 
 	// API v1 routes
 	v1 := router.Group("/api/v1")
@@ -358,6 +361,15 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			calculators.POST("/sip", calculatorHandler.CalculateSIP)
 			calculators.POST("/lumpsum", calculatorHandler.CalculateLumpsum)
 			calculators.POST("/fd", calculatorHandler.CalculateFD)
+		}
+
+		// Referral Scheme routes — Earn Extra Validity referrals & agency growth tracking
+		referrals := v1.Group("/referrals")
+		{
+			referrals.Use(middleware.RequireAuth(cfg))
+
+			referrals.GET("/my-stats", referralHandler.GetMyStats)
+			referrals.GET("/all", middleware.RequireRole(domain.RoleAdmin), referralHandler.GetAllReferrals)
 		}
 	}
 

@@ -255,3 +255,51 @@ func (r *userRepository) LockAccount(ctx context.Context, id bson.ObjectID, unti
 	}
 	return nil
 }
+
+// FindByReferralCode retrieves a user by their unique referral code.
+func (r *userRepository) FindByReferralCode(ctx context.Context, code string) (*domain.User, error) {
+	if code == "" {
+		return nil, fmt.Errorf("referral code is required")
+	}
+
+	var user domain.User
+	err := r.collection.FindOne(ctx, bson.M{"referral_code": code}).Decode(&user)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, fmt.Errorf("user with referral code %s not found", code)
+		}
+		return nil, fmt.Errorf("failed to find user by referral code: %w", err)
+	}
+
+	return &user, nil
+}
+
+// ExtendValidity extends the user's AppValidityEndDate by the specified number of extra days.
+func (r *userRepository) ExtendValidity(ctx context.Context, userID bson.ObjectID, extraDays int) error {
+	user, err := r.FindByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	baseDate := time.Now().UTC()
+	if !user.AppValidityEndDate.IsZero() && user.AppValidityEndDate.After(baseDate) {
+		baseDate = user.AppValidityEndDate
+	}
+
+	newValidity := baseDate.AddDate(0, 0, extraDays)
+
+	filter := bson.M{"_id": userID}
+	update := bson.M{
+		"$set": bson.M{
+			"app_validity_end_date": newValidity,
+			"updated_at":            time.Now().UTC(),
+		},
+	}
+
+	_, err = r.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to extend validity for user: %w", err)
+	}
+
+	return nil
+}

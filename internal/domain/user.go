@@ -26,6 +26,8 @@ type User struct {
 	IsActive            bool          `bson:"is_active" json:"is_active"`
 	AdminID             string        `bson:"admin_id,omitempty" json:"admin_id,omitempty"` // Unique login ID, set only for admin/super_admin accounts
 	PIN                 string        `bson:"pin,omitempty" json:"-"`                        // bcrypt-hashed 4-digit PIN, set only for admin/super_admin accounts
+	ReferralCode        string        `bson:"referral_code,omitempty" json:"referral_code,omitempty"`
+	AppValidityEndDate  time.Time     `bson:"app_validity_end_date,omitempty" json:"app_validity_end_date,omitempty"`
 	FailedLoginAttempts int           `bson:"failed_login_attempts" json:"-"`
 	LockedUntil         *time.Time    `bson:"locked_until,omitempty" json:"-"`
 	CreatedAt           time.Time     `bson:"created_at" json:"created_at"`
@@ -85,29 +87,33 @@ type LoginResponse struct {
 
 // UserResponse represents the response payload for a user (without sensitive data).
 type UserResponse struct {
-	ID        bson.ObjectID `json:"id"`
-	Name      string        `json:"name"`
-	Email     string        `json:"email"`
-	Phone     string        `json:"phone,omitempty"`
-	Role      string        `json:"role"`
-	IsActive  bool          `json:"is_active"`
-	AdminID   string        `json:"admin_id,omitempty"`
-	CreatedAt time.Time     `json:"created_at"`
-	UpdatedAt time.Time     `json:"updated_at"`
+	ID                 bson.ObjectID `json:"id"`
+	Name               string        `json:"name"`
+	Email              string        `json:"email"`
+	Phone              string        `json:"phone,omitempty"`
+	Role               string        `json:"role"`
+	IsActive           bool          `json:"is_active"`
+	AdminID            string        `json:"admin_id,omitempty"`
+	ReferralCode       string        `json:"referral_code,omitempty"`
+	AppValidityEndDate time.Time     `json:"app_validity_end_date,omitempty"`
+	CreatedAt          time.Time     `json:"created_at"`
+	UpdatedAt          time.Time     `json:"updated_at"`
 }
 
 // ToResponse converts a User entity to a UserResponse.
 func (u *User) ToResponse() *UserResponse {
 	return &UserResponse{
-		ID:        u.ID,
-		Name:      u.Name,
-		Email:     u.Email,
-		Phone:     u.Phone,
-		Role:      u.Role,
-		IsActive:  u.IsActive,
-		AdminID:   u.AdminID,
-		CreatedAt: u.CreatedAt,
-		UpdatedAt: u.UpdatedAt,
+		ID:                 u.ID,
+		Name:               u.Name,
+		Email:              u.Email,
+		Phone:              u.Phone,
+		Role:               u.Role,
+		IsActive:           u.IsActive,
+		AdminID:            u.AdminID,
+		ReferralCode:       u.ReferralCode,
+		AppValidityEndDate: u.AppValidityEndDate,
+		CreatedAt:          u.CreatedAt,
+		UpdatedAt:          u.UpdatedAt,
 	}
 }
 
@@ -136,10 +142,12 @@ type UserRepository interface {
 	FindByID(ctx context.Context, id bson.ObjectID) (*User, error)
 	FindByEmail(ctx context.Context, email string) (*User, error)
 	FindByAdminID(ctx context.Context, adminID string) (*User, error)
+	FindByReferralCode(ctx context.Context, code string) (*User, error)
 	FindAll(ctx context.Context, page, limit int64) ([]*User, int64, error)
 	FindAllByRoles(ctx context.Context, roles []string, page, limit int64) ([]*User, int64, error)
 	Update(ctx context.Context, id bson.ObjectID, update *UpdateUserRequest) (*User, error)
 	UpdatePassword(ctx context.Context, id bson.ObjectID, hashedPassword string) error
+	ExtendValidity(ctx context.Context, userID bson.ObjectID, extraDays int) error
 	Delete(ctx context.Context, id bson.ObjectID) error
 	RecordFailedLogin(ctx context.Context, id bson.ObjectID) (int, error)
 	ClearFailedLogins(ctx context.Context, id bson.ObjectID) error

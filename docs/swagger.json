@@ -3571,6 +3571,124 @@
                 }
             }
         },
+        "/referrals/all": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves a paginated master list of all referrals across the platform with referrer names, emails, statuses, and credited reward days.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Referrals"
+                ],
+                "summary": "Get all agency referral records (Admin only)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Items per page (default: 10, max: 100)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Referral records retrieved successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ReferralListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized — token missing or invalid",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden — admin role required",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/referrals/my-stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the logged-in user's unique referral code, current app validity end date, pending referrals, completed referrals, and total extra days earned.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Referrals"
+                ],
+                "summary": "Get client referral stats and code",
+                "responses": {
+                    "200": {
+                        "description": "Referral stats retrieved successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ReferralStatsDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized — token missing or invalid",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/reports/portfolio": {
             "get": {
                 "security": [
@@ -4672,6 +4790,9 @@
                 "admin_notes": {
                     "type": "string"
                 },
+                "applied_referral_code": {
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string"
                 },
@@ -4833,6 +4954,9 @@
                 "phone"
             ],
             "properties": {
+                "applied_referral_code": {
+                    "type": "string"
+                },
                 "email": {
                     "type": "string"
                 },
@@ -5800,6 +5924,72 @@
                 }
             }
         },
+        "github_com_smart-invest-solutions_backend_internal_domain.ReferralListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ReferralRecordWithDetails"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_smart-invest-solutions_backend_internal_domain.ReferralRecordWithDetails": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "referred_email": {
+                    "type": "string"
+                },
+                "referrer_email": {
+                    "type": "string"
+                },
+                "referrer_id": {
+                    "type": "string"
+                },
+                "referrer_name": {
+                    "type": "string"
+                },
+                "reward_days_credited": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_smart-invest-solutions_backend_internal_domain.ReferralStatsDTO": {
+            "type": "object",
+            "properties": {
+                "app_validity_end_date": {
+                    "type": "string"
+                },
+                "referral_code": {
+                    "type": "string"
+                },
+                "total_completed": {
+                    "type": "integer"
+                },
+                "total_days_earned": {
+                    "type": "integer"
+                },
+                "total_pending": {
+                    "type": "integer"
+                }
+            }
+        },
         "github_com_smart-invest-solutions_backend_internal_domain.RejectAccessRequestDTO": {
             "type": "object",
             "properties": {
@@ -6232,6 +6422,9 @@
                 "admin_id": {
                     "type": "string"
                 },
+                "app_validity_end_date": {
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string"
                 },
@@ -6248,6 +6441,9 @@
                     "type": "string"
                 },
                 "phone": {
+                    "type": "string"
+                },
+                "referral_code": {
                     "type": "string"
                 },
                 "role": {

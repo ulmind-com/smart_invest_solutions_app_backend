@@ -71,14 +71,31 @@ func (s *userService) Register(ctx context.Context, req *domain.CreateUserReques
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
+	// Generate unique 6-character referral code
+	var refCode string
+	for attempt := 0; attempt < 5; attempt++ {
+		candidate, _ := utils.GenerateReferralCode(6)
+		if candidate != "" {
+			if existingRef, _ := s.userRepo.FindByReferralCode(ctx, candidate); existingRef == nil {
+				refCode = candidate
+				break
+			}
+		}
+	}
+	if refCode == "" {
+		refCode = "REF" + strconv.FormatInt(time.Now().UnixNano()%1000, 10)
+	}
+
 	// Default role is client; account is pending Admin verification (IsActive = false)
 	user := &domain.User{
-		Name:     req.Name,
-		Email:    req.Email,
-		Password: string(hashedPassword),
-		Phone:    req.Phone,
-		Role:     domain.RoleClient,
-		IsActive: false, // Pending Admin verification
+		Name:               req.Name,
+		Email:              req.Email,
+		Password:           string(hashedPassword),
+		Phone:              req.Phone,
+		Role:               domain.RoleClient,
+		IsActive:           false, // Pending Admin verification
+		ReferralCode:       refCode,
+		AppValidityEndDate: time.Now().UTC().AddDate(1, 0, 0), // Default 1 year validity
 	}
 
 	createdUser, err := s.userRepo.Create(ctx, user)

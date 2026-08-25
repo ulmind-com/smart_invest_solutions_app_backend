@@ -11,10 +11,11 @@ import (
 )
 
 type accessRequestService struct {
-	repo        domain.AccessRequestRepository
-	userRepo    domain.UserRepository
-	userService domain.UserService
-	emailSvc    email.EmailService
+	repo         domain.AccessRequestRepository
+	userRepo     domain.UserRepository
+	userService  domain.UserService
+	emailSvc     email.EmailService
+	referralRepo domain.ReferralRepository
 }
 
 // NewAccessRequestService creates a new AccessRequest service instance.
@@ -23,12 +24,14 @@ func NewAccessRequestService(
 	userRepo domain.UserRepository,
 	userService domain.UserService,
 	emailSvc email.EmailService,
+	referralRepo domain.ReferralRepository,
 ) domain.AccessRequestService {
 	return &accessRequestService{
-		repo:        repo,
-		userRepo:    userRepo,
-		userService: userService,
-		emailSvc:    emailSvc,
+		repo:         repo,
+		userRepo:     userRepo,
+		userService:  userService,
+		emailSvc:     emailSvc,
+		referralRepo: referralRepo,
 	}
 }
 
@@ -47,14 +50,34 @@ func (s *accessRequestService) SubmitRequest(ctx context.Context, dto *domain.Cr
 	}
 
 	accessReq := &domain.AccessRequest{
-		Name:   dto.Name,
-		Email:  dto.Email,
-		Phone:  dto.Phone,
-		Notes:  dto.Notes,
-		Status: domain.AccessStatusPending,
+		Name:                dto.Name,
+		Email:               dto.Email,
+		Phone:               dto.Phone,
+		Notes:               dto.Notes,
+		AppliedReferralCode: dto.AppliedReferralCode,
+		Status:              domain.AccessStatusPending,
 	}
 
-	return s.repo.Create(ctx, accessReq)
+	createdReq, err := s.repo.Create(ctx, accessReq)
+	if err != nil {
+		return nil, err
+	}
+
+	// Referral tracking hook: Create a Pending ReferralRecord if a valid referral code was applied
+	if dto.AppliedReferralCode != "" && s.referralRepo != nil {
+		referrer, _ := s.userRepo.FindByReferralCode(ctx, dto.AppliedReferralCode)
+		if referrer != nil && referrer.Email != dto.Email {
+			pendingRecord := &domain.ReferralRecord{
+				ReferrerID:         referrer.ID,
+				ReferredEmail:      dto.Email,
+				Status:             domain.ReferralStatusPending,
+				RewardDaysCredited: 0,
+			}
+			_, _ = s.referralRepo.Create(ctx, pendingRecord)
+		}
+	}
+
+	return createdReq, nil
 }
 
 // GetAllRequests retrieves all access requests with optional status filter & pagination.
@@ -77,7 +100,8 @@ func (s *accessRequestService) GetRequestByID(ctx context.Context, id string) (*
 	return s.repo.FindByID(ctx, objectID)
 }
 
-// ApproveRequest approves a client access request, generates credentials, creates user, and emails client.
+// ApproveRequest approves a client access request, generates credentials, creates user, emails client,
+// and executes the referral reward hook (crediting +30 days extended validity to the referrer).
 func (s *accessRequestService) ApproveRequest(ctx context.Context, id string, dto *domain.ApproveAccessRequestDTO) (*domain.UserResponse, error) {
 	objectID, err := bson.ObjectIDFromHex(id)
 	if err != nil {
@@ -118,6 +142,15 @@ func (s *accessRequestService) ApproveRequest(ctx context.Context, id string, dt
 		adminNotes = dto.AdminNotes
 	}
 	_, _ = s.repo.UpdateStatus(ctx, objectID, domain.AccessStatusApproved, adminNotes)
+
+	// Referral Reward Hook: Check if a pending referral exists for this email, complete it, and add 30 days validity
+	if s.referralRepo != nil {
+		pendingRef, _ := s.referralRepo.GetPendingByReferredEmail(ctx, accessReq.Email)
+		if pendingRef != nil {
+			_ = s.referralRepo.UpdateStatus(ctx, pendingRef.ID, domain.ReferralStatusCompleted, 30)
+			_ = s.userRepo.ExtendValidity(ctx, pendingRef.ReferrerID, 30)
+		}
+	}
 
 	// Send HTML email with credentials via Resend API
 	if s.emailSvc != nil {

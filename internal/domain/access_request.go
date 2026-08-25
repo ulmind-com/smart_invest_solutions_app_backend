@@ -16,23 +16,25 @@ const (
 
 // AccessRequest represents a client's request for platform access.
 type AccessRequest struct {
-	ID         bson.ObjectID `bson:"_id,omitempty" json:"id"`
-	Name       string        `bson:"name" json:"name" binding:"required"`
-	Email      string        `bson:"email" json:"email" binding:"required,email"`
-	Phone      string        `bson:"phone" json:"phone" binding:"required"`
-	Notes      string        `bson:"notes,omitempty" json:"notes,omitempty"`
-	Status     string        `bson:"status" json:"status"` // PENDING, APPROVED, REJECTED
-	AdminNotes string        `bson:"admin_notes,omitempty" json:"admin_notes,omitempty"`
-	CreatedAt  time.Time     `bson:"created_at" json:"created_at"`
-	UpdatedAt  time.Time     `bson:"updated_at" json:"updated_at"`
+	ID                  bson.ObjectID `bson:"_id,omitempty" json:"id"`
+	Name                string        `bson:"name" json:"name" binding:"required"`
+	Email               string        `bson:"email" json:"email" binding:"required,email"`
+	Phone               string        `bson:"phone" json:"phone" binding:"required"`
+	Notes               string        `bson:"notes,omitempty" json:"notes,omitempty"`
+	AppliedReferralCode string        `bson:"applied_referral_code,omitempty" json:"applied_referral_code,omitempty"`
+	Status              string        `bson:"status" json:"status"` // PENDING, APPROVED, REJECTED
+	AdminNotes          string        `bson:"admin_notes,omitempty" json:"admin_notes,omitempty"`
+	CreatedAt           time.Time     `bson:"created_at" json:"created_at"`
+	UpdatedAt           time.Time     `bson:"updated_at" json:"updated_at"`
 }
 
 // CreateAccessRequestDTO represents the payload when a client requests access.
 type CreateAccessRequestDTO struct {
-	Name  string `json:"name" binding:"required"`
-	Email string `json:"email" binding:"required,email"`
-	Phone string `json:"phone" binding:"required"`
-	Notes string `json:"notes,omitempty"`
+	Name                string `json:"name" binding:"required"`
+	Email               string `json:"email" binding:"required,email"`
+	Phone               string `json:"phone" binding:"required"`
+	Notes               string `json:"notes,omitempty"`
+	AppliedReferralCode string `json:"applied_referral_code,omitempty"`
 }
 
 // ApproveAccessRequestDTO represents payload for approving a request.
