@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/smart-invest-solutions/backend/internal/domain"
@@ -251,4 +252,89 @@ func (r *lifeInsuranceRepository) Delete(ctx context.Context, id bson.ObjectID) 
 func (r *lifeInsuranceRepository) DeleteAllByUserID(ctx context.Context, userID bson.ObjectID) error {
 	_, err := r.collection.DeleteMany(ctx, bson.M{"user_id": userID})
 	return err
+}
+
+// BulkUpdateFromSync performs bulk updates of life insurance policies from parsed LIC sync records.
+func (r *lifeInsuranceRepository) BulkUpdateFromSync(ctx context.Context, records []domain.LICParsedRecord) (int64, error) {
+	if len(records) == 0 {
+		return 0, nil
+	}
+
+	var models []mongo.WriteModel
+	now := time.Now().UTC()
+
+	for _, rec := range records {
+		updateFields := bson.M{
+			"premium_details.next_due_date":       rec.CalculatedNextDueDate,
+			"premium_details.installment_premium": rec.Premium,
+			"premium_details.payment_mode":       mapModeToDomainMode(rec.Mode),
+			"updated_at":                         now,
+		}
+
+		if docTime, err := time.Parse("02/01/2006", rec.DOC); err == nil && !docTime.IsZero() {
+			updateFields["policy_details.doc"] = docTime.UTC()
+		}
+
+		model := mongo.NewUpdateOneModel().
+			SetFilter(bson.M{"policy_details.policy_no": rec.PolicyNo}).
+			SetUpdate(bson.M{"$set": updateFields})
+
+		models = append(models, model)
+	}
+
+	opts := options.BulkWrite().SetOrdered(false)
+	result, err := r.collection.BulkWrite(ctx, models, opts)
+	if err != nil {
+		return 0, fmt.Errorf("failed to bulk update life insurance policies: %w", err)
+	}
+
+	return result.ModifiedCount, nil
+}
+
+// GetExistingPolicyNumbers checks MongoDB for existing policy numbers and returns a map of policy_no -> true.
+func (r *lifeInsuranceRepository) GetExistingPolicyNumbers(ctx context.Context, policyNos []string) (map[string]bool, error) {
+	existingMap := make(map[string]bool)
+	if len(policyNos) == 0 {
+		return existingMap, nil
+	}
+
+	filter := bson.M{"policy_details.policy_no": bson.M{"$in": policyNos}}
+	opts := options.Find().SetProjection(bson.M{"policy_details.policy_no": 1})
+
+	cursor, err := r.collection.Find(ctx, filter, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query existing policy numbers: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	for cursor.Next(ctx) {
+		var doc struct {
+			PolicyDetails struct {
+				PolicyNo string `bson:"policy_no"`
+			} `bson:"policy_details"`
+		}
+		if err := cursor.Decode(&doc); err == nil && doc.PolicyDetails.PolicyNo != "" {
+			existingMap[doc.PolicyDetails.PolicyNo] = true
+		}
+	}
+
+	return existingMap, nil
+}
+
+func mapModeToDomainMode(mode string) string {
+	switch strings.TrimSpace(strings.ToUpper(mode)) {
+	case "YLY", "Y", "YEARLY":
+		return domain.PaymentModeYearly
+	case "HLY", "H", "HALF-YEARLY", "HALF YEARLY":
+		return domain.PaymentModeHalfYearly
+	case "QLY", "Q", "QUARTERLY":
+		return domain.PaymentModeQuarterly
+	case "MLY", "M", "MONTHLY", "SSS":
+		return domain.PaymentModeMonthly
+	default:
+		if mode != "" {
+			return mode
+		}
+		return domain.PaymentModeYearly
+	}
 }
