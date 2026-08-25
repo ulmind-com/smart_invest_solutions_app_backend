@@ -100,8 +100,8 @@ func (s *accessRequestService) GetRequestByID(ctx context.Context, id string) (*
 	return s.repo.FindByID(ctx, objectID)
 }
 
-// ApproveRequest approves a client access request, generates credentials, creates user, emails client,
-// and executes the referral reward hook (crediting +30 days extended validity to the referrer).
+// ApproveRequest approves a client access request, activates user account (IsActive = true),
+// sends credentials/approval email, and executes referral reward hook.
 func (s *accessRequestService) ApproveRequest(ctx context.Context, id string, dto *domain.ApproveAccessRequestDTO) (*domain.UserResponse, error) {
 	objectID, err := bson.ObjectIDFromHex(id)
 	if err != nil {
@@ -117,23 +117,53 @@ func (s *accessRequestService) ApproveRequest(ctx context.Context, id string, dt
 		return nil, fmt.Errorf("this access request has already been approved")
 	}
 
-	// Generate strong random password
-	randomPassword, err := utils.GenerateRandomPassword(10)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate random password: %w", err)
-	}
+	var userResp *domain.UserResponse
+	var passwordSent string
 
-	// Create user account with 'client' role
-	createUserReq := &domain.CreateUserRequest{
-		Name:     accessReq.Name,
-		Email:    accessReq.Email,
-		Phone:    accessReq.Phone,
-		Password: randomPassword,
-	}
+	// Check if user already registered directly
+	existingUser, _ := s.userRepo.FindByEmail(ctx, accessReq.Email)
+	trueVal := true
 
-	userResp, err := s.userService.Register(ctx, createUserReq)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create user account upon approval: %w", err)
+	if existingUser != nil {
+		// Activate existing user account
+		updatedUser, err := s.userRepo.Update(ctx, existingUser.ID, &domain.UpdateUserRequest{
+			IsActive: &trueVal,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to activate user account upon approval: %w", err)
+		}
+		userResp = updatedUser.ToResponse()
+		passwordSent = "[Your Registered Password]"
+	} else {
+		// Generate random password and create new user account
+		randomPassword, err := utils.GenerateRandomPassword(10)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate random password: %w", err)
+		}
+		passwordSent = randomPassword
+
+		createUserReq := &domain.CreateUserRequest{
+			Name:     accessReq.Name,
+			Email:    accessReq.Email,
+			Phone:    accessReq.Phone,
+			Password: randomPassword,
+		}
+
+		createdUserResp, err := s.userService.Register(ctx, createUserReq)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create user account upon approval: %w", err)
+		}
+
+		// Activate newly created user account
+		updatedUser, err := s.userRepo.Update(ctx, createdUserResp.ID, &domain.UpdateUserRequest{
+			IsActive: &trueVal,
+		})
+		if err == nil {
+			userResp = updatedUser.ToResponse()
+		} else {
+			userResp = createdUserResp
+			userResp.IsActive = true
+		}
 	}
 
 	// Update status to APPROVED
@@ -152,15 +182,15 @@ func (s *accessRequestService) ApproveRequest(ctx context.Context, id string, dt
 		}
 	}
 
-	// Send HTML email with credentials via Resend API
+	// Send HTML email with credentials/approval notice via Resend API
 	if s.emailSvc != nil {
-		_ = s.emailSvc.SendCredentialsEmail(ctx, accessReq.Email, accessReq.Name, randomPassword)
+		_ = s.emailSvc.SendCredentialsEmail(ctx, accessReq.Email, accessReq.Name, passwordSent)
 	}
 
 	return userResp, nil
 }
 
-// RejectRequest rejects a client access request.
+// RejectRequest rejects a client access request and sends an email with the rejection reason.
 func (s *accessRequestService) RejectRequest(ctx context.Context, id string, dto *domain.RejectAccessRequestDTO) (*domain.AccessRequest, error) {
 	objectID, err := bson.ObjectIDFromHex(id)
 	if err != nil {
@@ -182,7 +212,7 @@ func (s *accessRequestService) RejectRequest(ctx context.Context, id string, dto
 		return nil, err
 	}
 
-	// Send notification email
+	// Send notification email with exact rejection reason
 	if s.emailSvc != nil {
 		_ = s.emailSvc.SendRejectionEmail(ctx, accessReq.Email, accessReq.Name, reason)
 	}
