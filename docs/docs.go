@@ -682,6 +682,335 @@ const docTemplate = `{
                 }
             }
         },
+        "/calculators/fd": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Calculates total principal, estimated interest returns, and maturity value for a Fixed Deposit (FD). If interest_rate is omitted, the Admin's default FD rate is applied.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Calculators"
+                ],
+                "summary": "Calculate Fixed Deposit (FD) returns",
+                "parameters": [
+                    {
+                        "description": "FD calculation parameters",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.FDRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "FD calculation completed successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CalculatorResponseDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request — invalid parameters",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized — token missing or invalid",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/calculators/lumpsum": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Calculates total invested amount, estimated returns, and final maturity value for a Lumpsum investment. If expected_return_rate is omitted, the Admin's default Lumpsum rate is applied.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Calculators"
+                ],
+                "summary": "Calculate Lumpsum returns",
+                "parameters": [
+                    {
+                        "description": "Lumpsum calculation parameters",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.LumpsumRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Lumpsum calculation completed successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CalculatorResponseDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request — invalid parameters",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized — token missing or invalid",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/calculators/settings": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves the global default SIP, Lumpsum, and FD return rates configured by Admin.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Calculators"
+                ],
+                "summary": "Get global calculator default rates",
+                "responses": {
+                    "200": {
+                        "description": "Calculator settings retrieved successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CalculatorSettings"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized — token missing or invalid",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates the global default SIP, Lumpsum, or FD return rates used across client calculators when no rate is explicitly passed.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Calculators"
+                ],
+                "summary": "Update global calculator default rates (Admin only)",
+                "parameters": [
+                    {
+                        "description": "Updated calculator default rates",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UpdateCalculatorSettingsDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Calculator settings updated successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CalculatorSettings"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request — invalid input format",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized — token missing or invalid",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden — admin role required",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/calculators/sip": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Calculates total invested amount, estimated returns, and final maturity value for a Systematic Investment Plan (SIP). If expected_return_rate is omitted, the Admin's default SIP rate is applied.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Calculators"
+                ],
+                "summary": "Calculate SIP returns",
+                "parameters": [
+                    {
+                        "description": "SIP calculation parameters",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.SIPRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "SIP calculation completed successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CalculatorResponseDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request — invalid parameters",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized — token missing or invalid",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/dashboard/admin": {
             "get": {
                 "security": [
@@ -4416,6 +4745,47 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_smart-invest-solutions_backend_internal_domain.CalculatorResponseDTO": {
+            "type": "object",
+            "properties": {
+                "applied_interest_rate": {
+                    "description": "Tells client which rate was applied",
+                    "type": "number"
+                },
+                "estimated_returns": {
+                    "type": "number"
+                },
+                "invested_amount": {
+                    "type": "number"
+                },
+                "total_value": {
+                    "type": "number"
+                }
+            }
+        },
+        "github_com_smart-invest-solutions_backend_internal_domain.CalculatorSettings": {
+            "type": "object",
+            "properties": {
+                "default_fd_rate": {
+                    "description": "e.g. 7.0 (%)",
+                    "type": "number"
+                },
+                "default_lumpsum_rate": {
+                    "description": "e.g. 12.0 (%)",
+                    "type": "number"
+                },
+                "default_sip_rate": {
+                    "description": "e.g. 12.0 (%)",
+                    "type": "number"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_smart-invest-solutions_backend_internal_domain.ChangePasswordRequest": {
             "type": "object",
             "required": [
@@ -4930,6 +5300,34 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_smart-invest-solutions_backend_internal_domain.FDRequestDTO": {
+            "type": "object",
+            "required": [
+                "compounding_frequency",
+                "principal",
+                "tenure_months"
+            ],
+            "properties": {
+                "compounding_frequency": {
+                    "type": "string",
+                    "enum": [
+                        "Quarterly",
+                        "Half-Yearly",
+                        "Yearly"
+                    ]
+                },
+                "interest_rate": {
+                    "description": "Optional: Uses Admin default if nil",
+                    "type": "number"
+                },
+                "principal": {
+                    "type": "number"
+                },
+                "tenure_months": {
+                    "type": "integer"
+                }
+            }
+        },
         "github_com_smart-invest-solutions_backend_internal_domain.FamilyMember": {
             "type": "object",
             "required": [
@@ -5276,6 +5674,25 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_smart-invest-solutions_backend_internal_domain.LumpsumRequestDTO": {
+            "type": "object",
+            "required": [
+                "time_period_years",
+                "total_investment"
+            ],
+            "properties": {
+                "expected_return_rate": {
+                    "description": "Optional: Uses Admin default if nil",
+                    "type": "number"
+                },
+                "time_period_years": {
+                    "type": "integer"
+                },
+                "total_investment": {
+                    "type": "number"
+                }
+            }
+        },
         "github_com_smart-invest-solutions_backend_internal_domain.PolicyDetails": {
             "type": "object",
             "properties": {
@@ -5421,6 +5838,25 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_smart-invest-solutions_backend_internal_domain.SIPRequestDTO": {
+            "type": "object",
+            "required": [
+                "monthly_investment",
+                "time_period_years"
+            ],
+            "properties": {
+                "expected_return_rate": {
+                    "description": "Optional: Uses Admin default if nil",
+                    "type": "number"
+                },
+                "monthly_investment": {
+                    "type": "number"
+                },
+                "time_period_years": {
+                    "type": "integer"
+                }
+            }
+        },
         "github_com_smart-invest-solutions_backend_internal_domain.SupportTicket": {
             "type": "object",
             "properties": {
@@ -5516,6 +5952,23 @@ const docTemplate = `{
                     "description": "\"Life Insurance\", \"Health Insurance\", \"Fixed Deposit\"",
                     "type": "string",
                     "example": "Life Insurance"
+                }
+            }
+        },
+        "github_com_smart-invest-solutions_backend_internal_domain.UpdateCalculatorSettingsDTO": {
+            "type": "object",
+            "properties": {
+                "default_fd_rate": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "default_lumpsum_rate": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "default_sip_rate": {
+                    "type": "number",
+                    "minimum": 0
                 }
             }
         },

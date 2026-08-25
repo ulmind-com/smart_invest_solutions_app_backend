@@ -65,6 +65,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	healthInsuranceRepo := repository.NewHealthInsuranceRepository(db.Database)
 	supportTicketRepo := repository.NewSupportTicketRepository(db.Database)
 	productRepo := repository.NewProductRepository(db.Database)
+	calculatorRepo := repository.NewCalculatorSettingsRepository(db.Database)
 
 	// Initialize Services
 	userSvcConcrete := service.NewUserService(userRepo, cfg, emailSvc)
@@ -88,6 +89,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	dashboardService := service.NewDashboardService(userRepo, familyMemberRepo, lifeInsuranceRepo, healthInsuranceRepo, generalInsuranceRepo, fixedDepositRepo, accessReqRepo)
 	reportService := service.NewReportService(userRepo, familyMemberRepo, lifeInsuranceRepo, healthInsuranceRepo, generalInsuranceRepo, fixedDepositRepo)
 	agencySyncService := service.NewAgencySyncService(lifeInsuranceRepo)
+	calculatorService := service.NewCalculatorService(calculatorRepo)
 
 	// Initialize Handlers
 	userHandler := handler.NewUserHandler(userService, passResetService)
@@ -103,6 +105,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	dashboardHandler := handler.NewDashboardHandler(dashboardService)
 	reportHandler := handler.NewReportHandler(reportService)
 	agencySyncHandler := handler.NewAgencySyncHandler(agencySyncService)
+	calculatorHandler := handler.NewCalculatorHandler(calculatorService)
 
 	// API v1 routes
 	v1 := router.Group("/api/v1")
@@ -343,6 +346,18 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			agency.Use(middleware.RequireRole("admin"))
 
 			agency.POST("/sync/lic-due-list", agencySyncHandler.ProcessLICDueList)
+		}
+
+		// Financial Calculators routes — SIP, Lumpsum, and FD calculators with Admin rate settings
+		calculators := v1.Group("/calculators")
+		{
+			calculators.Use(middleware.RequireAuth(cfg))
+
+			calculators.GET("/settings", calculatorHandler.GetSettings)
+			calculators.PUT("/settings", middleware.RequireRole(domain.RoleAdmin), calculatorHandler.UpdateSettings)
+			calculators.POST("/sip", calculatorHandler.CalculateSIP)
+			calculators.POST("/lumpsum", calculatorHandler.CalculateLumpsum)
+			calculators.POST("/fd", calculatorHandler.CalculateFD)
 		}
 	}
 

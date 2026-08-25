@@ -52,6 +52,34 @@ definitions:
       admin_notes:
         type: string
     type: object
+  github_com_smart-invest-solutions_backend_internal_domain.CalculatorResponseDTO:
+    properties:
+      applied_interest_rate:
+        description: Tells client which rate was applied
+        type: number
+      estimated_returns:
+        type: number
+      invested_amount:
+        type: number
+      total_value:
+        type: number
+    type: object
+  github_com_smart-invest-solutions_backend_internal_domain.CalculatorSettings:
+    properties:
+      default_fd_rate:
+        description: e.g. 7.0 (%)
+        type: number
+      default_lumpsum_rate:
+        description: e.g. 12.0 (%)
+        type: number
+      default_sip_rate:
+        description: e.g. 12.0 (%)
+        type: number
+      id:
+        type: string
+      updated_at:
+        type: string
+    type: object
   github_com_smart-invest-solutions_backend_internal_domain.ChangePasswordRequest:
     properties:
       confirm_password:
@@ -410,6 +438,26 @@ definitions:
       total:
         type: integer
     type: object
+  github_com_smart-invest-solutions_backend_internal_domain.FDRequestDTO:
+    properties:
+      compounding_frequency:
+        enum:
+        - Quarterly
+        - Half-Yearly
+        - Yearly
+        type: string
+      interest_rate:
+        description: 'Optional: Uses Admin default if nil'
+        type: number
+      principal:
+        type: number
+      tenure_months:
+        type: integer
+    required:
+    - compounding_frequency
+    - principal
+    - tenure_months
+    type: object
   github_com_smart-invest-solutions_backend_internal_domain.FamilyMember:
     properties:
       blood_group:
@@ -643,6 +691,19 @@ definitions:
       user:
         $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserResponse'
     type: object
+  github_com_smart-invest-solutions_backend_internal_domain.LumpsumRequestDTO:
+    properties:
+      expected_return_rate:
+        description: 'Optional: Uses Admin default if nil'
+        type: number
+      time_period_years:
+        type: integer
+      total_investment:
+        type: number
+    required:
+    - time_period_years
+    - total_investment
+    type: object
   github_com_smart-invest-solutions_backend_internal_domain.PolicyDetails:
     properties:
       doc:
@@ -740,6 +801,19 @@ definitions:
     - new_password
     - otp
     type: object
+  github_com_smart-invest-solutions_backend_internal_domain.SIPRequestDTO:
+    properties:
+      expected_return_rate:
+        description: 'Optional: Uses Admin default if nil'
+        type: number
+      monthly_investment:
+        type: number
+      time_period_years:
+        type: integer
+    required:
+    - monthly_investment
+    - time_period_years
+    type: object
   github_com_smart-invest-solutions_backend_internal_domain.SupportTicket:
     properties:
       admin_notes:
@@ -805,6 +879,18 @@ definitions:
         description: '"Life Insurance", "Health Insurance", "Fixed Deposit"'
         example: Life Insurance
         type: string
+    type: object
+  github_com_smart-invest-solutions_backend_internal_domain.UpdateCalculatorSettingsDTO:
+    properties:
+      default_fd_rate:
+        minimum: 0
+        type: number
+      default_lumpsum_rate:
+        minimum: 0
+        type: number
+      default_sip_rate:
+        minimum: 0
+        type: number
     type: object
   github_com_smart-invest-solutions_backend_internal_domain.UpdateFamilyMemberDTO:
     properties:
@@ -1466,6 +1552,209 @@ paths:
       summary: Process LIC Premium Due List PDF (Admin only)
       tags:
       - Agency Sync
+  /calculators/fd:
+    post:
+      consumes:
+      - application/json
+      description: Calculates total principal, estimated interest returns, and maturity
+        value for a Fixed Deposit (FD). If interest_rate is omitted, the Admin's default
+        FD rate is applied.
+      parameters:
+      - description: FD calculation parameters
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.FDRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: FD calculation completed successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CalculatorResponseDTO'
+              type: object
+        "400":
+          description: Bad request — invalid parameters
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "401":
+          description: Unauthorized — token missing or invalid
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Calculate Fixed Deposit (FD) returns
+      tags:
+      - Calculators
+  /calculators/lumpsum:
+    post:
+      consumes:
+      - application/json
+      description: Calculates total invested amount, estimated returns, and final
+        maturity value for a Lumpsum investment. If expected_return_rate is omitted,
+        the Admin's default Lumpsum rate is applied.
+      parameters:
+      - description: Lumpsum calculation parameters
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.LumpsumRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Lumpsum calculation completed successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CalculatorResponseDTO'
+              type: object
+        "400":
+          description: Bad request — invalid parameters
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "401":
+          description: Unauthorized — token missing or invalid
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Calculate Lumpsum returns
+      tags:
+      - Calculators
+  /calculators/settings:
+    get:
+      description: Retrieves the global default SIP, Lumpsum, and FD return rates
+        configured by Admin.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Calculator settings retrieved successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CalculatorSettings'
+              type: object
+        "401":
+          description: Unauthorized — token missing or invalid
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get global calculator default rates
+      tags:
+      - Calculators
+    put:
+      consumes:
+      - application/json
+      description: Updates the global default SIP, Lumpsum, or FD return rates used
+        across client calculators when no rate is explicitly passed.
+      parameters:
+      - description: Updated calculator default rates
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UpdateCalculatorSettingsDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Calculator settings updated successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CalculatorSettings'
+              type: object
+        "400":
+          description: Bad request — invalid input format
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "401":
+          description: Unauthorized — token missing or invalid
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "403":
+          description: Forbidden — admin role required
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Update global calculator default rates (Admin only)
+      tags:
+      - Calculators
+  /calculators/sip:
+    post:
+      consumes:
+      - application/json
+      description: Calculates total invested amount, estimated returns, and final
+        maturity value for a Systematic Investment Plan (SIP). If expected_return_rate
+        is omitted, the Admin's default SIP rate is applied.
+      parameters:
+      - description: SIP calculation parameters
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.SIPRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: SIP calculation completed successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CalculatorResponseDTO'
+              type: object
+        "400":
+          description: Bad request — invalid parameters
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "401":
+          description: Unauthorized — token missing or invalid
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Calculate SIP returns
+      tags:
+      - Calculators
   /dashboard/admin:
     get:
       consumes:
