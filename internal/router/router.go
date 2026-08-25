@@ -87,6 +87,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	productService := service.NewProductService(productRepo, storageSvc)
 	dashboardService := service.NewDashboardService(userRepo, familyMemberRepo, lifeInsuranceRepo, healthInsuranceRepo, generalInsuranceRepo, fixedDepositRepo, accessReqRepo)
 	reportService := service.NewReportService(userRepo, familyMemberRepo, lifeInsuranceRepo, healthInsuranceRepo, generalInsuranceRepo, fixedDepositRepo)
+	agencySyncService := service.NewAgencySyncService(lifeInsuranceRepo)
 
 	// Initialize Handlers
 	userHandler := handler.NewUserHandler(userService, passResetService)
@@ -101,6 +102,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	productHandler := handler.NewProductHandler(productService)
 	dashboardHandler := handler.NewDashboardHandler(dashboardService)
 	reportHandler := handler.NewReportHandler(reportService)
+	agencySyncHandler := handler.NewAgencySyncHandler(agencySyncService)
 
 	// API v1 routes
 	v1 := router.Group("/api/v1")
@@ -332,6 +334,15 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			reports.Use(middleware.RequireAuth(cfg))
 
 			reports.GET("/portfolio", reportHandler.GetClientPortfolio)
+		}
+
+		// Agency Sync routes — automated bulk updates from LIC Premium Due List PDFs
+		agency := v1.Group("/agency")
+		{
+			agency.Use(middleware.RequireAuth(cfg))
+			agency.Use(middleware.RequireRole("admin"))
+
+			agency.POST("/sync/lic-due-list", agencySyncHandler.ProcessLICDueList)
 		}
 	}
 

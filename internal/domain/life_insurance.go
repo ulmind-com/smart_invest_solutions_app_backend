@@ -139,6 +139,8 @@ type LifeInsuranceRepository interface {
 	Update(ctx context.Context, id bson.ObjectID, dto *UpdateLifeInsuranceDTO) (*LifeInsurance, error)
 	Delete(ctx context.Context, id bson.ObjectID) error
 	DeleteAllByUserID(ctx context.Context, userID bson.ObjectID) error
+	BulkUpdateFromSync(ctx context.Context, records []LICParsedRecord) (int64, error)
+	GetExistingPolicyNumbers(ctx context.Context, policyNos []string) (map[string]bool, error)
 }
 
 // LifeInsuranceService defines business logic operations for life insurance policies.
