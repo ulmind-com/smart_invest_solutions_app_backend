@@ -67,18 +67,20 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	productRepo := repository.NewProductRepository(db.Database)
 	calculatorRepo := repository.NewCalculatorSettingsRepository(db.Database)
 	referralRepo := repository.NewReferralRepository(db.Database)
+	emailVerifRepo := repository.NewEmailVerificationRepository(db.Database)
 
 	// Initialize Services
 	userSvcConcrete := service.NewUserService(userRepo, cfg, emailSvc)
 	if setter, ok := userSvcConcrete.(interface {
-		SetCascadeDependencies(domain.FamilyMemberRepository, domain.GeneralInsuranceRepository, domain.DocumentRepository, domain.LifeInsuranceRepository, domain.FixedDepositRepository, domain.HealthInsuranceRepository, domain.SupportTicketRepository, domain.AccessRequestRepository, service.StorageService)
+		SetCascadeDependencies(domain.FamilyMemberRepository, domain.GeneralInsuranceRepository, domain.DocumentRepository, domain.LifeInsuranceRepository, domain.FixedDepositRepository, domain.HealthInsuranceRepository, domain.SupportTicketRepository, domain.AccessRequestRepository, domain.EmailVerificationRepository, service.StorageService)
 	}); ok {
-		setter.SetCascadeDependencies(familyMemberRepo, generalInsuranceRepo, documentRepo, lifeInsuranceRepo, fixedDepositRepo, healthInsuranceRepo, supportTicketRepo, accessReqRepo, storageSvc)
+		setter.SetCascadeDependencies(familyMemberRepo, generalInsuranceRepo, documentRepo, lifeInsuranceRepo, fixedDepositRepo, healthInsuranceRepo, supportTicketRepo, accessReqRepo, emailVerifRepo, storageSvc)
 	}
 	userService := userSvcConcrete
 
 	accessReqService := service.NewAccessRequestService(accessReqRepo, userRepo, userService, emailSvc, referralRepo)
 	passResetService := service.NewPasswordResetService(passResetRepo, userRepo, emailSvc)
+	emailVerifService := service.NewEmailVerificationService(emailVerifRepo, userRepo, accessReqRepo, emailSvc)
 	familyMemberService := service.NewFamilyMemberService(familyMemberRepo)
 	generalInsuranceService := service.NewGeneralInsuranceService(generalInsuranceRepo)
 	documentService := service.NewDocumentService(documentRepo, storageSvc)
@@ -96,6 +98,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	// Initialize Handlers
 	userHandler := handler.NewUserHandler(userService, passResetService)
 	accessReqHandler := handler.NewAccessRequestHandler(accessReqService)
+	emailVerifHandler := handler.NewEmailVerificationHandler(emailVerifService)
 	familyMemberHandler := handler.NewFamilyMemberHandler(familyMemberService)
 	generalInsuranceHandler := handler.NewGeneralInsuranceHandler(generalInsuranceService)
 	documentHandler := handler.NewDocumentHandler(documentService)
@@ -119,6 +122,8 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			// Public routes
 			users.POST("/register", userHandler.Register)
 			users.POST("/login", userHandler.Login)
+			users.POST("/verify-email-otp", emailVerifHandler.VerifyEmailOTP)
+			users.POST("/resend-email-otp", emailVerifHandler.ResendEmailOTP)
 			users.POST("/forgot-password", userHandler.ForgotPassword)
 			users.POST("/verify-otp", userHandler.VerifyOTP)
 			users.POST("/reset-password", userHandler.ResetPassword)

@@ -34,6 +34,7 @@ type userService struct {
 	healthInsuranceRepo  domain.HealthInsuranceRepository
 	supportTicketRepo    domain.SupportTicketRepository
 	accessReqRepo        domain.AccessRequestRepository
+	verifRepo            domain.EmailVerificationRepository
 	storageSvc           StorageService
 }
 
@@ -46,8 +47,8 @@ func NewUserService(userRepo domain.UserRepository, cfg *config.Config, emailSvc
 	}
 }
 
-// SetCascadeDependencies wires repositories for full cascade account deletion and access request creation.
-func (s *userService) SetCascadeDependencies(familyMemberRepo domain.FamilyMemberRepository, generalInsuranceRepo domain.GeneralInsuranceRepository, documentRepo domain.DocumentRepository, lifeInsuranceRepo domain.LifeInsuranceRepository, fixedDepositRepo domain.FixedDepositRepository, healthInsuranceRepo domain.HealthInsuranceRepository, supportTicketRepo domain.SupportTicketRepository, accessReqRepo domain.AccessRequestRepository, storageSvc StorageService) {
+// SetCascadeDependencies wires repositories for full cascade account deletion, access requests, and email verification.
+func (s *userService) SetCascadeDependencies(familyMemberRepo domain.FamilyMemberRepository, generalInsuranceRepo domain.GeneralInsuranceRepository, documentRepo domain.DocumentRepository, lifeInsuranceRepo domain.LifeInsuranceRepository, fixedDepositRepo domain.FixedDepositRepository, healthInsuranceRepo domain.HealthInsuranceRepository, supportTicketRepo domain.SupportTicketRepository, accessReqRepo domain.AccessRequestRepository, verifRepo domain.EmailVerificationRepository, storageSvc StorageService) {
 	s.familyMemberRepo = familyMemberRepo
 	s.generalInsuranceRepo = generalInsuranceRepo
 	s.documentRepo = documentRepo
@@ -56,15 +57,46 @@ func (s *userService) SetCascadeDependencies(familyMemberRepo domain.FamilyMembe
 	s.healthInsuranceRepo = healthInsuranceRepo
 	s.supportTicketRepo = supportTicketRepo
 	s.accessReqRepo = accessReqRepo
+	s.verifRepo = verifRepo
 	s.storageSvc = storageSvc
 }
 
-// Register creates a new user with a hashed password, setting IsActive to false (pending verification), creating a pending AccessRequest for Admin review, and sending a Welcome email.
+// Register creates a new user with a hashed password, setting IsEmailVerified to false and sending a 6-digit OTP email.
 func (s *userService) Register(ctx context.Context, req *domain.CreateUserRequest) (*domain.UserResponse, error) {
 	// Check if user with this email already exists
 	existing, _ := s.userRepo.FindByEmail(ctx, req.Email)
 	if existing != nil {
-		return nil, fmt.Errorf("user with email %s already exists", req.Email)
+		if existing.IsEmailVerified {
+			return nil, fmt.Errorf("user with email %s already exists", req.Email)
+		}
+		// If email is not verified yet, update existing record details so user can complete OTP verification
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+		if err != nil {
+			return nil, fmt.Errorf("failed to hash password: %w", err)
+		}
+		_ = s.userRepo.UpdatePassword(ctx, existing.ID, string(hashedPassword))
+		name := req.Name
+		phone := req.Phone
+		_, _ = s.userRepo.Update(ctx, existing.ID, &domain.UpdateUserRequest{Name: &name, Phone: &phone})
+
+		// Generate & send new 6-digit OTP
+		otpCode, _ := utils.GenerateNumericCode(6)
+		verifRecord := &domain.EmailVerification{
+			Email:     existing.Email,
+			OTP:       otpCode,
+			ExpiresAt: time.Now().UTC().Add(10 * time.Minute),
+			IsUsed:    false,
+			Attempts:  0,
+		}
+		if s.verifRepo != nil {
+			_, _ = s.verifRepo.Create(ctx, verifRecord)
+		}
+		if s.emailSvc != nil {
+			go func() {
+				_ = s.emailSvc.SendVerificationOTPEmail(context.Background(), existing.Email, existing.Name, otpCode)
+			}()
+		}
+		return existing.ToResponse(), nil
 	}
 
 	// Hash password
@@ -88,7 +120,7 @@ func (s *userService) Register(ctx context.Context, req *domain.CreateUserReques
 		refCode = "REF" + strconv.FormatInt(time.Now().UnixNano()%1000, 10)
 	}
 
-	// Default role is client; account is pending Admin verification (IsActive = false)
+	// Default role is client; account is unverified (IsEmailVerified = false) and pending Admin verification (IsActive = false)
 	user := &domain.User{
 		Name:               req.Name,
 		Email:              req.Email,
@@ -96,6 +128,7 @@ func (s *userService) Register(ctx context.Context, req *domain.CreateUserReques
 		Phone:              req.Phone,
 		Role:               domain.RoleClient,
 		IsActive:           false, // Pending Admin verification
+		IsEmailVerified:    false, // Pending OTP verification
 		ReferralCode:       refCode,
 		AppValidityEndDate: time.Now().UTC().AddDate(1, 0, 0), // Default 1 year validity
 	}
@@ -105,35 +138,31 @@ func (s *userService) Register(ctx context.Context, req *domain.CreateUserReques
 		return nil, err
 	}
 
-	// Automatically create a pending AccessRequest for Admin verification queue
-	if s.accessReqRepo != nil {
-		existingReq, _ := s.accessReqRepo.FindByEmail(ctx, createdUser.Email)
-		if existingReq == nil {
-			accessReq := &domain.AccessRequest{
-				Name:   createdUser.Name,
-				Email:  createdUser.Email,
-				Phone:  createdUser.Phone,
-				Notes:  "Registered directly via client account creation flow",
-				Status: domain.AccessStatusPending,
-			}
-			_, _ = s.accessReqRepo.Create(ctx, accessReq)
+	// Generate 6-digit numeric verification OTP
+	otpCode, err := utils.GenerateNumericCode(6)
+	if err == nil {
+		verifRecord := &domain.EmailVerification{
+			Email:     createdUser.Email,
+			OTP:       otpCode,
+			ExpiresAt: time.Now().UTC().Add(10 * time.Minute),
+			IsUsed:    false,
+			Attempts:  0,
 		}
-	}
-
-	// Send automatic Welcome Email asynchronously
-	if s.emailSvc != nil {
-		go func() {
-			_ = s.emailSvc.SendWelcomeEmail(context.Background(), createdUser.Email, createdUser.Name)
-		}()
+		if s.verifRepo != nil {
+			_, _ = s.verifRepo.Create(ctx, verifRecord)
+		}
+		if s.emailSvc != nil {
+			go func() {
+				_ = s.emailSvc.SendVerificationOTPEmail(context.Background(), createdUser.Email, createdUser.Name, otpCode)
+			}()
+		}
 	}
 
 	return createdUser.ToResponse(), nil
 }
 
 // Login authenticates a normal user (client/advisor) by Email + Password. Admin/super_admin
-// accounts cannot sign in through this endpoint — they must use AdminLogin instead. The password
-// is checked before the role gate so that a wrong-endpoint hint is only ever revealed to someone
-// who already proved they know the correct password (no new information is leaked to an attacker).
+// accounts cannot sign in through this endpoint — they must use AdminLogin instead.
 func (s *userService) Login(ctx context.Context, req *domain.UserLoginRequest) (*domain.LoginResponse, error) {
 	user, err := s.userRepo.FindByEmail(ctx, req.Email)
 	if err != nil || user == nil {
@@ -144,6 +173,11 @@ func (s *userService) Login(ctx context.Context, req *domain.UserLoginRequest) (
 	if user.LockedUntil != nil && user.LockedUntil.After(time.Now().UTC()) {
 		remaining := time.Until(*user.LockedUntil).Round(time.Minute)
 		return nil, fmt.Errorf("account temporarily locked due to multiple failed login attempts. Try again in %s", remaining)
+	}
+
+	// Check if email has been verified via OTP
+	if !user.IsEmailVerified && user.Role == domain.RoleClient {
+		return nil, fmt.Errorf("your email address is not verified. Please verify your email using the OTP sent to your inbox.")
 	}
 
 	// Check if user is active (Admin verified)

@@ -24,6 +24,7 @@ type User struct {
 	Phone               string        `bson:"phone,omitempty" json:"phone,omitempty"`
 	Role                string        `bson:"role" json:"role"` // client, advisor, admin, super_admin
 	IsActive            bool          `bson:"is_active" json:"is_active"`
+	IsEmailVerified     bool          `bson:"is_email_verified" json:"is_email_verified"`
 	AdminID             string        `bson:"admin_id,omitempty" json:"admin_id,omitempty"` // Unique login ID, set only for admin/super_admin accounts
 	PIN                 string        `bson:"pin,omitempty" json:"-"`                        // bcrypt-hashed 4-digit PIN, set only for admin/super_admin accounts
 	ReferralCode        string        `bson:"referral_code,omitempty" json:"referral_code,omitempty"`
@@ -44,11 +45,12 @@ type CreateUserRequest struct {
 
 // UpdateUserRequest represents the request payload for updating a user (Admin/Internal).
 type UpdateUserRequest struct {
-	Name     *string `json:"name,omitempty"`
-	Email    *string `json:"email,omitempty"`
-	Phone    *string `json:"phone,omitempty"`
-	Role     *string `json:"role,omitempty"`
-	IsActive *bool   `json:"is_active,omitempty"`
+	Name            *string `json:"name,omitempty"`
+	Email           *string `json:"email,omitempty"`
+	Phone           *string `json:"phone,omitempty"`
+	Role            *string `json:"role,omitempty"`
+	IsActive        *bool   `json:"is_active,omitempty"`
+	IsEmailVerified *bool   `json:"is_email_verified,omitempty"`
 }
 
 // UpdateProfileRequest represents the payload when a logged-in user updates their own profile.
@@ -93,6 +95,7 @@ type UserResponse struct {
 	Phone              string        `json:"phone,omitempty"`
 	Role               string        `json:"role"`
 	IsActive           bool          `json:"is_active"`
+	IsEmailVerified    bool          `json:"is_email_verified"`
 	AdminID            string        `json:"admin_id,omitempty"`
 	ReferralCode       string        `json:"referral_code,omitempty"`
 	AppValidityEndDate time.Time     `json:"app_validity_end_date,omitempty"`
@@ -109,6 +112,7 @@ func (u *User) ToResponse() *UserResponse {
 		Phone:              u.Phone,
 		Role:               u.Role,
 		IsActive:           u.IsActive,
+		IsEmailVerified:    u.IsEmailVerified,
 		AdminID:            u.AdminID,
 		ReferralCode:       u.ReferralCode,
 		AppValidityEndDate: u.AppValidityEndDate,
@@ -147,6 +151,7 @@ type UserRepository interface {
 	FindAllByRoles(ctx context.Context, roles []string, page, limit int64) ([]*User, int64, error)
 	Update(ctx context.Context, id bson.ObjectID, update *UpdateUserRequest) (*User, error)
 	UpdatePassword(ctx context.Context, id bson.ObjectID, hashedPassword string) error
+	MarkEmailVerified(ctx context.Context, id bson.ObjectID) error
 	ExtendValidity(ctx context.Context, userID bson.ObjectID, extraDays int) error
 	Delete(ctx context.Context, id bson.ObjectID) error
 	RecordFailedLogin(ctx context.Context, id bson.ObjectID) (int, error)
