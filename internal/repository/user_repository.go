@@ -303,3 +303,19 @@ func (r *userRepository) ExtendValidity(ctx context.Context, userID bson.ObjectI
 
 	return nil
 }
+
+// MarkEmailVerified updates the user's IsEmailVerified flag to true.
+func (r *userRepository) MarkEmailVerified(ctx context.Context, id bson.ObjectID) error {
+	filter := bson.M{"_id": id}
+	update := bson.M{
+		"$set": bson.M{
+			"is_email_verified": true,
+			"updated_at":        time.Now().UTC(),
+		},
+	}
+	_, err := r.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to mark email verified: %w", err)
+	}
+	return nil
+}

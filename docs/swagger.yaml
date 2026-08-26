@@ -832,6 +832,14 @@ definitions:
       reason:
         type: string
     type: object
+  github_com_smart-invest-solutions_backend_internal_domain.ResendEmailOTPRequest:
+    properties:
+      email:
+        example: user@example.com
+        type: string
+    required:
+    - email
+    type: object
   github_com_smart-invest-solutions_backend_internal_domain.ResetPasswordRequest:
     properties:
       confirm_password:
@@ -1095,6 +1103,8 @@ definitions:
         type: string
       is_active:
         type: boolean
+      is_email_verified:
+        type: boolean
       name:
         type: string
       phone:
@@ -1128,6 +1138,8 @@ definitions:
         type: string
       is_active:
         type: boolean
+      is_email_verified:
+        type: boolean
       name:
         type: string
       phone:
@@ -1138,6 +1150,18 @@ definitions:
         type: string
       updated_at:
         type: string
+    type: object
+  github_com_smart-invest-solutions_backend_internal_domain.VerifyEmailOTPRequest:
+    properties:
+      email:
+        example: user@example.com
+        type: string
+      otp:
+        example: "123456"
+        type: string
+    required:
+    - email
+    - otp
     type: object
   github_com_smart-invest-solutions_backend_internal_domain.VerifyOTPRequest:
     properties:
@@ -4133,6 +4157,37 @@ paths:
       summary: Register a new user
       tags:
       - Authentication
+  /users/resend-email-otp:
+    post:
+      consumes:
+      - application/json
+      description: Generates and dispatches a fresh 6-digit OTP code to the user's
+        email address (subject to a 60-second rate limit cooldown).
+      parameters:
+      - description: Resend OTP Payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ResendEmailOTPRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Verification OTP sent successfully
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "400":
+          description: Rate limit exceeded or email already verified
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      summary: Resend signup email OTP
+      tags:
+      - User Authentication
   /users/reset-password:
     post:
       consumes:
@@ -4163,6 +4218,38 @@ paths:
       summary: Reset password using OTP
       tags:
       - Authentication
+  /users/verify-email-otp:
+    post:
+      consumes:
+      - application/json
+      description: Validates the 6-digit OTP code sent to the user's email upon registration.
+        Once verified, the account is marked email-verified and submitted to Admin
+        for approval.
+      parameters:
+      - description: OTP Verification Payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.VerifyEmailOTPRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Email verified successfully
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "400":
+          description: Invalid or expired OTP code
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      summary: Verify signup email OTP
+      tags:
+      - User Authentication
   /users/verify-otp:
     post:
       consumes:

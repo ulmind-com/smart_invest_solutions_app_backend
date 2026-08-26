@@ -19,6 +19,7 @@ type EmailService interface {
 	SendCredentialsEmail(ctx context.Context, toEmail, name, password string) error
 	SendRejectionEmail(ctx context.Context, toEmail, name, reason string) error
 	SendOTPEmail(ctx context.Context, toEmail, otpCode string) error
+	SendVerificationOTPEmail(ctx context.Context, toEmail, name, otpCode string) error
 	SendPasswordResetConfirmationEmail(ctx context.Context, toEmail string) error
 	SendAccountDeletionEmail(ctx context.Context, toEmail, name string) error
 	SendAdminCredentialsEmail(ctx context.Context, toEmail, name, adminID, password, pin string) error
@@ -225,6 +226,48 @@ func (s *ResendService) SendOTPEmail(ctx context.Context, toEmail, otpCode strin
 </body>
 </html>
 `, otpCode)
+
+	return s.sendResendRequest(ctx, subject, toEmail, htmlBody)
+}
+
+// SendVerificationOTPEmail sends a 6-digit OTP code for signup email ownership verification.
+func (s *ResendService) SendVerificationOTPEmail(ctx context.Context, toEmail, name, otpCode string) error {
+	subject := "📩 Verify Your Email Address — Smart Invest Solutions"
+
+	htmlBody := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0f172a; margin: 0; padding: 20px; color: #f8fafc; }
+        .container { max-width: 500px; margin: 0 auto; background: #1e293b; border-radius: 16px; padding: 30px; border: 1px solid #334155; }
+        .header { text-align: center; margin-bottom: 24px; }
+        .header h1 { color: #38bdf8; font-size: 22px; margin: 0; }
+        .otp-box { background: #0f172a; border: 2px dashed #38bdf8; border-radius: 12px; padding: 20px; text-align: center; margin: 24px 0; }
+        .otp-code { font-size: 36px; font-weight: bold; font-family: monospace; letter-spacing: 8px; color: #38bdf8; }
+        .info { color: #94a3b8; font-size: 14px; line-height: 1.5; text-align: center; }
+        .footer { text-align: center; margin-top: 24px; font-size: 12px; color: #64748b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Smart Invest Solutions</h1>
+            <p style="color: #94a3b8; font-size: 14px; margin-top: 4px;">Email Verification OTP</p>
+        </div>
+        <p class="info">Hello <strong>%s</strong>, welcome to Smart Invest Solutions! Please verify your email address using the 6-digit OTP code below:</p>
+        
+        <div class="otp-box">
+            <div class="otp-code">%s</div>
+        </div>
+
+        <p class="info">⏰ This OTP code is valid for <strong>10 minutes</strong>. Please do not share this code with anyone.</p>
+        <div class="footer">&copy; Smart Invest Solutions. All rights reserved.</div>
+    </div>
+</body>
+</html>
+`, name, otpCode)
 
 	return s.sendResendRequest(ctx, subject, toEmail, htmlBody)
 }
