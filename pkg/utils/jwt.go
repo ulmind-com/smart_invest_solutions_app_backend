@@ -10,8 +10,10 @@ import (
 
 // Claims represents the JWT claims for the application.
 type Claims struct {
-	UserID bson.ObjectID `json:"user_id"`
-	Role   string        `json:"role"`
+	UserID          bson.ObjectID  `json:"user_id"`
+	Role            string         `json:"role"`
+	ImpersonatedBy  *bson.ObjectID `json:"impersonated_by,omitempty"`
+	IsImpersonating bool           `json:"is_impersonating,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -38,6 +40,31 @@ func GenerateJWT(userID bson.ObjectID, role string, secret string, expiryHours i
 	tokenString, err := token.SignedString([]byte(secret))
 	if err != nil {
 		return "", fmt.Errorf("failed to sign token: %w", err)
+	}
+
+	return tokenString, nil
+}
+
+// GenerateImpersonationJWT creates a new JWT token for a super_admin impersonating a target user.
+func GenerateImpersonationJWT(targetUserID, superAdminID bson.ObjectID, role string, secret string, expiryHours int) (string, error) {
+	expirationTime := time.Now().Add(time.Duration(expiryHours) * time.Hour)
+
+	claims := &Claims{
+		UserID:          targetUserID,
+		Role:            role,
+		ImpersonatedBy:  &superAdminID,
+		IsImpersonating: true,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expirationTime),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			NotBefore: jwt.NewNumericDate(time.Now()),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString([]byte(secret))
+	if err != nil {
+		return "", fmt.Errorf("failed to sign impersonation token: %w", err)
 	}
 
 	return tokenString, nil

@@ -505,3 +505,44 @@ func (h *UserHandler) DeleteAdmin(c *gin.Context) {
 
 	response.Success(c, "Admin account deleted successfully", nil)
 }
+
+// ImpersonateUser handles logging in on behalf of any target user or admin account. Super Admin only.
+// @Summary      Impersonate user or admin account (Super Admin only)
+// @Description  Generates a valid JWT token for a target user or admin account, allowing a Super Admin to view dashboards and perform actions on their behalf.
+// @Tags         Admin Accounts
+// @Accept       json
+// @Produce      json
+// @Param        request  body      domain.ImpersonateUserRequest  true  "Impersonation Payload"
+// @Success      200      {object}  response.APIResponse{data=domain.LoginResponse}  "Successfully impersonated target account"
+// @Failure      400      {object}  response.APIResponse  "Invalid request payload or target account inactive/super_admin"
+// @Failure      401      {object}  response.APIResponse  "Unauthorized"
+// @Failure      403      {object}  response.APIResponse  "Forbidden — super_admin role required"
+// @Security     BearerAuth
+// @Router       /admins/impersonate [post]
+func (h *UserHandler) ImpersonateUser(c *gin.Context) {
+	superAdminID, ok := middleware.GetUserID(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	requesterRole, _ := c.Get("role")
+	if requesterRole != domain.RoleSuperAdmin {
+		response.Error(c, http.StatusForbidden, "only a super_admin can impersonate user accounts")
+		return
+	}
+
+	var req domain.ImpersonateUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ValidationError(c, err.Error())
+		return
+	}
+
+	loginResp, err := h.userService.ImpersonateUser(c.Request.Context(), superAdminID, req.TargetUserID, req.Reason)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	response.Success(c, "Successfully impersonated target account", loginResp)
+}
