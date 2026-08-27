@@ -140,6 +140,12 @@ type CreateAdminResponse struct {
 	CredentialsEmailSent bool          `json:"credentials_email_sent"`
 }
 
+// ImpersonateUserRequest defines the payload for a Super Admin to log in on behalf of a target user or admin.
+type ImpersonateUserRequest struct {
+	TargetUserID string `json:"target_user_id" binding:"required"`
+	Reason       string `json:"reason,omitempty"`
+}
+
 // UserRepository defines the interface for user data access operations.
 type UserRepository interface {
 	Create(ctx context.Context, user *User) (*User, error)
@@ -164,6 +170,7 @@ type UserService interface {
 	Register(ctx context.Context, req *CreateUserRequest) (*UserResponse, error)
 	Login(ctx context.Context, req *UserLoginRequest) (*LoginResponse, error)
 	AdminLogin(ctx context.Context, req *AdminLoginRequest) (*LoginResponse, error)
+	ImpersonateUser(ctx context.Context, superAdminID, targetUserID, reason string) (*LoginResponse, error)
 	GetByID(ctx context.Context, id string) (*UserResponse, error)
 	GetAll(ctx context.Context, page, limit int64) ([]*UserResponse, int64, error)
 	Update(ctx context.Context, requesterRole, id string, req *UpdateUserRequest) (*UserResponse, error)

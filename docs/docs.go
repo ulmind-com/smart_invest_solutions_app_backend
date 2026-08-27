@@ -496,6 +496,75 @@ const docTemplate = `{
                 }
             }
         },
+        "/admins/impersonate": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Generates a valid JWT token for a target user or admin account, allowing a Super Admin to view dashboards and perform actions on their behalf.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin Accounts"
+                ],
+                "summary": "Impersonate user or admin account (Super Admin only)",
+                "parameters": [
+                    {
+                        "description": "Impersonation Payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ImpersonateUserRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully impersonated target account",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.LoginResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request payload or target account inactive/super_admin",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden — super_admin role required",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/admins/login": {
             "post": {
                 "description": "Authenticates an admin or super_admin account using AdminID + PIN. Normal users (client/advisor) cannot log in through this endpoint — use POST /users/login instead. Returns a JWT token containing the user's role. Accounts lock for 15 minutes after 5 consecutive failed attempts.",
@@ -5842,6 +5911,20 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "payment_mode": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_smart-invest-solutions_backend_internal_domain.ImpersonateUserRequest": {
+            "type": "object",
+            "required": [
+                "target_user_id"
+            ],
+            "properties": {
+                "reason": {
+                    "type": "string"
+                },
+                "target_user_id": {
                     "type": "string"
                 }
             }

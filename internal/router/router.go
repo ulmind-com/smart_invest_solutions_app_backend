@@ -162,6 +162,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 				protectedAdmins.POST("", userHandler.CreateAdmin)
 				protectedAdmins.GET("", userHandler.GetAllAdmins)
 				protectedAdmins.DELETE("/:id", userHandler.DeleteAdmin)
+				protectedAdmins.POST("/impersonate", userHandler.ImpersonateUser)
 			}
 		}
 

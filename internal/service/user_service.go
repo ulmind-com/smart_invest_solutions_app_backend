@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log"
 	"strconv"
 	"time"
 
@@ -256,6 +257,56 @@ func (s *userService) issueToken(user *domain.User) (*domain.LoginResponse, erro
 	return &domain.LoginResponse{
 		Token: token,
 		User:  user.ToResponse(),
+	}, nil
+}
+
+// ImpersonateUser allows a super_admin to issue a short-lived impersonation token for any target user or admin account without needing their password/PIN.
+func (s *userService) ImpersonateUser(ctx context.Context, superAdminIDStr, targetUserIDStr, reason string) (*domain.LoginResponse, error) {
+	superAdminID, err := bson.ObjectIDFromHex(superAdminIDStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid super admin ID format: %w", err)
+	}
+
+	targetObjectID, err := bson.ObjectIDFromHex(targetUserIDStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid target user ID format: %w", err)
+	}
+
+	if superAdminIDStr == targetUserIDStr {
+		return nil, fmt.Errorf("super admin cannot impersonate themselves")
+	}
+
+	targetUser, err := s.userRepo.FindByID(ctx, targetObjectID)
+	if err != nil || targetUser == nil {
+		return nil, fmt.Errorf("target user account not found")
+	}
+
+	// Security Guardrail: Super admin accounts cannot be impersonated
+	if targetUser.Role == domain.RoleSuperAdmin {
+		return nil, fmt.Errorf("super_admin accounts cannot be impersonated")
+	}
+
+	// Target user must be active
+	if !targetUser.IsActive {
+		return nil, fmt.Errorf("cannot impersonate an inactive or unapproved account")
+	}
+
+	expiryHours, err := strconv.Atoi(s.config.JWTExpiryHours)
+	if err != nil || expiryHours <= 0 {
+		expiryHours = 24
+	}
+
+	token, err := utils.GenerateImpersonationJWT(targetUser.ID, superAdminID, targetUser.Role, s.config.JWTSecret, expiryHours)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate impersonation token: %w", err)
+	}
+
+	log.Printf("[SECURITY AUDIT] Super Admin %s impersonated account %s (Name: %s, Role: %s) - Reason: %s",
+		superAdminIDStr, targetUser.ID.Hex(), targetUser.Name, targetUser.Role, reason)
+
+	return &domain.LoginResponse{
+		Token: token,
+		User:  targetUser.ToResponse(),
 	}, nil
 }
 

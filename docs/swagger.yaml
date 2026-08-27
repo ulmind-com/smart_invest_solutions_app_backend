@@ -666,6 +666,15 @@ definitions:
       payment_mode:
         type: string
     type: object
+  github_com_smart-invest-solutions_backend_internal_domain.ImpersonateUserRequest:
+    properties:
+      reason:
+        type: string
+      target_user_id:
+        type: string
+    required:
+    - target_user_id
+    type: object
   github_com_smart-invest-solutions_backend_internal_domain.LifeInsurance:
     properties:
       company_name:
@@ -1539,6 +1548,48 @@ paths:
       security:
       - BearerAuth: []
       summary: Delete Admin account (Super Admin only)
+      tags:
+      - Admin Accounts
+  /admins/impersonate:
+    post:
+      consumes:
+      - application/json
+      description: Generates a valid JWT token for a target user or admin account,
+        allowing a Super Admin to view dashboards and perform actions on their behalf.
+      parameters:
+      - description: Impersonation Payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ImpersonateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully impersonated target account
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.LoginResponse'
+              type: object
+        "400":
+          description: Invalid request payload or target account inactive/super_admin
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "403":
+          description: Forbidden — super_admin role required
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Impersonate user or admin account (Super Admin only)
       tags:
       - Admin Accounts
   /admins/login:
