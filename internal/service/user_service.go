@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/smart-invest-solutions/backend/internal/config"
@@ -162,11 +163,44 @@ func (s *userService) Register(ctx context.Context, req *domain.CreateUserReques
 	return createdUser.ToResponse(), nil
 }
 
-// Login authenticates a normal user (client/advisor) by Email + Password. Admin/super_admin
-// accounts cannot sign in through this endpoint — they must use AdminLogin instead.
+// Login authenticates any user (client, advisor, admin, super_admin) using User ID / Admin ID / Email + PIN / Password.
 func (s *userService) Login(ctx context.Context, req *domain.UserLoginRequest) (*domain.LoginResponse, error) {
-	user, err := s.userRepo.FindByEmail(ctx, req.Email)
+	identifier := strings.TrimSpace(req.Identifier)
+	if identifier == "" {
+		identifier = strings.TrimSpace(req.Email)
+	}
+	if identifier == "" {
+		identifier = strings.TrimSpace(req.AdminID)
+	}
+	if identifier == "" {
+		identifier = strings.TrimSpace(req.UserID)
+	}
+	if identifier == "" {
+		return nil, fmt.Errorf("user ID / email / admin ID is required")
+	}
+
+	secret := req.PIN
+	if secret == "" {
+		secret = req.Password
+	}
+	if secret == "" {
+		return nil, fmt.Errorf("security PIN / password is required")
+	}
+
+	// 1. Search by AdminID
+	user, err := s.userRepo.FindByAdminID(ctx, identifier)
 	if err != nil || user == nil {
+		// 2. Search by Email
+		user, err = s.userRepo.FindByEmail(ctx, strings.ToLower(identifier))
+	}
+	if err != nil || user == nil {
+		// 3. Search by BSON ObjectID
+		if objID, errHex := bson.ObjectIDFromHex(identifier); errHex == nil {
+			user, _ = s.userRepo.FindByID(ctx, objID)
+		}
+	}
+
+	if user == nil {
 		return nil, fmt.Errorf("invalid credentials")
 	}
 
@@ -186,7 +220,16 @@ func (s *userService) Login(ctx context.Context, req *domain.UserLoginRequest) (
 		return nil, fmt.Errorf("your account is pending verification by Admin. You will receive an email once approved.")
 	}
 
-	if bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)) != nil {
+	// Verify secret against PIN or Password
+	authSuccess := false
+	if user.PIN != "" && bcrypt.CompareHashAndPassword([]byte(user.PIN), []byte(secret)) == nil {
+		authSuccess = true
+	}
+	if !authSuccess && user.Password != "" && bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(secret)) == nil {
+		authSuccess = true
+	}
+
+	if !authSuccess {
 		attempts, recErr := s.userRepo.RecordFailedLogin(ctx, user.ID)
 		if recErr == nil && attempts >= maxFailedLoginAttempts {
 			_ = s.userRepo.LockAccount(ctx, user.ID, time.Now().UTC().Add(accountLockDuration))
@@ -194,21 +237,25 @@ func (s *userService) Login(ctx context.Context, req *domain.UserLoginRequest) (
 		return nil, fmt.Errorf("invalid credentials")
 	}
 
-	// Admin/super_admin accounts are restricted to the AdminLogin (AdminID + PIN) flow
-	if user.Role == domain.RoleAdmin || user.Role == domain.RoleSuperAdmin {
-		return nil, fmt.Errorf("admin accounts must sign in with Admin ID and PIN via the admin login")
-	}
-
 	_ = s.userRepo.ClearFailedLogins(ctx, user.ID)
 
 	return s.issueToken(user)
 }
 
-// AdminLogin authenticates an admin/super_admin account by AdminID + PIN. Normal users (client/
-// advisor) have no admin_id/pin and can never match here, and non-admin roles are rejected even in
-// the (unreachable in practice) case where an admin_id collision existed.
+// AdminLogin authenticates an admin/super_admin account by AdminID or Email + PIN or Password.
 func (s *userService) AdminLogin(ctx context.Context, req *domain.AdminLoginRequest) (*domain.LoginResponse, error) {
-	user, err := s.userRepo.FindByAdminID(ctx, req.AdminID)
+	identifier := strings.TrimSpace(req.AdminID)
+	if identifier == "" {
+		identifier = strings.TrimSpace(req.Email)
+	}
+	if identifier == "" {
+		return nil, fmt.Errorf("admin ID or email is required")
+	}
+
+	user, err := s.userRepo.FindByAdminID(ctx, identifier)
+	if err != nil || user == nil {
+		user, err = s.userRepo.FindByEmail(ctx, strings.ToLower(identifier))
+	}
 	if err != nil || user == nil {
 		return nil, fmt.Errorf("invalid credentials")
 	}
@@ -217,18 +264,25 @@ func (s *userService) AdminLogin(ctx context.Context, req *domain.AdminLoginRequ
 		return nil, fmt.Errorf("invalid credentials")
 	}
 
-	// Check if account is temporarily locked due to repeated failed attempts
+	// Check if account is temporarily locked
 	if user.LockedUntil != nil && user.LockedUntil.After(time.Now().UTC()) {
 		remaining := time.Until(*user.LockedUntil).Round(time.Minute)
 		return nil, fmt.Errorf("account temporarily locked due to multiple failed login attempts. Try again in %s", remaining)
 	}
 
-	// Check if user is active (Super Admin verified)
 	if !user.IsActive {
 		return nil, fmt.Errorf("your account is pending verification by Admin. You will receive an email once approved.")
 	}
 
-	if user.PIN == "" || bcrypt.CompareHashAndPassword([]byte(user.PIN), []byte(req.PIN)) != nil {
+	authSuccess := false
+	if user.PIN != "" && bcrypt.CompareHashAndPassword([]byte(user.PIN), []byte(req.PIN)) == nil {
+		authSuccess = true
+	}
+	if !authSuccess && user.Password != "" && bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.PIN)) == nil {
+		authSuccess = true
+	}
+
+	if !authSuccess {
 		attempts, recErr := s.userRepo.RecordFailedLogin(ctx, user.ID)
 		if recErr == nil && attempts >= maxFailedLoginAttempts {
 			_ = s.userRepo.LockAccount(ctx, user.ID, time.Now().UTC().Add(accountLockDuration))

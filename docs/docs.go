@@ -62,7 +62,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.PaginatedResponse"
+                                    "$ref": "#/definitions/response.PaginatedResponse"
                                 },
                                 {
                                     "type": "object",
@@ -70,7 +70,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.AccessRequest"
+                                                "$ref": "#/definitions/domain.AccessRequest"
                                             }
                                         }
                                     }
@@ -81,13 +81,13 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized — Bearer Token required",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden — Admin role required",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -111,7 +111,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreateAccessRequestDTO"
+                            "$ref": "#/definitions/domain.CreateAccessRequestDTO"
                         }
                     }
                 ],
@@ -121,13 +121,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.AccessRequest"
+                                            "$ref": "#/definitions/domain.AccessRequest"
                                         }
                                     }
                                 }
@@ -137,13 +137,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request (email already exists or pending request exists)",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "422": {
                         "description": "Validation error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -182,13 +182,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.AccessRequest"
+                                            "$ref": "#/definitions/domain.AccessRequest"
                                         }
                                     }
                                 }
@@ -198,7 +198,7 @@ const docTemplate = `{
                     "404": {
                         "description": "Request not found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -235,7 +235,7 @@ const docTemplate = `{
                         "name": "request",
                         "in": "body",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ApproveAccessRequestDTO"
+                            "$ref": "#/definitions/domain.ApproveAccessRequestDTO"
                         }
                     }
                 ],
@@ -245,13 +245,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserResponse"
+                                            "$ref": "#/definitions/domain.UserResponse"
                                         }
                                     }
                                 }
@@ -261,19 +261,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request (already approved or invalid ID)",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden — Admin role required",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -310,7 +310,7 @@ const docTemplate = `{
                         "name": "request",
                         "in": "body",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.RejectAccessRequestDTO"
+                            "$ref": "#/definitions/domain.RejectAccessRequestDTO"
                         }
                     }
                 ],
@@ -320,13 +320,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.AccessRequest"
+                                            "$ref": "#/definitions/domain.AccessRequest"
                                         }
                                     }
                                 }
@@ -336,19 +336,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden — Admin role required",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -392,7 +392,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.PaginatedResponse"
+                                    "$ref": "#/definitions/response.PaginatedResponse"
                                 },
                                 {
                                     "type": "object",
@@ -400,7 +400,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserResponse"
+                                                "$ref": "#/definitions/domain.UserResponse"
                                             }
                                         }
                                     }
@@ -411,13 +411,13 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden — super_admin role required",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -446,7 +446,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreateAdminRequest"
+                            "$ref": "#/definitions/domain.CreateAdminRequest"
                         }
                     }
                 ],
@@ -456,13 +456,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreateAdminResponse"
+                                            "$ref": "#/definitions/domain.CreateAdminResponse"
                                         }
                                     }
                                 }
@@ -472,25 +472,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request (e.g. email already in use)",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden — super_admin role required",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "422": {
                         "description": "Validation error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -521,7 +521,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ImpersonateUserRequest"
+                            "$ref": "#/definitions/domain.ImpersonateUserRequest"
                         }
                     }
                 ],
@@ -531,13 +531,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.LoginResponse"
+                                            "$ref": "#/definitions/domain.LoginResponse"
                                         }
                                     }
                                 }
@@ -547,19 +547,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid request payload or target account inactive/super_admin",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden — super_admin role required",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -585,7 +585,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.AdminLoginRequest"
+                            "$ref": "#/definitions/domain.AdminLoginRequest"
                         }
                     }
                 ],
@@ -595,13 +595,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.LoginResponse"
+                                            "$ref": "#/definitions/domain.LoginResponse"
                                         }
                                     }
                                 }
@@ -611,13 +611,13 @@ const docTemplate = `{
                     "401": {
                         "description": "Invalid credentials, account disabled, or account temporarily locked",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "422": {
                         "description": "Validation error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -654,25 +654,25 @@ const docTemplate = `{
                     "200": {
                         "description": "Admin account deleted successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden — super_admin role required",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -711,13 +711,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.SyncResultDTO"
+                                            "$ref": "#/definitions/domain.SyncResultDTO"
                                         }
                                     }
                                 }
@@ -727,25 +727,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request — missing file or invalid PDF file format",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized — token missing or invalid",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden — admin role required",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -776,7 +776,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.FDRequestDTO"
+                            "$ref": "#/definitions/domain.FDRequestDTO"
                         }
                     }
                 ],
@@ -786,13 +786,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CalculatorResponseDTO"
+                                            "$ref": "#/definitions/domain.CalculatorResponseDTO"
                                         }
                                     }
                                 }
@@ -802,19 +802,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request — invalid parameters",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized — token missing or invalid",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -845,7 +845,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.LumpsumRequestDTO"
+                            "$ref": "#/definitions/domain.LumpsumRequestDTO"
                         }
                     }
                 ],
@@ -855,13 +855,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CalculatorResponseDTO"
+                                            "$ref": "#/definitions/domain.CalculatorResponseDTO"
                                         }
                                     }
                                 }
@@ -871,19 +871,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request — invalid parameters",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized — token missing or invalid",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -910,13 +910,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CalculatorSettings"
+                                            "$ref": "#/definitions/domain.CalculatorSettings"
                                         }
                                     }
                                 }
@@ -926,13 +926,13 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized — token missing or invalid",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -961,7 +961,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UpdateCalculatorSettingsDTO"
+                            "$ref": "#/definitions/domain.UpdateCalculatorSettingsDTO"
                         }
                     }
                 ],
@@ -971,13 +971,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CalculatorSettings"
+                                            "$ref": "#/definitions/domain.CalculatorSettings"
                                         }
                                     }
                                 }
@@ -987,25 +987,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request — invalid input format",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized — token missing or invalid",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden — admin role required",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -1036,7 +1036,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.SIPRequestDTO"
+                            "$ref": "#/definitions/domain.SIPRequestDTO"
                         }
                     }
                 ],
@@ -1046,13 +1046,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CalculatorResponseDTO"
+                                            "$ref": "#/definitions/domain.CalculatorResponseDTO"
                                         }
                                     }
                                 }
@@ -1062,19 +1062,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request — invalid parameters",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized — token missing or invalid",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -1104,13 +1104,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.AdminDashboardDTO"
+                                            "$ref": "#/definitions/domain.AdminDashboardDTO"
                                         }
                                     }
                                 }
@@ -1120,13 +1120,13 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden — admin role required",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -1156,13 +1156,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ClientDashboardDTO"
+                                            "$ref": "#/definitions/domain.ClientDashboardDTO"
                                         }
                                     }
                                 }
@@ -1172,13 +1172,13 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden — client role required",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -1216,13 +1216,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.DocumentListResponse"
+                                            "$ref": "#/definitions/domain.DocumentListResponse"
                                         }
                                     }
                                 }
@@ -1232,7 +1232,7 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -1282,13 +1282,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.Document"
+                                            "$ref": "#/definitions/domain.Document"
                                         }
                                     }
                                 }
@@ -1298,13 +1298,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -1349,13 +1349,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.DocumentListResponse"
+                                            "$ref": "#/definitions/domain.DocumentListResponse"
                                         }
                                     }
                                 }
@@ -1365,13 +1365,13 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden — Admin role required",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -1410,13 +1410,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.Document"
+                                            "$ref": "#/definitions/domain.Document"
                                         }
                                     }
                                 }
@@ -1426,13 +1426,13 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "404": {
                         "description": "Document not found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -1487,13 +1487,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.Document"
+                                            "$ref": "#/definitions/domain.Document"
                                         }
                                     }
                                 }
@@ -1503,19 +1503,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "404": {
                         "description": "Document not found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -1550,19 +1550,19 @@ const docTemplate = `{
                     "200": {
                         "description": "Document deleted successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -1592,13 +1592,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.FamilyMemberListResponse"
+                                            "$ref": "#/definitions/domain.FamilyMemberListResponse"
                                         }
                                     }
                                 }
@@ -1608,7 +1608,7 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -1637,7 +1637,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreateFamilyMemberDTO"
+                            "$ref": "#/definitions/domain.CreateFamilyMemberDTO"
                         }
                     }
                 ],
@@ -1647,13 +1647,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.FamilyMember"
+                                            "$ref": "#/definitions/domain.FamilyMember"
                                         }
                                     }
                                 }
@@ -1663,19 +1663,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "422": {
                         "description": "Validation error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -1714,13 +1714,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.FamilyMemberListResponse"
+                                            "$ref": "#/definitions/domain.FamilyMemberListResponse"
                                         }
                                     }
                                 }
@@ -1730,13 +1730,13 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden — Admin role required",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -1775,13 +1775,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.FamilyMember"
+                                            "$ref": "#/definitions/domain.FamilyMember"
                                         }
                                     }
                                 }
@@ -1791,13 +1791,13 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "404": {
                         "description": "Family member not found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -1833,7 +1833,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UpdateFamilyMemberDTO"
+                            "$ref": "#/definitions/domain.UpdateFamilyMemberDTO"
                         }
                     }
                 ],
@@ -1843,13 +1843,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.FamilyMember"
+                                            "$ref": "#/definitions/domain.FamilyMember"
                                         }
                                     }
                                 }
@@ -1859,19 +1859,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "404": {
                         "description": "Family member not found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -1906,19 +1906,19 @@ const docTemplate = `{
                     "200": {
                         "description": "Family member deleted successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -1966,13 +1966,13 @@ const docTemplate = `{
                     "200": {
                         "description": "Fixed Deposits retrieved successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -2001,7 +2001,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreateFixedDepositDTO"
+                            "$ref": "#/definitions/domain.CreateFixedDepositDTO"
                         }
                     }
                 ],
@@ -2011,13 +2011,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.FixedDeposit"
+                                            "$ref": "#/definitions/domain.FixedDeposit"
                                         }
                                     }
                                 }
@@ -2027,19 +2027,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "422": {
                         "description": "Validation error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -2078,13 +2078,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.FixedDeposit"
+                                            "$ref": "#/definitions/domain.FixedDeposit"
                                         }
                                     }
                                 }
@@ -2094,13 +2094,13 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "404": {
                         "description": "Fixed Deposit not found or access denied",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -2136,7 +2136,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UpdateFixedDepositDTO"
+                            "$ref": "#/definitions/domain.UpdateFixedDepositDTO"
                         }
                     }
                 ],
@@ -2146,13 +2146,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.FixedDeposit"
+                                            "$ref": "#/definitions/domain.FixedDeposit"
                                         }
                                     }
                                 }
@@ -2162,19 +2162,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "404": {
                         "description": "Fixed Deposit not found or access denied",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -2209,19 +2209,19 @@ const docTemplate = `{
                     "200": {
                         "description": "Fixed Deposit deleted successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad request or access denied",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -2251,13 +2251,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.GeneralInsuranceListResponse"
+                                            "$ref": "#/definitions/domain.GeneralInsuranceListResponse"
                                         }
                                     }
                                 }
@@ -2267,7 +2267,7 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -2296,7 +2296,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreateGeneralInsuranceDTO"
+                            "$ref": "#/definitions/domain.CreateGeneralInsuranceDTO"
                         }
                     }
                 ],
@@ -2306,13 +2306,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.GeneralInsurance"
+                                            "$ref": "#/definitions/domain.GeneralInsurance"
                                         }
                                     }
                                 }
@@ -2322,19 +2322,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "422": {
                         "description": "Validation error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -2378,7 +2378,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.PaginatedResponse"
+                                    "$ref": "#/definitions/response.PaginatedResponse"
                                 },
                                 {
                                     "type": "object",
@@ -2386,7 +2386,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.GeneralInsuranceWithCustomer"
+                                                "$ref": "#/definitions/domain.GeneralInsuranceWithCustomer"
                                             }
                                         }
                                     }
@@ -2397,13 +2397,13 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden — Admin role required",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -2442,13 +2442,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.GeneralInsuranceListResponse"
+                                            "$ref": "#/definitions/domain.GeneralInsuranceListResponse"
                                         }
                                     }
                                 }
@@ -2458,13 +2458,13 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden — Admin role required",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -2503,13 +2503,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.GeneralInsurance"
+                                            "$ref": "#/definitions/domain.GeneralInsurance"
                                         }
                                     }
                                 }
@@ -2519,13 +2519,13 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "404": {
                         "description": "Policy not found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -2561,7 +2561,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UpdateGeneralInsuranceDTO"
+                            "$ref": "#/definitions/domain.UpdateGeneralInsuranceDTO"
                         }
                     }
                 ],
@@ -2571,13 +2571,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.GeneralInsurance"
+                                            "$ref": "#/definitions/domain.GeneralInsurance"
                                         }
                                     }
                                 }
@@ -2587,19 +2587,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "404": {
                         "description": "Policy not found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -2634,19 +2634,19 @@ const docTemplate = `{
                     "200": {
                         "description": "Policy deleted successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -2694,13 +2694,13 @@ const docTemplate = `{
                     "200": {
                         "description": "Policies retrieved successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -2729,7 +2729,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreateHealthInsuranceDTO"
+                            "$ref": "#/definitions/domain.CreateHealthInsuranceDTO"
                         }
                     }
                 ],
@@ -2739,13 +2739,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.HealthInsurance"
+                                            "$ref": "#/definitions/domain.HealthInsurance"
                                         }
                                     }
                                 }
@@ -2755,19 +2755,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "422": {
                         "description": "Validation error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -2806,13 +2806,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.HealthInsurance"
+                                            "$ref": "#/definitions/domain.HealthInsurance"
                                         }
                                     }
                                 }
@@ -2822,13 +2822,13 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "404": {
                         "description": "Policy not found or access denied",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -2864,7 +2864,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UpdateHealthInsuranceDTO"
+                            "$ref": "#/definitions/domain.UpdateHealthInsuranceDTO"
                         }
                     }
                 ],
@@ -2874,13 +2874,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.HealthInsurance"
+                                            "$ref": "#/definitions/domain.HealthInsurance"
                                         }
                                     }
                                 }
@@ -2890,19 +2890,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "404": {
                         "description": "Policy not found or access denied",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -2937,19 +2937,19 @@ const docTemplate = `{
                     "200": {
                         "description": "Policy deleted successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad request or access denied",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -2997,13 +2997,13 @@ const docTemplate = `{
                     "200": {
                         "description": "Policies retrieved successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -3032,7 +3032,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreateLifeInsuranceDTO"
+                            "$ref": "#/definitions/domain.CreateLifeInsuranceDTO"
                         }
                     }
                 ],
@@ -3042,13 +3042,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.LifeInsurance"
+                                            "$ref": "#/definitions/domain.LifeInsurance"
                                         }
                                     }
                                 }
@@ -3058,19 +3058,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "422": {
                         "description": "Validation error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -3109,13 +3109,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.LifeInsurance"
+                                            "$ref": "#/definitions/domain.LifeInsurance"
                                         }
                                     }
                                 }
@@ -3125,13 +3125,13 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "404": {
                         "description": "Policy not found or access denied",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -3167,7 +3167,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UpdateLifeInsuranceDTO"
+                            "$ref": "#/definitions/domain.UpdateLifeInsuranceDTO"
                         }
                     }
                 ],
@@ -3177,13 +3177,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.LifeInsurance"
+                                            "$ref": "#/definitions/domain.LifeInsurance"
                                         }
                                     }
                                 }
@@ -3193,19 +3193,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "404": {
                         "description": "Policy not found or access denied",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -3240,19 +3240,19 @@ const docTemplate = `{
                     "200": {
                         "description": "Policy deleted successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad request or access denied",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -3308,13 +3308,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ProductListResponse"
+                                            "$ref": "#/definitions/domain.ProductListResponse"
                                         }
                                     }
                                 }
@@ -3324,7 +3324,7 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -3392,13 +3392,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.Product"
+                                            "$ref": "#/definitions/domain.Product"
                                         }
                                     }
                                 }
@@ -3408,19 +3408,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden — Admin role required",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -3459,13 +3459,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.Product"
+                                            "$ref": "#/definitions/domain.Product"
                                         }
                                     }
                                 }
@@ -3475,13 +3475,13 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "404": {
                         "description": "Product not found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -3554,13 +3554,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.Product"
+                                            "$ref": "#/definitions/domain.Product"
                                         }
                                     }
                                 }
@@ -3570,25 +3570,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden — Admin role required",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "404": {
                         "description": "Product not found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -3623,25 +3623,25 @@ const docTemplate = `{
                     "200": {
                         "description": "Product deleted successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden — Admin role required",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -3682,13 +3682,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ReferralListResponse"
+                                            "$ref": "#/definitions/domain.ReferralListResponse"
                                         }
                                     }
                                 }
@@ -3698,19 +3698,19 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized — token missing or invalid",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden — admin role required",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -3737,13 +3737,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ReferralStatsDTO"
+                                            "$ref": "#/definitions/domain.ReferralStatsDTO"
                                         }
                                     }
                                 }
@@ -3753,13 +3753,13 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized — token missing or invalid",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -3801,13 +3801,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -3861,13 +3861,13 @@ const docTemplate = `{
                     "200": {
                         "description": "Tickets retrieved successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -3896,7 +3896,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreateSupportTicketDTO"
+                            "$ref": "#/definitions/domain.CreateSupportTicketDTO"
                         }
                     }
                 ],
@@ -3906,13 +3906,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.SupportTicket"
+                                            "$ref": "#/definitions/domain.SupportTicket"
                                         }
                                     }
                                 }
@@ -3922,19 +3922,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "422": {
                         "description": "Validation error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -3973,13 +3973,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.SupportTicket"
+                                            "$ref": "#/definitions/domain.SupportTicket"
                                         }
                                     }
                                 }
@@ -3989,13 +3989,13 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "404": {
                         "description": "Ticket not found or access denied",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -4031,7 +4031,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UpdateSupportTicketDTO"
+                            "$ref": "#/definitions/domain.UpdateSupportTicketDTO"
                         }
                     }
                 ],
@@ -4041,13 +4041,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.SupportTicket"
+                                            "$ref": "#/definitions/domain.SupportTicket"
                                         }
                                     }
                                 }
@@ -4057,19 +4057,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "404": {
                         "description": "Ticket not found or access denied",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -4104,25 +4104,25 @@ const docTemplate = `{
                     "200": {
                         "description": "Ticket deleted successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden — super_admin only",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -4166,7 +4166,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.PaginatedResponse"
+                                    "$ref": "#/definitions/response.PaginatedResponse"
                                 },
                                 {
                                     "type": "object",
@@ -4174,7 +4174,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserResponse"
+                                                "$ref": "#/definitions/domain.UserResponse"
                                             }
                                         }
                                     }
@@ -4185,19 +4185,19 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized — token missing or invalid",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden — admin role required",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -4228,7 +4228,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ChangePasswordRequest"
+                            "$ref": "#/definitions/domain.ChangePasswordRequest"
                         }
                     }
                 ],
@@ -4236,25 +4236,25 @@ const docTemplate = `{
                     "200": {
                         "description": "Password changed successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad request or current password mismatch",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "422": {
                         "description": "Validation error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -4280,7 +4280,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ForgotPasswordRequest"
+                            "$ref": "#/definitions/domain.ForgotPasswordRequest"
                         }
                     }
                 ],
@@ -4288,13 +4288,13 @@ const docTemplate = `{
                     "200": {
                         "description": "If an account exists with this email, an OTP has been sent.",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "422": {
                         "description": "Validation error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -4320,7 +4320,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserLoginRequest"
+                            "$ref": "#/definitions/domain.UserLoginRequest"
                         }
                     }
                 ],
@@ -4330,13 +4330,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.LoginResponse"
+                                            "$ref": "#/definitions/domain.LoginResponse"
                                         }
                                     }
                                 }
@@ -4346,13 +4346,13 @@ const docTemplate = `{
                     "401": {
                         "description": "Invalid credentials, account disabled, or account temporarily locked",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "422": {
                         "description": "Validation error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -4382,13 +4382,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserResponse"
+                                            "$ref": "#/definitions/domain.UserResponse"
                                         }
                                     }
                                 }
@@ -4398,7 +4398,7 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -4427,7 +4427,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UpdateProfileRequest"
+                            "$ref": "#/definitions/domain.UpdateProfileRequest"
                         }
                     }
                 ],
@@ -4437,13 +4437,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserResponse"
+                                            "$ref": "#/definitions/domain.UserResponse"
                                         }
                                     }
                                 }
@@ -4453,19 +4453,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "422": {
                         "description": "Validation error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -4491,25 +4491,25 @@ const docTemplate = `{
                     "200": {
                         "description": "Account permanently deleted",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Admin/super_admin accounts cannot be self-deleted",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "500": {
                         "description": "Failed to delete account",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -4535,7 +4535,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreateUserRequest"
+                            "$ref": "#/definitions/domain.CreateUserRequest"
                         }
                     }
                 ],
@@ -4545,13 +4545,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserResponse"
+                                            "$ref": "#/definitions/domain.UserResponse"
                                         }
                                     }
                                 }
@@ -4561,13 +4561,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request (email already exists, etc.)",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "422": {
                         "description": "Validation error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -4593,7 +4593,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ResendEmailOTPRequest"
+                            "$ref": "#/definitions/domain.ResendEmailOTPRequest"
                         }
                     }
                 ],
@@ -4601,19 +4601,19 @@ const docTemplate = `{
                     "200": {
                         "description": "Verification OTP sent successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Rate limit exceeded or email already verified",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -4639,7 +4639,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ResetPasswordRequest"
+                            "$ref": "#/definitions/domain.ResetPasswordRequest"
                         }
                     }
                 ],
@@ -4647,19 +4647,19 @@ const docTemplate = `{
                     "200": {
                         "description": "Password reset successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Invalid OTP, password mismatch or weak password",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "422": {
                         "description": "Validation error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -4685,7 +4685,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.VerifyEmailOTPRequest"
+                            "$ref": "#/definitions/domain.VerifyEmailOTPRequest"
                         }
                     }
                 ],
@@ -4693,19 +4693,19 @@ const docTemplate = `{
                     "200": {
                         "description": "Email verified successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Invalid or expired OTP code",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -4731,7 +4731,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.VerifyOTPRequest"
+                            "$ref": "#/definitions/domain.VerifyOTPRequest"
                         }
                     }
                 ],
@@ -4739,19 +4739,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OTP verified successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Invalid or expired OTP code",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "422": {
                         "description": "Validation error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -4790,13 +4790,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserResponse"
+                                            "$ref": "#/definitions/domain.UserResponse"
                                         }
                                     }
                                 }
@@ -4806,7 +4806,7 @@ const docTemplate = `{
                     "404": {
                         "description": "User not found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -4842,7 +4842,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UpdateUserRequest"
+                            "$ref": "#/definitions/domain.UpdateUserRequest"
                         }
                     }
                 ],
@@ -4852,13 +4852,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                    "$ref": "#/definitions/response.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserResponse"
+                                            "$ref": "#/definitions/domain.UserResponse"
                                         }
                                     }
                                 }
@@ -4868,25 +4868,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden — only super_admin can modify admin accounts or assign admin roles",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "422": {
                         "description": "Validation error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -4921,25 +4921,25 @@ const docTemplate = `{
                     "200": {
                         "description": "User deleted successfully",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden — admin role required, or only super_admin can delete admin accounts",
                         "schema": {
-                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                            "$ref": "#/definitions/response.APIResponse"
                         }
                     }
                 }
@@ -4947,7 +4947,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "github_com_smart-invest-solutions_backend_internal_domain.AccessRequest": {
+        "domain.AccessRequest": {
             "type": "object",
             "required": [
                 "email",
@@ -4988,24 +4988,23 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.AdminDashboardDTO": {
+        "domain.AdminDashboardDTO": {
             "type": "object",
             "properties": {
                 "pending_access_requests": {
                     "type": "integer"
                 },
                 "policy_stats": {
-                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.PolicyStats"
+                    "$ref": "#/definitions/domain.PolicyStats"
                 },
                 "total_active_clients": {
                     "type": "integer"
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.AdminLoginRequest": {
+        "domain.AdminLoginRequest": {
             "type": "object",
             "required": [
-                "admin_id",
                 "pin"
             ],
             "properties": {
@@ -5013,13 +5012,17 @@ const docTemplate = `{
                     "type": "string",
                     "example": "ADM-7F3K9Q"
                 },
+                "email": {
+                    "type": "string",
+                    "example": "admin@example.com"
+                },
                 "pin": {
                     "type": "string",
                     "example": "1234"
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.ApproveAccessRequestDTO": {
+        "domain.ApproveAccessRequestDTO": {
             "type": "object",
             "properties": {
                 "admin_notes": {
@@ -5027,7 +5030,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.CalculatorResponseDTO": {
+        "domain.CalculatorResponseDTO": {
             "type": "object",
             "properties": {
                 "applied_interest_rate": {
@@ -5045,7 +5048,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.CalculatorSettings": {
+        "domain.CalculatorSettings": {
             "type": "object",
             "properties": {
                 "default_fd_rate": {
@@ -5068,7 +5071,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.ChangePasswordRequest": {
+        "domain.ChangePasswordRequest": {
             "type": "object",
             "required": [
                 "confirm_password",
@@ -5087,7 +5090,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.ClientDashboardDTO": {
+        "domain.ClientDashboardDTO": {
             "type": "object",
             "properties": {
                 "total_family_members": {
@@ -5109,12 +5112,12 @@ const docTemplate = `{
                     "description": "Life/Health premiums due within the next 30 days",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UpcomingPayment"
+                        "$ref": "#/definitions/domain.UpcomingPayment"
                     }
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.CreateAccessRequestDTO": {
+        "domain.CreateAccessRequestDTO": {
             "type": "object",
             "required": [
                 "email",
@@ -5139,7 +5142,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.CreateAdminRequest": {
+        "domain.CreateAdminRequest": {
             "type": "object",
             "required": [
                 "email",
@@ -5158,11 +5161,11 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.CreateAdminResponse": {
+        "domain.CreateAdminResponse": {
             "type": "object",
             "properties": {
                 "admin": {
-                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserResponse"
+                    "$ref": "#/definitions/domain.UserResponse"
                 },
                 "admin_id": {
                     "type": "string"
@@ -5181,7 +5184,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.CreateFamilyMemberDTO": {
+        "domain.CreateFamilyMemberDTO": {
             "type": "object",
             "required": [
                 "date_of_birth",
@@ -5210,7 +5213,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.CreateFixedDepositDTO": {
+        "domain.CreateFixedDepositDTO": {
             "type": "object",
             "required": [
                 "account_type",
@@ -5275,7 +5278,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.CreateGeneralInsuranceDTO": {
+        "domain.CreateGeneralInsuranceDTO": {
             "type": "object",
             "required": [
                 "company_name",
@@ -5304,7 +5307,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.CreateHealthInsuranceDTO": {
+        "domain.CreateHealthInsuranceDTO": {
             "type": "object",
             "required": [
                 "company_name",
@@ -5323,10 +5326,10 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "policy_details": {
-                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreateHealthPolicyDetailsDTO"
+                    "$ref": "#/definitions/domain.CreateHealthPolicyDetailsDTO"
                 },
                 "premium_details": {
-                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreateHealthPremiumDetailsDTO"
+                    "$ref": "#/definitions/domain.CreateHealthPremiumDetailsDTO"
                 },
                 "user_id": {
                     "type": "string",
@@ -5334,7 +5337,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.CreateHealthPolicyDetailsDTO": {
+        "domain.CreateHealthPolicyDetailsDTO": {
             "type": "object",
             "required": [
                 "doc",
@@ -5361,7 +5364,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.CreateHealthPremiumDetailsDTO": {
+        "domain.CreateHealthPremiumDetailsDTO": {
             "type": "object",
             "required": [
                 "installment_premium",
@@ -5386,7 +5389,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.CreateLifeInsuranceDTO": {
+        "domain.CreateLifeInsuranceDTO": {
             "type": "object",
             "required": [
                 "company_name",
@@ -5405,10 +5408,10 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "policy_details": {
-                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreatePolicyDetailsDTO"
+                    "$ref": "#/definitions/domain.CreatePolicyDetailsDTO"
                 },
                 "premium_details": {
-                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreatePremiumDetailsDTO"
+                    "$ref": "#/definitions/domain.CreatePremiumDetailsDTO"
                 },
                 "user_id": {
                     "type": "string",
@@ -5416,7 +5419,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.CreatePolicyDetailsDTO": {
+        "domain.CreatePolicyDetailsDTO": {
             "type": "object",
             "required": [
                 "doc",
@@ -5455,7 +5458,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.CreatePremiumDetailsDTO": {
+        "domain.CreatePremiumDetailsDTO": {
             "type": "object",
             "required": [
                 "installment_premium",
@@ -5480,7 +5483,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.CreateSupportTicketDTO": {
+        "domain.CreateSupportTicketDTO": {
             "type": "object",
             "required": [
                 "category",
@@ -5509,7 +5512,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.CreateUserRequest": {
+        "domain.CreateUserRequest": {
             "type": "object",
             "required": [
                 "email",
@@ -5531,7 +5534,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.Document": {
+        "domain.Document": {
             "type": "object",
             "required": [
                 "name"
@@ -5571,13 +5574,13 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.DocumentListResponse": {
+        "domain.DocumentListResponse": {
             "type": "object",
             "properties": {
                 "data": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.Document"
+                        "$ref": "#/definitions/domain.Document"
                     }
                 },
                 "total": {
@@ -5585,7 +5588,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.FDRequestDTO": {
+        "domain.FDRequestDTO": {
             "type": "object",
             "required": [
                 "compounding_frequency",
@@ -5613,7 +5616,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.FamilyMember": {
+        "domain.FamilyMember": {
             "type": "object",
             "required": [
                 "date_of_birth",
@@ -5655,13 +5658,13 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.FamilyMemberListResponse": {
+        "domain.FamilyMemberListResponse": {
             "type": "object",
             "properties": {
                 "data": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.FamilyMember"
+                        "$ref": "#/definitions/domain.FamilyMember"
                     }
                 },
                 "total": {
@@ -5669,7 +5672,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.FixedDeposit": {
+        "domain.FixedDeposit": {
             "type": "object",
             "properties": {
                 "account_type": {
@@ -5733,7 +5736,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.ForgotPasswordRequest": {
+        "domain.ForgotPasswordRequest": {
             "type": "object",
             "required": [
                 "email"
@@ -5744,7 +5747,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.GeneralInsurance": {
+        "domain.GeneralInsurance": {
             "type": "object",
             "required": [
                 "company_name",
@@ -5786,13 +5789,13 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.GeneralInsuranceListResponse": {
+        "domain.GeneralInsuranceListResponse": {
             "type": "object",
             "properties": {
                 "data": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.GeneralInsurance"
+                        "$ref": "#/definitions/domain.GeneralInsurance"
                     }
                 },
                 "total": {
@@ -5800,7 +5803,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.GeneralInsuranceWithCustomer": {
+        "domain.GeneralInsuranceWithCustomer": {
             "type": "object",
             "properties": {
                 "advisor_contact": {
@@ -5841,7 +5844,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.HealthInsurance": {
+        "domain.HealthInsurance": {
             "type": "object",
             "properties": {
                 "company_name": {
@@ -5862,10 +5865,10 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "policy_details": {
-                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.HealthPolicyDetails"
+                    "$ref": "#/definitions/domain.HealthPolicyDetails"
                 },
                 "premium_details": {
-                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.HealthPremiumDetails"
+                    "$ref": "#/definitions/domain.HealthPremiumDetails"
                 },
                 "updated_at": {
                     "type": "string"
@@ -5875,7 +5878,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.HealthPolicyDetails": {
+        "domain.HealthPolicyDetails": {
             "type": "object",
             "properties": {
                 "doc": {
@@ -5900,7 +5903,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.HealthPremiumDetails": {
+        "domain.HealthPremiumDetails": {
             "type": "object",
             "properties": {
                 "installment_premium": {
@@ -5915,7 +5918,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.ImpersonateUserRequest": {
+        "domain.ImpersonateUserRequest": {
             "type": "object",
             "required": [
                 "target_user_id"
@@ -5929,7 +5932,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.LifeInsurance": {
+        "domain.LifeInsurance": {
             "type": "object",
             "properties": {
                 "company_name": {
@@ -5949,10 +5952,10 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "policy_details": {
-                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.PolicyDetails"
+                    "$ref": "#/definitions/domain.PolicyDetails"
                 },
                 "premium_details": {
-                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.PremiumDetails"
+                    "$ref": "#/definitions/domain.PremiumDetails"
                 },
                 "updated_at": {
                     "type": "string"
@@ -5962,18 +5965,18 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.LoginResponse": {
+        "domain.LoginResponse": {
             "type": "object",
             "properties": {
                 "token": {
                     "type": "string"
                 },
                 "user": {
-                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserResponse"
+                    "$ref": "#/definitions/domain.UserResponse"
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.LumpsumRequestDTO": {
+        "domain.LumpsumRequestDTO": {
             "type": "object",
             "required": [
                 "time_period_years",
@@ -5992,7 +5995,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.PolicyDetails": {
+        "domain.PolicyDetails": {
             "type": "object",
             "properties": {
                 "doc": {
@@ -6028,7 +6031,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.PolicyStats": {
+        "domain.PolicyStats": {
             "type": "object",
             "properties": {
                 "mapped": {
@@ -6039,7 +6042,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.PremiumDetails": {
+        "domain.PremiumDetails": {
             "type": "object",
             "properties": {
                 "installment_premium": {
@@ -6054,7 +6057,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.Product": {
+        "domain.Product": {
             "type": "object",
             "properties": {
                 "brochure_public_id": {
@@ -6092,13 +6095,13 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.ProductListResponse": {
+        "domain.ProductListResponse": {
             "type": "object",
             "properties": {
                 "data": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.Product"
+                        "$ref": "#/definitions/domain.Product"
                     }
                 },
                 "total": {
@@ -6106,13 +6109,13 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.ReferralListResponse": {
+        "domain.ReferralListResponse": {
             "type": "object",
             "properties": {
                 "data": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ReferralRecordWithDetails"
+                        "$ref": "#/definitions/domain.ReferralRecordWithDetails"
                     }
                 },
                 "total": {
@@ -6120,7 +6123,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.ReferralRecordWithDetails": {
+        "domain.ReferralRecordWithDetails": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -6152,7 +6155,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.ReferralStatsDTO": {
+        "domain.ReferralStatsDTO": {
             "type": "object",
             "properties": {
                 "app_validity_end_date": {
@@ -6172,7 +6175,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.RejectAccessRequestDTO": {
+        "domain.RejectAccessRequestDTO": {
             "type": "object",
             "properties": {
                 "reason": {
@@ -6180,7 +6183,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.ResendEmailOTPRequest": {
+        "domain.ResendEmailOTPRequest": {
             "type": "object",
             "required": [
                 "email"
@@ -6192,7 +6195,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.ResetPasswordRequest": {
+        "domain.ResetPasswordRequest": {
             "type": "object",
             "required": [
                 "confirm_password",
@@ -6215,7 +6218,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.SIPRequestDTO": {
+        "domain.SIPRequestDTO": {
             "type": "object",
             "required": [
                 "monthly_investment",
@@ -6234,7 +6237,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.SupportTicket": {
+        "domain.SupportTicket": {
             "type": "object",
             "properties": {
                 "admin_notes": {
@@ -6271,7 +6274,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.SyncResultDTO": {
+        "domain.SyncResultDTO": {
             "type": "object",
             "properties": {
                 "successfully_updated_in_db": {
@@ -6283,12 +6286,12 @@ const docTemplate = `{
                 "unmapped_policies": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UnmappedPolicy"
+                        "$ref": "#/definitions/domain.UnmappedPolicy"
                     }
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.UnmappedPolicy": {
+        "domain.UnmappedPolicy": {
             "type": "object",
             "properties": {
                 "assured_name": {
@@ -6311,7 +6314,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.UpcomingPayment": {
+        "domain.UpcomingPayment": {
             "type": "object",
             "properties": {
                 "amount": {
@@ -6332,7 +6335,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.UpdateCalculatorSettingsDTO": {
+        "domain.UpdateCalculatorSettingsDTO": {
             "type": "object",
             "properties": {
                 "default_fd_rate": {
@@ -6349,7 +6352,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.UpdateFamilyMemberDTO": {
+        "domain.UpdateFamilyMemberDTO": {
             "type": "object",
             "properties": {
                 "blood_group": {
@@ -6372,7 +6375,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.UpdateFixedDepositDTO": {
+        "domain.UpdateFixedDepositDTO": {
             "type": "object",
             "properties": {
                 "account_type": {
@@ -6419,7 +6422,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.UpdateGeneralInsuranceDTO": {
+        "domain.UpdateGeneralInsuranceDTO": {
             "type": "object",
             "properties": {
                 "advisor_contact": {
@@ -6442,7 +6445,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.UpdateHealthInsuranceDTO": {
+        "domain.UpdateHealthInsuranceDTO": {
             "type": "object",
             "properties": {
                 "company_name": {
@@ -6486,7 +6489,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.UpdateLifeInsuranceDTO": {
+        "domain.UpdateLifeInsuranceDTO": {
             "type": "object",
             "properties": {
                 "company_name": {
@@ -6539,7 +6542,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.UpdateProfileRequest": {
+        "domain.UpdateProfileRequest": {
             "type": "object",
             "properties": {
                 "name": {
@@ -6550,7 +6553,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.UpdateSupportTicketDTO": {
+        "domain.UpdateSupportTicketDTO": {
             "type": "object",
             "properties": {
                 "admin_notes": {
@@ -6573,7 +6576,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.UpdateUserRequest": {
+        "domain.UpdateUserRequest": {
             "type": "object",
             "properties": {
                 "email": {
@@ -6596,24 +6599,36 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.UserLoginRequest": {
+        "domain.UserLoginRequest": {
             "type": "object",
-            "required": [
-                "email",
-                "password"
-            ],
             "properties": {
+                "admin_id": {
+                    "type": "string",
+                    "example": "ADM-7F3K9Q"
+                },
                 "email": {
                     "type": "string",
                     "example": "user@example.com"
                 },
+                "identifier": {
+                    "type": "string",
+                    "example": "ADM-7F3K9Q"
+                },
                 "password": {
                     "type": "string",
                     "example": "MyP@ssw0rd"
+                },
+                "pin": {
+                    "type": "string",
+                    "example": "1234"
+                },
+                "user_id": {
+                    "type": "string",
+                    "example": "user@example.com"
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.UserResponse": {
+        "domain.UserResponse": {
             "type": "object",
             "properties": {
                 "admin_id": {
@@ -6654,7 +6669,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.VerifyEmailOTPRequest": {
+        "domain.VerifyEmailOTPRequest": {
             "type": "object",
             "required": [
                 "email",
@@ -6671,7 +6686,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_internal_domain.VerifyOTPRequest": {
+        "domain.VerifyOTPRequest": {
             "type": "object",
             "required": [
                 "email",
@@ -6686,7 +6701,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_pkg_response.APIResponse": {
+        "response.APIResponse": {
             "type": "object",
             "properties": {
                 "data": {},
@@ -6701,7 +6716,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_smart-invest-solutions_backend_pkg_response.PaginatedResponse": {
+        "response.PaginatedResponse": {
             "type": "object",
             "properties": {
                 "data": {},

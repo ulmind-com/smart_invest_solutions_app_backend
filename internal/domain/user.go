@@ -67,17 +67,21 @@ type ChangePasswordRequest struct {
 	ConfirmPassword string `json:"confirm_password" binding:"required"`
 }
 
-// UserLoginRequest represents the request payload for normal user (client/advisor) login.
-// Only Email + Password is accepted — admin_id/pin credentials are rejected here.
+// UserLoginRequest represents the request payload for unified login for all users (client, advisor, admin, super_admin).
+// Accepts UserID / AdminID / Email and PIN / Password interchangeably.
 type UserLoginRequest struct {
-	Email    string `json:"email" binding:"required,email" example:"user@example.com"`
-	Password string `json:"password" binding:"required" example:"MyP@ssw0rd"`
+	Identifier string `json:"identifier,omitempty" example:"ADM-7F3K9Q"`
+	UserID     string `json:"user_id,omitempty" example:"user@example.com"`
+	Email      string `json:"email,omitempty" example:"user@example.com"`
+	AdminID    string `json:"admin_id,omitempty" example:"ADM-7F3K9Q"`
+	PIN        string `json:"pin,omitempty" example:"1234"`
+	Password   string `json:"password,omitempty" example:"MyP@ssw0rd"`
 }
 
 // AdminLoginRequest represents the request payload for admin/super_admin login.
-// Only AdminID + PIN is accepted — email/password credentials are rejected here.
 type AdminLoginRequest struct {
-	AdminID string `json:"admin_id" binding:"required" example:"ADM-7F3K9Q"`
+	AdminID string `json:"admin_id,omitempty" example:"ADM-7F3K9Q"`
+	Email   string `json:"email,omitempty" example:"admin@example.com"`
 	PIN     string `json:"pin" binding:"required" example:"1234"`
 }
 
