@@ -6,17 +6,13 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"github.com/smart-invest-solutions/backend/internal/config"
 	"github.com/smart-invest-solutions/backend/internal/domain"
 	"github.com/smart-invest-solutions/backend/pkg/utils"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"golang.org/x/crypto/bcrypt"
-)
-
-const (
-	seedSuperAdminEmail    = "super@admin.com"
-	seedSuperAdminPassword = "superadmin123"
 )
 
 // Migration represents a single database migration.
@@ -35,8 +31,9 @@ type MigrationRecord struct {
 
 const migrationsCollection = "_migrations"
 
-// GetMigrations returns all defined migrations in order.
-func GetMigrations() []Migration {
+// GetMigrations returns all defined migrations in order. The super_admin seed
+// credentials are sourced from cfg (env-configurable) rather than being hardcoded.
+func GetMigrations(cfg *config.Config) []Migration {
 	return []Migration{
 		{
 			Version:     1,
@@ -89,13 +86,13 @@ func GetMigrations() []Migration {
 			Up: func(ctx context.Context, db *mongo.Database) error {
 				collection := db.Collection("users")
 
-				existing := collection.FindOne(ctx, bson.M{"email": seedSuperAdminEmail})
+				existing := collection.FindOne(ctx, bson.M{"email": cfg.SuperAdminEmail})
 				if existing.Err() == nil {
 					log.Info().Msg("Seed super_admin already exists, skipping")
 					return nil
 				}
 
-				hashedPassword, err := bcrypt.GenerateFromPassword([]byte(seedSuperAdminPassword), bcrypt.DefaultCost)
+				hashedPassword, err := bcrypt.GenerateFromPassword([]byte(cfg.SuperAdminPassword), bcrypt.DefaultCost)
 				if err != nil {
 					return fmt.Errorf("failed to hash seed super_admin password: %w", err)
 				}
@@ -117,7 +114,7 @@ func GetMigrations() []Migration {
 				now := time.Now().UTC()
 				superAdmin := domain.User{
 					Name:      "Super Admin",
-					Email:     seedSuperAdminEmail,
+					Email:     cfg.SuperAdminEmail,
 					Password:  string(hashedPassword),
 					PIN:       string(hashedPIN),
 					Role:      domain.RoleSuperAdmin,
@@ -194,8 +191,8 @@ func GetMigrations() []Migration {
 }
 
 // Run executes all pending migrations.
-func Run(ctx context.Context, db *mongo.Database) error {
-	migrations := GetMigrations()
+func Run(ctx context.Context, db *mongo.Database, cfg *config.Config) error {
+	migrations := GetMigrations(cfg)
 	collection := db.Collection(migrationsCollection)
 
 	for _, migration := range migrations {

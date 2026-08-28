@@ -3,11 +3,11 @@ package service
 import (
 	"context"
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"github.com/smart-invest-solutions/backend/internal/config"
 	"github.com/smart-invest-solutions/backend/internal/domain"
 	"github.com/smart-invest-solutions/backend/pkg/email"
@@ -95,7 +95,9 @@ func (s *userService) Register(ctx context.Context, req *domain.CreateUserReques
 		}
 		if s.emailSvc != nil {
 			go func() {
-				_ = s.emailSvc.SendVerificationOTPEmail(context.Background(), existing.Email, existing.Name, otpCode)
+				if err := s.emailSvc.SendVerificationOTPEmail(context.Background(), existing.Email, existing.Name, otpCode); err != nil {
+					log.Error().Err(err).Str("email", existing.Email).Msg("failed to send verification OTP email")
+				}
 			}()
 		}
 		return existing.ToResponse(), nil
@@ -155,7 +157,9 @@ func (s *userService) Register(ctx context.Context, req *domain.CreateUserReques
 		}
 		if s.emailSvc != nil {
 			go func() {
-				_ = s.emailSvc.SendVerificationOTPEmail(context.Background(), createdUser.Email, createdUser.Name, otpCode)
+				if err := s.emailSvc.SendVerificationOTPEmail(context.Background(), createdUser.Email, createdUser.Name, otpCode); err != nil {
+					log.Error().Err(err).Str("email", createdUser.Email).Msg("failed to send verification OTP email")
+				}
 			}()
 		}
 	}
@@ -365,8 +369,13 @@ func (s *userService) ImpersonateUser(ctx context.Context, superAdminIDStr, targ
 		return nil, fmt.Errorf("failed to generate impersonation token: %w", err)
 	}
 
-	log.Printf("[SECURITY AUDIT] Super Admin %s impersonated account %s (Name: %s, Role: %s) - Reason: %s",
-		superAdminIDStr, targetUser.ID.Hex(), targetUser.Name, targetUser.Role, reason)
+	log.Info().
+		Str("super_admin_id", superAdminIDStr).
+		Str("target_user_id", targetUser.ID.Hex()).
+		Str("target_name", targetUser.Name).
+		Str("target_role", targetUser.Role).
+		Str("reason", reason).
+		Msg("[SECURITY AUDIT] Super Admin impersonated account")
 
 	return &domain.LoginResponse{
 		Token: token,
@@ -442,12 +451,16 @@ func (s *userService) Update(ctx context.Context, requesterRole, id string, req 
 		if *req.IsActive {
 			// Account Verified / Approved
 			go func() {
-				_ = s.emailSvc.SendCredentialsEmail(context.Background(), updatedUser.Email, updatedUser.Name, "[Your Registered Password]")
+				if err := s.emailSvc.SendCredentialsEmail(context.Background(), updatedUser.Email, updatedUser.Name, "[Your Registered Password]"); err != nil {
+					log.Error().Err(err).Str("email", updatedUser.Email).Msg("failed to send credentials email")
+				}
 			}()
 		} else {
 			// Account Deactivated / Rejected
 			go func() {
-				_ = s.emailSvc.SendRejectionEmail(context.Background(), updatedUser.Email, updatedUser.Name, "Your account has been set to inactive by Admin.")
+				if err := s.emailSvc.SendRejectionEmail(context.Background(), updatedUser.Email, updatedUser.Name, "Your account has been set to inactive by Admin."); err != nil {
+					log.Error().Err(err).Str("email", updatedUser.Email).Msg("failed to send account deactivation email")
+				}
 			}()
 		}
 	}
@@ -597,7 +610,9 @@ func (s *userService) DeleteMyAccount(ctx context.Context, userIDStr string) err
 	// Send account deletion notification email asynchronously
 	if s.emailSvc != nil {
 		go func() {
-			_ = s.emailSvc.SendAccountDeletionEmail(context.Background(), user.Email, user.Name)
+			if err := s.emailSvc.SendAccountDeletionEmail(context.Background(), user.Email, user.Name); err != nil {
+				log.Error().Err(err).Str("email", user.Email).Msg("failed to send account deletion email")
+			}
 		}()
 	}
 
@@ -733,7 +748,9 @@ func (s *userService) DeleteAdmin(ctx context.Context, requesterID, targetID str
 
 	if s.emailSvc != nil {
 		go func() {
-			_ = s.emailSvc.SendAccountDeletionEmail(context.Background(), target.Email, target.Name)
+			if err := s.emailSvc.SendAccountDeletionEmail(context.Background(), target.Email, target.Name); err != nil {
+				log.Error().Err(err).Str("email", target.Email).Msg("failed to send account deletion email")
+			}
 		}()
 	}
 

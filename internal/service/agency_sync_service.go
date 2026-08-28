@@ -83,8 +83,9 @@ func (s *agencySyncService) ProcessLICDueList(ctx context.Context, fileBytes []b
 
 	// Step 5: Perform bulk database updates for matched records
 	var updatedCount int64
+	var failedCount int
 	if len(matchedRecords) > 0 {
-		updatedCount, err = s.lifeInsuranceRepo.BulkUpdateFromSync(ctx, matchedRecords)
+		updatedCount, failedCount, err = s.lifeInsuranceRepo.BulkUpdateFromSync(ctx, matchedRecords)
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute bulk update: %w", err)
 		}
@@ -93,6 +94,7 @@ func (s *agencySyncService) ProcessLICDueList(ctx context.Context, fileBytes []b
 	return &domain.SyncResultDTO{
 		TotalPoliciesFoundInPDF: len(parsedRecords),
 		SuccessfullyUpdatedInDB: int(updatedCount),
+		FailedToUpdateInDB:      failedCount,
 		UnmappedPolicies:        unmappedPolicies,
 	}, nil
 }

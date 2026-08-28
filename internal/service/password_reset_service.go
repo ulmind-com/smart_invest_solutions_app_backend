@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"github.com/smart-invest-solutions/backend/internal/domain"
 	"github.com/smart-invest-solutions/backend/pkg/email"
 	"golang.org/x/crypto/bcrypt"
@@ -73,7 +74,9 @@ func (s *passwordResetService) SendOTP(ctx context.Context, req *domain.ForgotPa
 
 	// Send OTP email asynchronously / safely
 	go func() {
-		_ = s.emailSvc.SendOTPEmail(context.Background(), req.Email, otpCode)
+		if err := s.emailSvc.SendOTPEmail(context.Background(), req.Email, otpCode); err != nil {
+			log.Error().Err(err).Str("email", req.Email).Msg("failed to send password reset OTP email")
+		}
 	}()
 
 	return nil
@@ -123,7 +126,9 @@ func (s *passwordResetService) ResetPassword(ctx context.Context, req *domain.Re
 
 	// Send confirmation email asynchronously
 	go func() {
-		_ = s.emailSvc.SendPasswordResetConfirmationEmail(context.Background(), req.Email)
+		if err := s.emailSvc.SendPasswordResetConfirmationEmail(context.Background(), req.Email); err != nil {
+			log.Error().Err(err).Str("email", req.Email).Msg("failed to send password reset confirmation email")
+		}
 	}()
 
 	return nil

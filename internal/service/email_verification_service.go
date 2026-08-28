@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"github.com/smart-invest-solutions/backend/internal/domain"
 	"github.com/smart-invest-solutions/backend/pkg/email"
 	"github.com/smart-invest-solutions/backend/pkg/utils"
@@ -88,7 +89,9 @@ func (s *emailVerificationService) VerifyOTP(ctx context.Context, req *domain.Ve
 	// Send Welcome / Pending Admin Verification Email asynchronously
 	if s.emailSvc != nil {
 		go func() {
-			_ = s.emailSvc.SendWelcomeEmail(context.Background(), user.Email, user.Name)
+			if err := s.emailSvc.SendWelcomeEmail(context.Background(), user.Email, user.Name); err != nil {
+				log.Error().Err(err).Str("email", user.Email).Msg("failed to send welcome email")
+			}
 		}()
 	}
 
@@ -134,7 +137,9 @@ func (s *emailVerificationService) ResendOTP(ctx context.Context, req *domain.Re
 	// Send OTP email
 	if s.emailSvc != nil {
 		go func() {
-			_ = s.emailSvc.SendVerificationOTPEmail(context.Background(), user.Email, user.Name, otpCode)
+			if err := s.emailSvc.SendVerificationOTPEmail(context.Background(), user.Email, user.Name, otpCode); err != nil {
+				log.Error().Err(err).Str("email", user.Email).Msg("failed to send verification OTP email")
+			}
 		}()
 	}
 

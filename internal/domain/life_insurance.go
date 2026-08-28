@@ -139,7 +139,10 @@ type LifeInsuranceRepository interface {
 	Update(ctx context.Context, id bson.ObjectID, dto *UpdateLifeInsuranceDTO) (*LifeInsurance, error)
 	Delete(ctx context.Context, id bson.ObjectID) error
 	DeleteAllByUserID(ctx context.Context, userID bson.ObjectID) error
-	BulkUpdateFromSync(ctx context.Context, records []LICParsedRecord) (int64, error)
+	// BulkUpdateFromSync performs an unordered bulk update and returns the number of policies
+	// successfully modified along with the number that failed individually. A non-nil error is
+	// only returned for failures affecting the whole operation (e.g. connectivity issues).
+	BulkUpdateFromSync(ctx context.Context, records []LICParsedRecord) (modifiedCount int64, failedCount int, err error)
 	GetExistingPolicyNumbers(ctx context.Context, policyNos []string) (map[string]bool, error)
 }
 
