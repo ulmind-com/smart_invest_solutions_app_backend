@@ -3,11 +3,14 @@ package service
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"time"
 
 	"github.com/smart-invest-solutions/backend/internal/domain"
 	"github.com/smart-invest-solutions/backend/pkg/email"
 	"github.com/smart-invest-solutions/backend/pkg/utils"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type accessRequestService struct {
@@ -118,52 +121,66 @@ func (s *accessRequestService) ApproveRequest(ctx context.Context, id string, dt
 	}
 
 	var userResp *domain.UserResponse
-	var passwordSent string
+	var pinSent string
 
-	// Check if user already registered directly
-	existingUser, _ := s.userRepo.FindByEmail(ctx, accessReq.Email)
+	// Generate 4-digit numeric PIN
+	generatedPIN, genErr := utils.GenerateNumericCode(4)
+	if genErr != nil {
+		generatedPIN = "1234" // Fallback
+	}
+	pinSent = generatedPIN
+
+	hashedPIN, err := bcrypt.GenerateFromPassword([]byte(generatedPIN), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash security PIN: %w", err)
+	}
+
 	trueVal := true
+	existingUser, _ := s.userRepo.FindByEmail(ctx, accessReq.Email)
 
 	if existingUser != nil {
-		// Activate existing user account
+		// Update PIN & activate user account
+		_ = s.userRepo.UpdatePassword(ctx, existingUser.ID, string(hashedPIN))
 		updatedUser, err := s.userRepo.Update(ctx, existingUser.ID, &domain.UpdateUserRequest{
-			IsActive: &trueVal,
+			IsActive:        &trueVal,
+			IsEmailVerified: &trueVal,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to activate user account upon approval: %w", err)
 		}
 		userResp = updatedUser.ToResponse()
-		passwordSent = "[Your Registered Password]"
 	} else {
-		// Generate random password and create new user account
-		randomPassword, err := utils.GenerateRandomPassword(10)
-		if err != nil {
-			return nil, fmt.Errorf("failed to generate random password: %w", err)
-		}
-		passwordSent = randomPassword
-
-		createUserReq := &domain.CreateUserRequest{
-			Name:     accessReq.Name,
-			Email:    accessReq.Email,
-			Phone:    accessReq.Phone,
-			Password: randomPassword,
+		// Create new user account with generated 4-digit PIN
+		refCode, _ := utils.GenerateReferralCode(6)
+		if refCode == "" {
+			refCode = "REF" + strconv.FormatInt(time.Now().UnixNano()%1000, 10)
 		}
 
-		createdUserResp, err := s.userService.Register(ctx, createUserReq)
+		newUser := &domain.User{
+			Name:               accessReq.Name,
+			Email:              accessReq.Email,
+			Phone:              accessReq.Phone,
+			Password:           string(hashedPIN),
+			PIN:                string(hashedPIN),
+			Role:               domain.RoleClient,
+			IsActive:           true,
+			IsEmailVerified:    true,
+			ReferralCode:       refCode,
+			AppValidityEndDate: time.Now().UTC().AddDate(1, 0, 0),
+		}
+
+		createdUser, err := s.userRepo.Create(ctx, newUser)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create user account upon approval: %w", err)
 		}
+		userResp = createdUser.ToResponse()
+	}
 
-		// Activate newly created user account
-		updatedUser, err := s.userRepo.Update(ctx, createdUserResp.ID, &domain.UpdateUserRequest{
-			IsActive: &trueVal,
-		})
-		if err == nil {
-			userResp = updatedUser.ToResponse()
-		} else {
-			userResp = createdUserResp
-			userResp.IsActive = true
-		}
+	// Send approval email with User ID (Email) and 4-digit Security PIN
+	if s.emailSvc != nil {
+		go func() {
+			_ = s.emailSvc.SendCredentialsEmail(context.Background(), accessReq.Email, accessReq.Name, pinSent)
+		}()
 	}
 
 	// Update status to APPROVED
@@ -180,11 +197,6 @@ func (s *accessRequestService) ApproveRequest(ctx context.Context, id string, dt
 			_ = s.referralRepo.UpdateStatus(ctx, pendingRef.ID, domain.ReferralStatusCompleted, 30)
 			_ = s.userRepo.ExtendValidity(ctx, pendingRef.ReferrerID, 30)
 		}
-	}
-
-	// Send HTML email with credentials/approval notice via Resend API
-	if s.emailSvc != nil {
-		_ = s.emailSvc.SendCredentialsEmail(ctx, accessReq.Email, accessReq.Name, passwordSent)
 	}
 
 	return userResp, nil
