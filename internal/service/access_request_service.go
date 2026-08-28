@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/smart-invest-solutions/backend/internal/domain"
@@ -40,21 +41,37 @@ func NewAccessRequestService(
 
 // SubmitRequest handles client access request submission.
 func (s *accessRequestService) SubmitRequest(ctx context.Context, dto *domain.CreateAccessRequestDTO) (*domain.AccessRequest, error) {
-	// Check if user already exists
-	existingUser, _ := s.userRepo.FindByEmail(ctx, dto.Email)
-	if existingUser != nil {
-		return nil, fmt.Errorf("an account with email %s already exists. Please login directly", dto.Email)
+	emailClean := strings.ToLower(strings.TrimSpace(dto.Email))
+	if emailClean == "" {
+		return nil, fmt.Errorf("email address is required")
 	}
 
-	// Check if a pending request already exists for this email
-	existingReq, _ := s.repo.FindByEmail(ctx, dto.Email)
-	if existingReq != nil && existingReq.Status == domain.AccessStatusPending {
-		return nil, fmt.Errorf("an access request for email %s is already pending approval", dto.Email)
+	// Check if user already exists
+	existingUser, _ := s.userRepo.FindByEmail(ctx, emailClean)
+	if existingUser != nil {
+		return nil, fmt.Errorf("an account with email %s already exists. Please login directly using your User ID and Security PIN", dto.Email)
+	}
+
+	// Check if an access request already exists for this email
+	existingReq, _ := s.repo.FindByEmail(ctx, emailClean)
+	if existingReq != nil {
+		if existingReq.Status == domain.AccessStatusPending {
+			return nil, fmt.Errorf("an access request for email %s is already pending approval by Admin", dto.Email)
+		}
+		if existingReq.Status == domain.AccessStatusApproved {
+			return nil, fmt.Errorf("an access request for email %s was already approved. Please login directly", dto.Email)
+		}
+		// If previously REJECTED, update details & reset to PENDING instead of creating a duplicate document that fails unique index!
+		updatedReq, err := s.repo.UpdateDetailsAndStatus(ctx, existingReq.ID, dto.Name, dto.Phone, dto.Notes, dto.AppliedReferralCode, domain.AccessStatusPending)
+		if err != nil {
+			return nil, fmt.Errorf("failed to update access request: %w", err)
+		}
+		return updatedReq, nil
 	}
 
 	accessReq := &domain.AccessRequest{
 		Name:                dto.Name,
-		Email:               dto.Email,
+		Email:               emailClean,
 		Phone:               dto.Phone,
 		Notes:               dto.Notes,
 		AppliedReferralCode: dto.AppliedReferralCode,

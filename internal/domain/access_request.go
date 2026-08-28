@@ -54,6 +54,7 @@ type AccessRequestRepository interface {
 	FindByEmail(ctx context.Context, email string) (*AccessRequest, error)
 	FindAll(ctx context.Context, status string, page, limit int64) ([]*AccessRequest, int64, error)
 	UpdateStatus(ctx context.Context, id bson.ObjectID, status string, adminNotes string) (*AccessRequest, error)
+	UpdateDetailsAndStatus(ctx context.Context, id bson.ObjectID, name, phone, notes, appliedReferralCode, status string) (*AccessRequest, error)
 }
 
 // AccessRequestService defines business logic methods for AccessRequests.

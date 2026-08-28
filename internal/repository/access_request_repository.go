@@ -124,3 +124,30 @@ func (r *accessRequestRepository) UpdateStatus(ctx context.Context, id bson.Obje
 
 	return &req, nil
 }
+
+// UpdateDetailsAndStatus updates the details and resets status of an existing AccessRequest.
+func (r *accessRequestRepository) UpdateDetailsAndStatus(ctx context.Context, id bson.ObjectID, name, phone, notes, appliedReferralCode, status string) (*domain.AccessRequest, error) {
+	update := bson.M{
+		"$set": bson.M{
+			"name":                  name,
+			"phone":                 phone,
+			"notes":                 notes,
+			"applied_referral_code": appliedReferralCode,
+			"status":                status,
+			"admin_notes":           "",
+			"updated_at":            time.Now().UTC(),
+		},
+	}
+
+	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
+	var req domain.AccessRequest
+	err := r.collection.FindOneAndUpdate(ctx, bson.M{"_id": id}, update, opts).Decode(&req)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, fmt.Errorf("access request not found")
+		}
+		return nil, fmt.Errorf("failed to update access request details: %w", err)
+	}
+
+	return &req, nil
+}
