@@ -526,8 +526,8 @@ func (h *UserHandler) ImpersonateUser(c *gin.Context) {
 		return
 	}
 
-	requesterRole, _ := c.Get("role")
-	if requesterRole != domain.RoleSuperAdmin {
+	requesterClaims, claimsOk := middleware.GetClaims(c)
+	if !claimsOk || requesterClaims.Role != domain.RoleSuperAdmin {
 		response.Error(c, http.StatusForbidden, "only a super_admin can impersonate user accounts")
 		return
 	}
