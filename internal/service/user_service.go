@@ -321,18 +321,28 @@ func (s *userService) ImpersonateUser(ctx context.Context, superAdminIDStr, targ
 		return nil, fmt.Errorf("invalid super admin ID format: %w", err)
 	}
 
-	targetObjectID, err := bson.ObjectIDFromHex(targetUserIDStr)
-	if err != nil {
-		return nil, fmt.Errorf("invalid target user ID format: %w", err)
+	targetUserIDStr = strings.TrimSpace(targetUserIDStr)
+	if targetUserIDStr == "" {
+		return nil, fmt.Errorf("target user ID, email, or admin ID is required")
 	}
 
-	if superAdminIDStr == targetUserIDStr {
-		return nil, fmt.Errorf("super admin cannot impersonate themselves")
+	var targetUser *domain.User
+	if objID, errHex := bson.ObjectIDFromHex(targetUserIDStr); errHex == nil {
+		targetUser, _ = s.userRepo.FindByID(ctx, objID)
+	}
+	if targetUser == nil {
+		targetUser, _ = s.userRepo.FindByEmail(ctx, strings.ToLower(targetUserIDStr))
+	}
+	if targetUser == nil {
+		targetUser, _ = s.userRepo.FindByAdminID(ctx, targetUserIDStr)
 	}
 
-	targetUser, err := s.userRepo.FindByID(ctx, targetObjectID)
-	if err != nil || targetUser == nil {
+	if targetUser == nil {
 		return nil, fmt.Errorf("target user account not found")
+	}
+
+	if targetUser.ID.Hex() == superAdminIDStr {
+		return nil, fmt.Errorf("super admin cannot impersonate themselves")
 	}
 
 	// Security Guardrail: Super admin accounts cannot be impersonated
