@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"github.com/smart-invest-solutions/backend/internal/domain"
 	"github.com/smart-invest-solutions/backend/pkg/email"
 	"github.com/smart-invest-solutions/backend/pkg/utils"
@@ -196,7 +197,9 @@ func (s *accessRequestService) ApproveRequest(ctx context.Context, id string, dt
 	// Send approval email with User ID (Email) and 4-digit Security PIN
 	if s.emailSvc != nil {
 		go func() {
-			_ = s.emailSvc.SendCredentialsEmail(context.Background(), accessReq.Email, accessReq.Name, pinSent)
+			if err := s.emailSvc.SendCredentialsEmail(context.Background(), accessReq.Email, accessReq.Name, pinSent); err != nil {
+				log.Error().Err(err).Str("email", accessReq.Email).Msg("failed to send access approval credentials email")
+			}
 		}()
 	}
 
@@ -243,7 +246,9 @@ func (s *accessRequestService) RejectRequest(ctx context.Context, id string, dto
 
 	// Send notification email with exact rejection reason
 	if s.emailSvc != nil {
-		_ = s.emailSvc.SendRejectionEmail(ctx, accessReq.Email, accessReq.Name, reason)
+		if err := s.emailSvc.SendRejectionEmail(ctx, accessReq.Email, accessReq.Name, reason); err != nil {
+			log.Error().Err(err).Str("email", accessReq.Email).Msg("failed to send access rejection email")
+		}
 	}
 
 	return updatedReq, nil

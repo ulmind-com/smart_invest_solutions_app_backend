@@ -49,7 +49,7 @@ func main() {
 
 	// Run database migrations
 	ctx := context.Background()
-	if err := migrations.Run(ctx, db.Database); err != nil {
+	if err := migrations.Run(ctx, db.Database, cfg); err != nil {
 		log.Fatal().Err(err).Msg("Failed to run database migrations")
 	}
 

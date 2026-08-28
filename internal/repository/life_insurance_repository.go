@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -255,9 +256,12 @@ func (r *lifeInsuranceRepository) DeleteAllByUserID(ctx context.Context, userID 
 }
 
 // BulkUpdateFromSync performs bulk updates of life insurance policies from parsed LIC sync records.
-func (r *lifeInsuranceRepository) BulkUpdateFromSync(ctx context.Context, records []domain.LICParsedRecord) (int64, error) {
+// It performs an unordered bulk write, so a failure on one record does not block the rest: the
+// modified count and the count of individually failed records are both returned. err is only set
+// for failures affecting the whole operation (e.g. the write itself couldn't be attempted at all).
+func (r *lifeInsuranceRepository) BulkUpdateFromSync(ctx context.Context, records []domain.LICParsedRecord) (int64, int, error) {
 	if len(records) == 0 {
-		return 0, nil
+		return 0, 0, nil
 	}
 
 	var models []mongo.WriteModel
@@ -285,10 +289,16 @@ func (r *lifeInsuranceRepository) BulkUpdateFromSync(ctx context.Context, record
 	opts := options.BulkWrite().SetOrdered(false)
 	result, err := r.collection.BulkWrite(ctx, models, opts)
 	if err != nil {
-		return 0, fmt.Errorf("failed to bulk update life insurance policies: %w", err)
+		var bulkErr mongo.BulkWriteException
+		if errors.As(err, &bulkErr) {
+			// Unordered bulk write: some records failed individually but the operation as a
+			// whole succeeded. result is still populated for the records that did succeed.
+			return result.ModifiedCount, len(bulkErr.WriteErrors), nil
+		}
+		return 0, 0, fmt.Errorf("failed to bulk update life insurance policies: %w", err)
 	}
 
-	return result.ModifiedCount, nil
+	return result.ModifiedCount, 0, nil
 }
 
 // GetExistingPolicyNumbers checks MongoDB for existing policy numbers and returns a map of policy_no -> true.

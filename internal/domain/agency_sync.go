@@ -9,6 +9,7 @@ import (
 type SyncResultDTO struct {
 	TotalPoliciesFoundInPDF int              `json:"total_policies_found_in_pdf"`
 	SuccessfullyUpdatedInDB int              `json:"successfully_updated_in_db"`
+	FailedToUpdateInDB      int              `json:"failed_to_update_in_db"`
 	UnmappedPolicies        []UnmappedPolicy `json:"unmapped_policies"`
 }
 
