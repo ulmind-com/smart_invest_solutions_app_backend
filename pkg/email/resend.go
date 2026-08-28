@@ -105,8 +105,8 @@ func (s *ResendService) SendWelcomeEmail(ctx context.Context, toEmail, name stri
 	return s.sendResendRequest(ctx, subject, toEmail, htmlBody)
 }
 
-// SendCredentialsEmail sends an email containing login confirmation/credentials to an approved client.
-func (s *ResendService) SendCredentialsEmail(ctx context.Context, toEmail, name, password string) error {
+// SendCredentialsEmail sends an email containing User ID and Security PIN to an approved client.
+func (s *ResendService) SendCredentialsEmail(ctx context.Context, toEmail, name, pin string) error {
 	subject := "🎉 Your Access Has Been Approved — Smart Invest Solutions"
 
 	htmlBody := fmt.Sprintf(`
@@ -124,7 +124,7 @@ func (s *ResendService) SendCredentialsEmail(ctx context.Context, toEmail, name,
         .credentials-box { background: #f8fafc; border-left: 4px solid #2a5298; border-radius: 6px; padding: 20px; margin: 25px 0; }
         .field { margin-bottom: 12px; }
         .field-label { font-size: 12px; text-transform: uppercase; color: #64748b; font-weight: bold; letter-spacing: 0.5px; }
-        .field-value { font-size: 18px; color: #0f172a; font-family: monospace; font-weight: bold; }
+        .field-value { font-size: 20px; color: #0f172a; font-family: monospace; font-weight: bold; }
         .footer { background: #f1f5f9; padding: 15px; text-align: center; font-size: 12px; color: #64748b; }
     </style>
 </head>
@@ -137,20 +137,20 @@ func (s *ResendService) SendCredentialsEmail(ctx context.Context, toEmail, name,
         <div class="content">
             <h2>Hello %s,</h2>
             <p>Great news! Your access request to <strong>Smart Invest Solutions</strong> has been approved by the Admin.</p>
-            <p>You can now log in to your account using your registered credentials:</p>
+            <p>You can now log in to your account using your User ID and 4-digit Security PIN:</p>
 
             <div class="credentials-box">
                 <div class="field">
-                    <div class="field-label">User ID / Email</div>
+                    <div class="field-label">User ID (Email)</div>
                     <div class="field-value">%s</div>
                 </div>
                 <div class="field" style="margin-bottom: 0;">
-                    <div class="field-label">Password Status</div>
-                    <div class="field-value">%s</div>
+                    <div class="field-label">Security PIN</div>
+                    <div class="field-value" style="color: #2563eb; letter-spacing: 4px;">%s</div>
                 </div>
             </div>
 
-            <p>Open the <strong>Smart Invest Solutions App</strong> to access your dashboard, E-Vault, family details, and policies.</p>
+            <p>Open the <strong>Smart Invest Solutions App</strong>, enter your User ID and Security PIN to access your dashboard, E-Vault, and policies.</p>
         </div>
         <div class="footer">
             &copy; Smart Invest Solutions. All rights reserved.
@@ -158,7 +158,7 @@ func (s *ResendService) SendCredentialsEmail(ctx context.Context, toEmail, name,
     </div>
 </body>
 </html>
-`, name, toEmail, password)
+`, name, toEmail, pin)
 
 	return s.sendResendRequest(ctx, subject, toEmail, htmlBody)
 }
