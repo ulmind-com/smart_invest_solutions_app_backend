@@ -21,6 +21,10 @@ type UnmappedPolicy struct {
 	FUP         string  `json:"fup"`
 	Mode        string  `json:"mode"`
 	Premium     float64 `json:"premium"`
+	// CalculatedNextDueDate is what the sync worked out from FUP and mode. It is
+	// the point of the whole run, and an admin adding this policy by hand needs
+	// it just as much as one whose policy already matched.
+	CalculatedNextDueDate time.Time `json:"calculated_next_due_date"`
 }
 
 // LICParsedRecord represents an internal policy record parsed from the PDF with calculated dates.
