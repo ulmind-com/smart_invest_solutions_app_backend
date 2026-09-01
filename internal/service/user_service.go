@@ -127,7 +127,7 @@ func (s *userService) Register(ctx context.Context, req *domain.CreateUserReques
 	// Default role is client; account is unverified (IsEmailVerified = false) and pending Admin verification (IsActive = false)
 	user := &domain.User{
 		Name:               req.Name,
-		Email:              req.Email,
+		Email:              utils.NormalizeEmail(req.Email),
 		Password:           string(hashedPassword),
 		Phone:              req.Phone,
 		Role:               domain.RoleClient,
@@ -665,7 +665,7 @@ func (s *userService) CreateAdmin(ctx context.Context, req *domain.CreateAdminRe
 
 	newAdmin := &domain.User{
 		Name:     req.Name,
-		Email:    req.Email,
+		Email:    utils.NormalizeEmail(req.Email),
 		Phone:    req.Phone,
 		Password: string(hashedPassword),
 		PIN:      string(hashedPIN),
