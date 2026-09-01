@@ -71,12 +71,13 @@ func (s *agencySyncService) ProcessLICDueList(ctx context.Context, fileBytes []b
 			matchedRecords = append(matchedRecords, rec)
 		} else {
 			unmappedPolicies = append(unmappedPolicies, domain.UnmappedPolicy{
-				PolicyNo:    rec.PolicyNo,
-				AssuredName: rec.AssuredName,
-				DOC:         rec.DOC,
-				FUP:         rec.FUP,
-				Mode:        rec.Mode,
-				Premium:     rec.Premium,
+				PolicyNo:              rec.PolicyNo,
+				AssuredName:           rec.AssuredName,
+				DOC:                   rec.DOC,
+				FUP:                   rec.FUP,
+				Mode:                  rec.Mode,
+				Premium:               rec.Premium,
+				CalculatedNextDueDate: rec.CalculatedNextDueDate,
 			})
 		}
 	}
