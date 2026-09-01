@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/smart-invest-solutions/backend/internal/domain"
+	"github.com/smart-invest-solutions/backend/pkg/utils"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -59,7 +60,7 @@ func (r *accessRequestRepository) FindByID(ctx context.Context, id bson.ObjectID
 func (r *accessRequestRepository) FindByEmail(ctx context.Context, email string) (*domain.AccessRequest, error) {
 	var req domain.AccessRequest
 	opts := options.FindOne().SetSort(bson.D{{Key: "created_at", Value: -1}})
-	err := r.collection.FindOne(ctx, bson.M{"email": email}, opts).Decode(&req)
+	err := r.collection.FindOne(ctx, utils.EmailFilter(email), opts).Decode(&req)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, nil // Return nil when not found without error
