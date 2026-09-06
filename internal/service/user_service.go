@@ -21,7 +21,21 @@ import (
 const (
 	maxFailedLoginAttempts = 5
 	accountLockDuration    = 15 * time.Minute
+	// adminExpiryAlertCooldown limits how often a Super Admin can (re-)send an expiry-warning email
+	// to the same admin, so repeatedly tapping the button in the app can't flood their inbox.
+	adminExpiryAlertCooldown = 1 * time.Hour
 )
+
+// checkAdminExpiry rejects login for a role=admin account whose configured AdminExpiryDate has
+// passed. super_admin accounts never expire (AdminExpiryDate is never set for them), and a nil
+// AdminExpiryDate on an admin account means "no expiry" (e.g. accounts created before this feature
+// existed), so login proceeds unaffected in both cases.
+func checkAdminExpiry(user *domain.User) error {
+	if user.Role == domain.RoleAdmin && user.AdminExpiryDate != nil && user.AdminExpiryDate.Before(time.Now().UTC()) {
+		return fmt.Errorf("your admin access expired on %s. Please contact your super admin to renew it", user.AdminExpiryDate.Format("02 Jan 2006"))
+	}
+	return nil
+}
 
 // userService implements domain.UserService.
 type userService struct {
@@ -224,6 +238,11 @@ func (s *userService) Login(ctx context.Context, req *domain.UserLoginRequest) (
 		return nil, fmt.Errorf("your account is pending verification by Admin. You will receive an email once approved.")
 	}
 
+	// Check if this admin account's configured expiry date has passed
+	if err := checkAdminExpiry(user); err != nil {
+		return nil, err
+	}
+
 	// Verify secret against PIN or Password
 	authSuccess := false
 	if user.PIN != "" && bcrypt.CompareHashAndPassword([]byte(user.PIN), []byte(secret)) == nil {
@@ -276,6 +295,11 @@ func (s *userService) AdminLogin(ctx context.Context, req *domain.AdminLoginRequ
 
 	if !user.IsActive {
 		return nil, fmt.Errorf("your account is pending verification by Admin. You will receive an email once approved.")
+	}
+
+	// Check if this admin account's configured expiry date has passed
+	if err := checkAdminExpiry(user); err != nil {
+		return nil, err
 	}
 
 	authSuccess := false
@@ -623,6 +647,10 @@ func (s *userService) DeleteMyAccount(ctx context.Context, userIDStr string) err
 // generates a unique Admin ID, a random password, and a 4-digit PIN, then emails the credentials
 // to the new admin. The account is immediately active since a super_admin has already vetted it.
 func (s *userService) CreateAdmin(ctx context.Context, req *domain.CreateAdminRequest) (*domain.CreateAdminResponse, error) {
+	if !req.ExpiryDate.After(time.Now().UTC()) {
+		return nil, fmt.Errorf("expiry date must be in the future")
+	}
+
 	existing, _ := s.userRepo.FindByEmail(ctx, req.Email)
 	if existing != nil {
 		return nil, fmt.Errorf("a user with email %s already exists", req.Email)
@@ -663,15 +691,17 @@ func (s *userService) CreateAdmin(ctx context.Context, req *domain.CreateAdminRe
 		return nil, fmt.Errorf("failed to hash PIN: %w", err)
 	}
 
+	expiryDate := req.ExpiryDate
 	newAdmin := &domain.User{
-		Name:     req.Name,
-		Email:    utils.NormalizeEmail(req.Email),
-		Phone:    req.Phone,
-		Password: string(hashedPassword),
-		PIN:      string(hashedPIN),
-		AdminID:  adminID,
-		Role:     domain.RoleAdmin,
-		IsActive: true,
+		Name:            req.Name,
+		Email:           utils.NormalizeEmail(req.Email),
+		Phone:           req.Phone,
+		Password:        string(hashedPassword),
+		PIN:             string(hashedPIN),
+		AdminID:         adminID,
+		Role:            domain.RoleAdmin,
+		IsActive:        true,
+		AdminExpiryDate: &expiryDate,
 	}
 
 	createdAdmin, err := s.userRepo.Create(ctx, newAdmin)
@@ -755,4 +785,103 @@ func (s *userService) DeleteAdmin(ctx context.Context, requesterID, targetID str
 	}
 
 	return nil
+}
+
+// ListExpiringAdmins returns admin accounts (role=admin) whose expiry date is at or before
+// now + withinDays, sorted soonest-first — surfaces both already-expired admins and those
+// approaching their cutoff so a Super Admin can renew them, or send a warning email, in time.
+func (s *userService) ListExpiringAdmins(ctx context.Context, withinDays int) ([]*domain.UserResponse, error) {
+	if withinDays < 0 {
+		withinDays = 0
+	}
+	cutoff := time.Now().UTC().AddDate(0, 0, withinDays)
+
+	admins, err := s.userRepo.FindExpiringAdmins(ctx, cutoff)
+	if err != nil {
+		return nil, err
+	}
+
+	responses := make([]*domain.UserResponse, 0, len(admins))
+	for _, admin := range admins {
+		responses = append(responses, admin.ToResponse())
+	}
+	return responses, nil
+}
+
+// RenewAdminExpiry lets a Super Admin push an admin account's expiry date forward, reactivating an
+// already-expired admin's ability to log in, and emails the admin a confirmation.
+func (s *userService) RenewAdminExpiry(ctx context.Context, targetID string, req *domain.RenewAdminExpiryRequest) (*domain.UserResponse, error) {
+	objectID, err := bson.ObjectIDFromHex(targetID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid admin ID format: %w", err)
+	}
+
+	target, err := s.userRepo.FindByID(ctx, objectID)
+	if err != nil || target == nil {
+		return nil, fmt.Errorf("admin account not found")
+	}
+	if target.Role != domain.RoleAdmin {
+		return nil, fmt.Errorf("expiry dates only apply to admin accounts, not %s accounts", target.Role)
+	}
+	if !req.ExpiryDate.After(time.Now().UTC()) {
+		return nil, fmt.Errorf("new expiry date must be in the future")
+	}
+
+	if err := s.userRepo.UpdateAdminExpiry(ctx, objectID, req.ExpiryDate); err != nil {
+		return nil, err
+	}
+
+	updated, err := s.userRepo.FindByID(ctx, objectID)
+	if err != nil {
+		return nil, err
+	}
+
+	if s.emailSvc != nil {
+		newExpiry := req.ExpiryDate
+		toEmail, toName := updated.Email, updated.Name
+		go func() {
+			if err := s.emailSvc.SendAdminExpiryRenewedEmail(context.Background(), toEmail, toName, newExpiry); err != nil {
+				log.Error().Err(err).Str("email", toEmail).Msg("failed to send admin expiry renewal confirmation email")
+			}
+		}()
+	}
+
+	return updated.ToResponse(), nil
+}
+
+// SendAdminExpiryAlert emails a specific admin whose access is expiring soon (or has already
+// expired), asking them to contact the Super Admin to renew it. Throttled to at most one alert per
+// adminExpiryAlertCooldown window per admin so repeated taps can't flood their inbox.
+func (s *userService) SendAdminExpiryAlert(ctx context.Context, targetID string) error {
+	objectID, err := bson.ObjectIDFromHex(targetID)
+	if err != nil {
+		return fmt.Errorf("invalid admin ID format: %w", err)
+	}
+
+	target, err := s.userRepo.FindByID(ctx, objectID)
+	if err != nil || target == nil {
+		return fmt.Errorf("admin account not found")
+	}
+	if target.Role != domain.RoleAdmin {
+		return fmt.Errorf("expiry alerts only apply to admin accounts")
+	}
+	if target.AdminExpiryDate == nil {
+		return fmt.Errorf("this admin account has no expiry date set")
+	}
+	if target.LastExpiryAlertSentAt != nil {
+		elapsed := time.Since(*target.LastExpiryAlertSentAt)
+		if elapsed < adminExpiryAlertCooldown {
+			wait := (adminExpiryAlertCooldown - elapsed).Round(time.Minute)
+			return fmt.Errorf("an alert was already sent recently; please wait %s before sending another", wait)
+		}
+	}
+	if s.emailSvc == nil {
+		return fmt.Errorf("email service is not configured")
+	}
+
+	if err := s.emailSvc.SendAdminExpiryAlertEmail(ctx, target.Email, target.Name, *target.AdminExpiryDate); err != nil {
+		return fmt.Errorf("failed to send expiry alert email: %w", err)
+	}
+
+	return s.userRepo.RecordExpiryAlertSent(ctx, objectID)
 }

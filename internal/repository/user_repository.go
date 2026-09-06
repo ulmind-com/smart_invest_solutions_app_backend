@@ -305,6 +305,61 @@ func (r *userRepository) ExtendValidity(ctx context.Context, userID bson.ObjectI
 	return nil
 }
 
+// FindExpiringAdmins retrieves role=admin accounts that have an expiry date set at or before the
+// given cutoff — this captures admins already expired as well as those approaching expiry, sorted
+// soonest-first so the most urgent renewals surface first.
+func (r *userRepository) FindExpiringAdmins(ctx context.Context, cutoff time.Time) ([]*domain.User, error) {
+	filter := bson.M{
+		"role":              domain.RoleAdmin,
+		"admin_expiry_date": bson.M{"$ne": nil, "$lte": cutoff},
+	}
+	opts := options.Find().SetSort(bson.D{{Key: "admin_expiry_date", Value: 1}})
+
+	cursor, err := r.collection.Find(ctx, filter, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find expiring admins: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var admins []*domain.User
+	if err := cursor.All(ctx, &admins); err != nil {
+		return nil, fmt.Errorf("failed to decode expiring admins: %w", err)
+	}
+	return admins, nil
+}
+
+// UpdateAdminExpiry sets a new expiry date on an admin account and clears any previously recorded
+// expiry-alert timestamp so a fresh alert cooldown starts against the new date.
+func (r *userRepository) UpdateAdminExpiry(ctx context.Context, id bson.ObjectID, expiryDate time.Time) error {
+	filter := bson.M{"_id": id}
+	update := bson.M{
+		"$set":   bson.M{"admin_expiry_date": expiryDate, "updated_at": time.Now().UTC()},
+		"$unset": bson.M{"last_expiry_alert_sent_at": ""},
+	}
+
+	result, err := r.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to update admin expiry date: %w", err)
+	}
+	if result.MatchedCount == 0 {
+		return fmt.Errorf("admin not found")
+	}
+	return nil
+}
+
+// RecordExpiryAlertSent stamps the time an expiry-warning email was sent to an admin, used to
+// throttle repeat sends from the Super Admin's expiry screen.
+func (r *userRepository) RecordExpiryAlertSent(ctx context.Context, id bson.ObjectID) error {
+	filter := bson.M{"_id": id}
+	update := bson.M{"$set": bson.M{"last_expiry_alert_sent_at": time.Now().UTC()}}
+
+	_, err := r.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to record expiry alert timestamp: %w", err)
+	}
+	return nil
+}
+
 // MarkEmailVerified updates the user's IsEmailVerified flag to true.
 func (r *userRepository) MarkEmailVerified(ctx context.Context, id bson.ObjectID) error {
 	filter := bson.M{"_id": id}

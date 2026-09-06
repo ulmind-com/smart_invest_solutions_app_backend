@@ -163,6 +163,9 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 				protectedAdmins.GET("", userHandler.GetAllAdmins)
 				protectedAdmins.DELETE("/:id", userHandler.DeleteAdmin)
 				protectedAdmins.POST("/impersonate", userHandler.ImpersonateUser)
+				protectedAdmins.GET("/expiring", userHandler.ListExpiringAdmins)
+				protectedAdmins.PUT("/:id/expiry", userHandler.RenewAdminExpiry)
+				protectedAdmins.POST("/:id/send-expiry-alert", userHandler.SendAdminExpiryAlert)
 			}
 		}
 
