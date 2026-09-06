@@ -135,6 +135,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			users.PUT("/me", userHandler.UpdateProfile)
 			users.DELETE("/me", userHandler.DeleteMyAccount)
 			users.PUT("/change-password", userHandler.ChangePassword)
+			users.PUT("/change-pin", userHandler.ChangePIN)
 
 			users.GET("/:id", userHandler.GetByID)
 			users.PUT("/:id", userHandler.Update)

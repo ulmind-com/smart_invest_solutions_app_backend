@@ -26,7 +26,7 @@ type User struct {
 	IsActive            bool          `bson:"is_active" json:"is_active"`
 	IsEmailVerified     bool          `bson:"is_email_verified" json:"is_email_verified"`
 	AdminID             string        `bson:"admin_id,omitempty" json:"admin_id,omitempty"` // Unique login ID, set only for admin/super_admin accounts
-	PIN                 string        `bson:"pin,omitempty" json:"-"`                        // bcrypt-hashed 4-digit PIN, set only for admin/super_admin accounts
+	PIN                 string        `bson:"pin,omitempty" json:"-"`                       // bcrypt-hashed 4-digit PIN, set only for admin/super_admin accounts
 	ReferralCode        string        `bson:"referral_code,omitempty" json:"referral_code,omitempty"`
 	AppValidityEndDate  time.Time     `bson:"app_validity_end_date,omitempty" json:"app_validity_end_date,omitempty"`
 	FailedLoginAttempts int           `bson:"failed_login_attempts" json:"-"`
@@ -72,6 +72,15 @@ type ChangePasswordRequest struct {
 	CurrentPassword string `json:"current_password" binding:"required"`
 	NewPassword     string `json:"new_password" binding:"required"`
 	ConfirmPassword string `json:"confirm_password" binding:"required"`
+}
+
+// ChangePINRequest represents the payload for setting or changing a user's 4-digit Security PIN.
+// CurrentCredential is checked against whichever secret currently protects the account (PIN if one
+// is already set, otherwise Password) — mirroring the interchangeable PIN/Password login model, so
+// a client who only has a password can still set their first PIN from here.
+type ChangePINRequest struct {
+	CurrentCredential string `json:"current_credential" binding:"required" example:"MyP@ssw0rd or 1234"`
+	NewPIN            string `json:"new_pin" binding:"required,len=4,numeric" example:"5678"`
 }
 
 // UserLoginRequest represents the request payload for unified login for all users (client, advisor, admin, super_admin).
@@ -179,6 +188,7 @@ type UserRepository interface {
 	FindAllByRoles(ctx context.Context, roles []string, page, limit int64) ([]*User, int64, error)
 	Update(ctx context.Context, id bson.ObjectID, update *UpdateUserRequest) (*User, error)
 	UpdatePassword(ctx context.Context, id bson.ObjectID, hashedPassword string) error
+	UpdatePIN(ctx context.Context, id bson.ObjectID, hashedPIN string) error
 	MarkEmailVerified(ctx context.Context, id bson.ObjectID) error
 	ExtendValidity(ctx context.Context, userID bson.ObjectID, extraDays int) error
 	Delete(ctx context.Context, id bson.ObjectID) error
@@ -208,6 +218,7 @@ type UserService interface {
 	Update(ctx context.Context, requesterRole, id string, req *UpdateUserRequest) (*UserResponse, error)
 	UpdateProfile(ctx context.Context, id string, req *UpdateProfileRequest) (*UserResponse, error)
 	ChangePassword(ctx context.Context, id string, req *ChangePasswordRequest) error
+	ChangePIN(ctx context.Context, id string, req *ChangePINRequest) error
 	Delete(ctx context.Context, requesterRole, id string) error
 	DeleteMyAccount(ctx context.Context, userID string) error
 	CreateAdmin(ctx context.Context, req *CreateAdminRequest) (*CreateAdminResponse, error)

@@ -26,6 +26,23 @@ const (
 	adminExpiryAlertCooldown = 1 * time.Hour
 )
 
+// matchesSecret reports whether secret matches either the account's PIN or Password hash. PIN and
+// Password are treated as interchangeable credentials throughout this service (Login, AdminLogin,
+// and ChangePIN all use this), so a client can sign in — or authorize a PIN change — with whichever
+// one they currently have set.
+func matchesSecret(user *domain.User, secret string) bool {
+	if secret == "" {
+		return false
+	}
+	if user.PIN != "" && bcrypt.CompareHashAndPassword([]byte(user.PIN), []byte(secret)) == nil {
+		return true
+	}
+	if user.Password != "" && bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(secret)) == nil {
+		return true
+	}
+	return false
+}
+
 // checkAdminExpiry rejects login for a role=admin account whose configured AdminExpiryDate has
 // passed. super_admin accounts never expire (AdminExpiryDate is never set for them), and a nil
 // AdminExpiryDate on an admin account means "no expiry" (e.g. accounts created before this feature
@@ -244,15 +261,7 @@ func (s *userService) Login(ctx context.Context, req *domain.UserLoginRequest) (
 	}
 
 	// Verify secret against PIN or Password
-	authSuccess := false
-	if user.PIN != "" && bcrypt.CompareHashAndPassword([]byte(user.PIN), []byte(secret)) == nil {
-		authSuccess = true
-	}
-	if !authSuccess && user.Password != "" && bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(secret)) == nil {
-		authSuccess = true
-	}
-
-	if !authSuccess {
+	if !matchesSecret(user, secret) {
 		attempts, recErr := s.userRepo.RecordFailedLogin(ctx, user.ID)
 		if recErr == nil && attempts >= maxFailedLoginAttempts {
 			_ = s.userRepo.LockAccount(ctx, user.ID, time.Now().UTC().Add(accountLockDuration))
@@ -302,15 +311,7 @@ func (s *userService) AdminLogin(ctx context.Context, req *domain.AdminLoginRequ
 		return nil, err
 	}
 
-	authSuccess := false
-	if user.PIN != "" && bcrypt.CompareHashAndPassword([]byte(user.PIN), []byte(req.PIN)) == nil {
-		authSuccess = true
-	}
-	if !authSuccess && user.Password != "" && bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.PIN)) == nil {
-		authSuccess = true
-	}
-
-	if !authSuccess {
+	if !matchesSecret(user, req.PIN) {
 		attempts, recErr := s.userRepo.RecordFailedLogin(ctx, user.ID)
 		if recErr == nil && attempts >= maxFailedLoginAttempts {
 			_ = s.userRepo.LockAccount(ctx, user.ID, time.Now().UTC().Add(accountLockDuration))
@@ -547,6 +548,43 @@ func (s *userService) ChangePassword(ctx context.Context, id string, req *domain
 	}
 
 	return s.userRepo.UpdatePassword(ctx, objectID, string(hashedPassword))
+}
+
+// ChangePIN lets a logged-in user set or change their 4-digit Security PIN. The caller must supply
+// whichever credential currently protects the account — their existing PIN if they already have
+// one, or their password if they don't (e.g. a client setting a PIN for the first time). This lets
+// any client adopt PIN-based quick login from their profile, not just accounts that received one
+// via access-request approval.
+func (s *userService) ChangePIN(ctx context.Context, id string, req *domain.ChangePINRequest) error {
+	objectID, err := bson.ObjectIDFromHex(id)
+	if err != nil {
+		return fmt.Errorf("invalid user ID format: %w", err)
+	}
+
+	user, err := s.userRepo.FindByID(ctx, objectID)
+	if err != nil {
+		return fmt.Errorf("user not found")
+	}
+
+	if !matchesSecret(user, req.CurrentCredential) {
+		return fmt.Errorf("current PIN or password is incorrect")
+	}
+
+	if len(req.NewPIN) != 4 {
+		return fmt.Errorf("PIN must be exactly 4 digits")
+	}
+	for _, ch := range req.NewPIN {
+		if ch < '0' || ch > '9' {
+			return fmt.Errorf("PIN must contain only digits")
+		}
+	}
+
+	hashedPIN, err := bcrypt.GenerateFromPassword([]byte(req.NewPIN), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("failed to hash new PIN: %w", err)
+	}
+
+	return s.userRepo.UpdatePIN(ctx, objectID, string(hashedPIN))
 }
 
 // Delete removes a user by their ID. Only a super_admin may delete an existing admin/super_admin account.

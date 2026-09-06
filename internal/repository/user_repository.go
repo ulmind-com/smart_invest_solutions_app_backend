@@ -206,6 +206,26 @@ func (r *userRepository) UpdatePassword(ctx context.Context, id bson.ObjectID, h
 	return nil
 }
 
+// UpdatePIN updates the hashed 4-digit Security PIN for a user document.
+func (r *userRepository) UpdatePIN(ctx context.Context, id bson.ObjectID, hashedPIN string) error {
+	filter := bson.M{"_id": id}
+	update := bson.M{
+		"$set": bson.M{
+			"pin":        hashedPIN,
+			"updated_at": time.Now().UTC(),
+		},
+	}
+
+	result, err := r.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to update PIN: %w", err)
+	}
+	if result.MatchedCount == 0 {
+		return fmt.Errorf("user not found")
+	}
+	return nil
+}
+
 // Delete removes a user document from the database.
 func (r *userRepository) Delete(ctx context.Context, id bson.ObjectID) error {
 	result, err := r.collection.DeleteOne(ctx, bson.M{"_id": id})
