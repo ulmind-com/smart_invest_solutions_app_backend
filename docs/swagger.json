@@ -4453,6 +4453,63 @@
                 }
             }
         },
+        "/users/change-pin": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Sets or changes the authenticated user's 4-digit Security PIN. current_credential is checked against whichever secret currently protects the account (existing PIN, or password if no PIN is set yet) — so a client can set their first PIN using their password, or change an existing PIN using the old one.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Profile"
+                ],
+                "summary": "Change or set Security PIN",
+                "parameters": [
+                    {
+                        "description": "PIN change payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ChangePINRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "PIN changed successfully",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request or current credential incorrect",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/users/forgot-password": {
             "post": {
                 "description": "Sends a 6-digit OTP code to the registered email address if an account exists.",
@@ -5261,6 +5318,23 @@
                 },
                 "updated_at": {
                     "type": "string"
+                }
+            }
+        },
+        "github_com_smart-invest-solutions_backend_internal_domain.ChangePINRequest": {
+            "type": "object",
+            "required": [
+                "current_credential",
+                "new_pin"
+            ],
+            "properties": {
+                "current_credential": {
+                    "type": "string",
+                    "example": "MyP@ssw0rd or 1234"
+                },
+                "new_pin": {
+                    "type": "string",
+                    "example": "5678"
                 }
             }
         },

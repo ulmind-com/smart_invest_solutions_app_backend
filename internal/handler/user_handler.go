@@ -347,6 +347,40 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 	response.Success(c, "Password changed successfully", nil)
 }
 
+// ChangePIN handles setting or changing the authenticated user's 4-digit Security PIN.
+// @Summary      Change or set Security PIN
+// @Description  Sets or changes the authenticated user's 4-digit Security PIN. current_credential is checked against whichever secret currently protects the account (existing PIN, or password if no PIN is set yet) — so a client can set their first PIN using their password, or change an existing PIN using the old one.
+// @Tags         Profile
+// @Accept       json
+// @Produce      json
+// @Param        request  body      domain.ChangePINRequest  true  "PIN change payload"
+// @Success      200      {object}  response.APIResponse  "PIN changed successfully"
+// @Failure      400      {object}  response.APIResponse  "Bad request or current credential incorrect"
+// @Failure      401      {object}  response.APIResponse  "Unauthorized"
+// @Failure      422      {object}  response.APIResponse  "Validation error"
+// @Security     BearerAuth
+// @Router       /users/change-pin [put]
+func (h *UserHandler) ChangePIN(c *gin.Context) {
+	userID, ok := middleware.GetUserID(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var req domain.ChangePINRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ValidationError(c, err.Error())
+		return
+	}
+
+	if err := h.userService.ChangePIN(c.Request.Context(), userID, &req); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	response.Success(c, "PIN changed successfully", nil)
+}
+
 // ForgotPassword handles requesting a password reset OTP.
 // @Summary      Request password reset OTP
 // @Description  Sends a 6-digit OTP code to the registered email address if an account exists.

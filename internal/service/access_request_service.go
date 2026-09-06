@@ -157,8 +157,9 @@ func (s *accessRequestService) ApproveRequest(ctx context.Context, id string, dt
 	existingUser, _ := s.userRepo.FindByEmail(ctx, accessReq.Email)
 
 	if existingUser != nil {
-		// Update PIN & activate user account
-		_ = s.userRepo.UpdatePassword(ctx, existingUser.ID, string(hashedPIN))
+		// Issue a PIN & activate the account. This sets the PIN field specifically (never the
+		// password) so an existing self-signup user's own chosen password is never overwritten.
+		_ = s.userRepo.UpdatePIN(ctx, existingUser.ID, string(hashedPIN))
 		updatedUser, err := s.userRepo.Update(ctx, existingUser.ID, &domain.UpdateUserRequest{
 			IsActive:        &trueVal,
 			IsEmailVerified: &trueVal,
@@ -175,10 +176,11 @@ func (s *accessRequestService) ApproveRequest(ctx context.Context, id string, dt
 		}
 
 		newUser := &domain.User{
-			Name:               accessReq.Name,
-			Email:              accessReq.Email,
-			Phone:              accessReq.Phone,
-			Password:           string(hashedPIN),
+			Name:  accessReq.Name,
+			Email: accessReq.Email,
+			Phone: accessReq.Phone,
+			// PIN only — no Password is set here, since this account never chose one; it signs in
+			// with the emailed PIN via the same interchangeable PIN/Password login check.
 			PIN:                string(hashedPIN),
 			Role:               domain.RoleClient,
 			IsActive:           true,

@@ -84,6 +84,18 @@ definitions:
       updated_at:
         type: string
     type: object
+  github_com_smart-invest-solutions_backend_internal_domain.ChangePINRequest:
+    properties:
+      current_credential:
+        example: MyP@ssw0rd or 1234
+        type: string
+      new_pin:
+        example: "5678"
+        type: string
+    required:
+    - current_credential
+    - new_pin
+    type: object
   github_com_smart-invest-solutions_backend_internal_domain.ChangePasswordRequest:
     properties:
       confirm_password:
@@ -4167,6 +4179,46 @@ paths:
       security:
       - BearerAuth: []
       summary: Change password
+      tags:
+      - Profile
+  /users/change-pin:
+    put:
+      consumes:
+      - application/json
+      description: Sets or changes the authenticated user's 4-digit Security PIN.
+        current_credential is checked against whichever secret currently protects
+        the account (existing PIN, or password if no PIN is set yet) — so a client
+        can set their first PIN using their password, or change an existing PIN using
+        the old one.
+      parameters:
+      - description: PIN change payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ChangePINRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: PIN changed successfully
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad request or current credential incorrect
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "422":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Change or set Security PIN
       tags:
       - Profile
   /users/forgot-password:
