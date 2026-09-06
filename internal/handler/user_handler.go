@@ -131,7 +131,7 @@ func (h *UserHandler) GetByID(c *gin.Context) {
 
 // GetAll handles fetching all users with pagination.
 // @Summary      Get all users (Admin only)
-// @Description  Retrieves a paginated list of all users. Only accessible by admin and super_admin roles.
+// @Description  Retrieves a paginated user list. A super_admin sees every account; a plain admin sees only role=client accounts whose Agency ID matches their own Admin ID.
 // @Tags         Users
 // @Accept       json
 // @Produce      json
@@ -147,7 +147,13 @@ func (h *UserHandler) GetAll(c *gin.Context) {
 	page, _ := strconv.ParseInt(c.DefaultQuery("page", "1"), 10, 64)
 	limit, _ := strconv.ParseInt(c.DefaultQuery("limit", "10"), 10, 64)
 
-	users, total, err := h.userService.GetAll(c.Request.Context(), page, limit)
+	claims, ok := middleware.GetClaims(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	users, total, err := h.userService.GetAll(c.Request.Context(), claims.Role, claims.UserID.Hex(), page, limit)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err.Error())
 		return

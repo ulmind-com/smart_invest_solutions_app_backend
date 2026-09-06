@@ -70,13 +70,16 @@ func (r *accessRequestRepository) FindByEmail(ctx context.Context, email string)
 	return &req, nil
 }
 
-// FindAll retrieves paginated AccessRequests, optionally filtered by status.
-func (r *accessRequestRepository) FindAll(ctx context.Context, status string, page, limit int64) ([]*domain.AccessRequest, int64, error) {
+// FindAll retrieves paginated AccessRequests, optionally filtered by status and/or agency.
+func (r *accessRequestRepository) FindAll(ctx context.Context, status, agencyID string, page, limit int64) ([]*domain.AccessRequest, int64, error) {
 	skip := (page - 1) * limit
 
 	filter := bson.M{}
 	if status != "" {
 		filter["status"] = status
+	}
+	if agencyID != "" {
+		filter["applied_agency_id"] = agencyID
 	}
 
 	total, err := r.collection.CountDocuments(ctx, filter)
@@ -127,13 +130,14 @@ func (r *accessRequestRepository) UpdateStatus(ctx context.Context, id bson.Obje
 }
 
 // UpdateDetailsAndStatus updates the details and resets status of an existing AccessRequest.
-func (r *accessRequestRepository) UpdateDetailsAndStatus(ctx context.Context, id bson.ObjectID, name, phone, notes, appliedReferralCode, status string) (*domain.AccessRequest, error) {
+func (r *accessRequestRepository) UpdateDetailsAndStatus(ctx context.Context, id bson.ObjectID, name, phone, notes, appliedReferralCode, appliedAgencyID, status string) (*domain.AccessRequest, error) {
 	update := bson.M{
 		"$set": bson.M{
 			"name":                  name,
 			"phone":                 phone,
 			"notes":                 notes,
 			"applied_referral_code": appliedReferralCode,
+			"applied_agency_id":     appliedAgencyID,
 			"status":                status,
 			"admin_notes":           "",
 			"updated_at":            time.Now().UTC(),

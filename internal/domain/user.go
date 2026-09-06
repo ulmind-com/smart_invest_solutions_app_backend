@@ -17,20 +17,24 @@ const (
 
 // User represents a user entity in the system.
 type User struct {
-	ID                  bson.ObjectID `bson:"_id,omitempty" json:"id"`
-	Name                string        `bson:"name" json:"name" binding:"required"`
-	Email               string        `bson:"email" json:"email" binding:"required,email"`
-	Password            string        `bson:"password" json:"-"`
-	Phone               string        `bson:"phone,omitempty" json:"phone,omitempty"`
-	Role                string        `bson:"role" json:"role"` // client, advisor, admin, super_admin
-	IsActive            bool          `bson:"is_active" json:"is_active"`
-	IsEmailVerified     bool          `bson:"is_email_verified" json:"is_email_verified"`
-	AdminID             string        `bson:"admin_id,omitempty" json:"admin_id,omitempty"` // Unique login ID, set only for admin/super_admin accounts
-	PIN                 string        `bson:"pin,omitempty" json:"-"`                       // bcrypt-hashed 4-digit PIN, set only for admin/super_admin accounts
-	ReferralCode        string        `bson:"referral_code,omitempty" json:"referral_code,omitempty"`
-	AppValidityEndDate  time.Time     `bson:"app_validity_end_date,omitempty" json:"app_validity_end_date,omitempty"`
-	FailedLoginAttempts int           `bson:"failed_login_attempts" json:"-"`
-	LockedUntil         *time.Time    `bson:"locked_until,omitempty" json:"-"`
+	ID              bson.ObjectID `bson:"_id,omitempty" json:"id"`
+	Name            string        `bson:"name" json:"name" binding:"required"`
+	Email           string        `bson:"email" json:"email" binding:"required,email"`
+	Password        string        `bson:"password" json:"-"`
+	Phone           string        `bson:"phone,omitempty" json:"phone,omitempty"`
+	Role            string        `bson:"role" json:"role"` // client, advisor, admin, super_admin
+	IsActive        bool          `bson:"is_active" json:"is_active"`
+	IsEmailVerified bool          `bson:"is_email_verified" json:"is_email_verified"`
+	AdminID         string        `bson:"admin_id,omitempty" json:"admin_id,omitempty"` // Unique login ID, set only for admin/super_admin accounts
+	PIN             string        `bson:"pin,omitempty" json:"-"`                       // bcrypt-hashed 4-digit PIN, set only for admin/super_admin accounts
+	ReferralCode    string        `bson:"referral_code,omitempty" json:"referral_code,omitempty"`
+	// AgencyID is the AdminID (e.g. "ADM-7F3K9Q") of the admin whose Agency ID this client applied
+	// with at access-request time. Empty means unassigned — visible only to a super_admin, never to
+	// a plain admin. Never set on admin/super_admin accounts themselves.
+	AgencyID            string     `bson:"agency_id,omitempty" json:"agency_id,omitempty"`
+	AppValidityEndDate  time.Time  `bson:"app_validity_end_date,omitempty" json:"app_validity_end_date,omitempty"`
+	FailedLoginAttempts int        `bson:"failed_login_attempts" json:"-"`
+	LockedUntil         *time.Time `bson:"locked_until,omitempty" json:"-"`
 	// AdminExpiryDate is set only for role=admin accounts (never for super_admin, which never
 	// expires). A Super Admin picks this date when creating the admin; once it passes, the admin
 	// can no longer log in until a Super Admin renews it via RenewAdminExpiry.
@@ -58,6 +62,7 @@ type UpdateUserRequest struct {
 	Role            *string `json:"role,omitempty"`
 	IsActive        *bool   `json:"is_active,omitempty"`
 	IsEmailVerified *bool   `json:"is_email_verified,omitempty"`
+	AgencyID        *string `json:"agency_id,omitempty"`
 }
 
 // UpdateProfileRequest represents the payload when a logged-in user updates their own profile.
@@ -118,6 +123,7 @@ type UserResponse struct {
 	IsEmailVerified    bool          `json:"is_email_verified"`
 	AdminID            string        `json:"admin_id,omitempty"`
 	ReferralCode       string        `json:"referral_code,omitempty"`
+	AgencyID           string        `json:"agency_id,omitempty"`
 	AppValidityEndDate time.Time     `json:"app_validity_end_date,omitempty"`
 	AdminExpiryDate    *time.Time    `json:"admin_expiry_date,omitempty"`
 	CreatedAt          time.Time     `json:"created_at"`
@@ -136,6 +142,7 @@ func (u *User) ToResponse() *UserResponse {
 		IsEmailVerified:    u.IsEmailVerified,
 		AdminID:            u.AdminID,
 		ReferralCode:       u.ReferralCode,
+		AgencyID:           u.AgencyID,
 		AppValidityEndDate: u.AppValidityEndDate,
 		AdminExpiryDate:    u.AdminExpiryDate,
 		CreatedAt:          u.CreatedAt,
@@ -184,7 +191,10 @@ type UserRepository interface {
 	FindByEmail(ctx context.Context, email string) (*User, error)
 	FindByAdminID(ctx context.Context, adminID string) (*User, error)
 	FindByReferralCode(ctx context.Context, code string) (*User, error)
-	FindAll(ctx context.Context, page, limit int64) ([]*User, int64, error)
+	// FindAll returns a paginated user list. roleFilter and agencyIDFilter narrow the results when
+	// non-empty (agencyIDFilter matches the client's AgencyID — i.e. the admin they registered
+	// under); pass both empty for the unrestricted platform-wide list (super_admin only).
+	FindAll(ctx context.Context, roleFilter, agencyIDFilter string, page, limit int64) ([]*User, int64, error)
 	FindAllByRoles(ctx context.Context, roles []string, page, limit int64) ([]*User, int64, error)
 	Update(ctx context.Context, id bson.ObjectID, update *UpdateUserRequest) (*User, error)
 	UpdatePassword(ctx context.Context, id bson.ObjectID, hashedPassword string) error
@@ -214,7 +224,9 @@ type UserService interface {
 	AdminLogin(ctx context.Context, req *AdminLoginRequest) (*LoginResponse, error)
 	ImpersonateUser(ctx context.Context, superAdminID, targetUserID, reason string) (*LoginResponse, error)
 	GetByID(ctx context.Context, id string) (*UserResponse, error)
-	GetAll(ctx context.Context, page, limit int64) ([]*UserResponse, int64, error)
+	// GetAll returns a paginated user list, scoped by the caller: a super_admin sees everyone; a
+	// plain admin sees only clients whose AgencyID matches their own AdminID.
+	GetAll(ctx context.Context, requesterRole, requesterID string, page, limit int64) ([]*UserResponse, int64, error)
 	Update(ctx context.Context, requesterRole, id string, req *UpdateUserRequest) (*UserResponse, error)
 	UpdateProfile(ctx context.Context, id string, req *UpdateProfileRequest) (*UserResponse, error)
 	ChangePassword(ctx context.Context, id string, req *ChangePasswordRequest) error

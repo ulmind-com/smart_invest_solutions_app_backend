@@ -43,6 +43,35 @@ func matchesSecret(user *domain.User, secret string) bool {
 	return false
 }
 
+// resolveCallerAgencyID returns the AdminID of the calling account when it's a plain admin — used
+// to scope agency-restricted queries (access requests, client lists, dashboard counts) to just
+// their own agency. Returns "" for super_admin (meaning "no filter, see everything") and for any
+// role/lookup failure, so a caller that isn't a scoped admin never accidentally gets over-filtered.
+func resolveCallerAgencyID(ctx context.Context, userRepo domain.UserRepository, requesterRole, requesterID string) string {
+	if requesterRole != domain.RoleAdmin {
+		return ""
+	}
+	objID, err := bson.ObjectIDFromHex(requesterID)
+	if err != nil {
+		return ""
+	}
+	caller, err := userRepo.FindByID(ctx, objID)
+	if err != nil || caller == nil {
+		return ""
+	}
+	return caller.AdminID
+}
+
+// canAccessAgencyScopedRecord reports whether a caller may view/act on a record tied to
+// recordAgencyID. A super_admin always can. A plain admin can only when it matches their own
+// agency — an unassigned record (recordAgencyID == "") is visible only to a super_admin.
+func canAccessAgencyScopedRecord(requesterRole, callerAgencyID, recordAgencyID string) bool {
+	if requesterRole == domain.RoleSuperAdmin {
+		return true
+	}
+	return recordAgencyID != "" && recordAgencyID == callerAgencyID
+}
+
 // checkAdminExpiry rejects login for a role=admin account whose configured AdminExpiryDate has
 // passed. super_admin accounts never expire (AdminExpiryDate is never set for them), and a nil
 // AdminExpiryDate on an admin account means "no expiry" (e.g. accounts created before this feature
@@ -423,8 +452,10 @@ func (s *userService) GetByID(ctx context.Context, id string) (*domain.UserRespo
 	return user.ToResponse(), nil
 }
 
-// GetAll retrieves a paginated list of users.
-func (s *userService) GetAll(ctx context.Context, page, limit int64) ([]*domain.UserResponse, int64, error) {
+// GetAll retrieves a paginated list of users, scoped to the caller: a super_admin sees everyone
+// (any role); a plain admin sees only role=client accounts whose AgencyID matches their own
+// AdminID — clients who registered under a different agency, or no agency at all, never appear.
+func (s *userService) GetAll(ctx context.Context, requesterRole, requesterID string, page, limit int64) ([]*domain.UserResponse, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -432,7 +463,18 @@ func (s *userService) GetAll(ctx context.Context, page, limit int64) ([]*domain.
 		limit = 10
 	}
 
-	users, total, err := s.userRepo.FindAll(ctx, page, limit)
+	var roleFilter string
+	agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
+	if requesterRole == domain.RoleAdmin {
+		roleFilter = domain.RoleClient
+		// Fail closed: a plain admin whose own AgencyID can't be resolved must never fall through
+		// to the unfiltered (super_admin) view — they see nothing rather than everything.
+		if agencyFilter == "" {
+			return []*domain.UserResponse{}, 0, nil
+		}
+	}
+
+	users, total, err := s.userRepo.FindAll(ctx, roleFilter, agencyFilter, page, limit)
 	if err != nil {
 		return nil, 0, err
 	}

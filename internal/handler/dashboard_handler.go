@@ -48,7 +48,7 @@ func (h *DashboardHandler) GetClientDashboard(c *gin.Context) {
 
 // GetAdminDashboard handles fetching the platform-wide aggregated dashboard summary.
 // @Summary      Get admin dashboard
-// @Description  Returns platform-wide aggregated totals: active clients, pending access requests, and mapped/unmapped policy counts across Life, Health, General Insurance, and Fixed Deposits. Admin/super_admin only.
+// @Description  Returns aggregated totals. A super_admin gets platform-wide active clients and pending access requests; a plain admin gets those two counts limited to their own agency. Mapped/unmapped policy counts across Life, Health, General Insurance, and Fixed Deposits remain platform-wide for every caller. Admin/super_admin only.
 // @Tags         Dashboard
 // @Accept       json
 // @Produce      json
@@ -58,7 +58,13 @@ func (h *DashboardHandler) GetClientDashboard(c *gin.Context) {
 // @Security     BearerAuth
 // @Router       /dashboard/admin [get]
 func (h *DashboardHandler) GetAdminDashboard(c *gin.Context) {
-	dashboard, err := h.service.GetAdminDashboard(c.Request.Context())
+	claims, ok := middleware.GetClaims(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	dashboard, err := h.service.GetAdminDashboard(c.Request.Context(), claims.Role, claims.UserID.Hex())
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err.Error())
 		return

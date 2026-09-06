@@ -43,5 +43,8 @@ type AdminDashboardDTO struct {
 // pure orchestrator over existing repositories — it owns no collection of its own.
 type DashboardService interface {
 	GetClientDashboard(ctx context.Context, userID string) (*ClientDashboardDTO, error)
-	GetAdminDashboard(ctx context.Context) (*AdminDashboardDTO, error)
+	// GetAdminDashboard scopes TotalActiveClients and PendingAccessRequests to the caller: a
+	// super_admin gets platform-wide totals; a plain admin gets counts limited to their own
+	// agency's clients/requests. PolicyStats remains platform-wide for every caller.
+	GetAdminDashboard(ctx context.Context, requesterRole, requesterID string) (*AdminDashboardDTO, error)
 }

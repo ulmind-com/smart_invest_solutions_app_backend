@@ -141,14 +141,17 @@ func (s *dashboardService) GetClientDashboard(ctx context.Context, userIDStr str
 	}, nil
 }
 
-// GetAdminDashboard aggregates platform-wide totals: active clients, pending access requests, and
-// mapped/unmapped policy counts across Life, Health, General Insurance, and Fixed Deposits.
+// GetAdminDashboard aggregates dashboard totals. TotalActiveClients and PendingAccessRequests are
+// scoped to the caller: a super_admin gets platform-wide numbers; a plain admin gets counts limited
+// to their own agency (clients whose AgencyID matches their AdminID, and requests whose
+// AppliedAgencyID matches it). PolicyStats stays platform-wide for every caller — see PolicyMaster
+// for the deliberate scope boundary here.
 //
 // Note: General Insurance has no is_mapped field in its data model (unlike Life/Health/FD), so its
 // policies can't be individually classified as mapped or unmapped. They are conservatively counted
 // toward Unmapped so they still contribute to the overall total instead of silently disappearing
 // from PolicyStats — worth revisiting if is_mapped tracking is ever added to General Insurance.
-func (s *dashboardService) GetAdminDashboard(ctx context.Context) (*domain.AdminDashboardDTO, error) {
+func (s *dashboardService) GetAdminDashboard(ctx context.Context, requesterRole, requesterID string) (*domain.AdminDashboardDTO, error) {
 	var (
 		activeClients                int64
 		pendingRequests              int64
@@ -159,11 +162,16 @@ func (s *dashboardService) GetAdminDashboard(ctx context.Context) (*domain.Admin
 	)
 
 	mappedFilter, unmappedFilter := true, false
+	agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
+	scopedButUnresolved := requesterRole == domain.RoleAdmin && agencyFilter == ""
 
 	g, gctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		clients, _, err := s.userRepo.FindAllByRoles(gctx, []string{domain.RoleClient}, 1, maxClientRosterFetch)
+		if scopedButUnresolved {
+			return nil // fail closed, same as UserService.GetAll / AccessRequestService.GetAllRequests
+		}
+		clients, _, err := s.userRepo.FindAll(gctx, domain.RoleClient, agencyFilter, 1, maxClientRosterFetch)
 		if err != nil {
 			return err
 		}
@@ -175,7 +183,10 @@ func (s *dashboardService) GetAdminDashboard(ctx context.Context) (*domain.Admin
 		return nil
 	})
 	g.Go(func() error {
-		_, total, err := s.accessRequestRepo.FindAll(gctx, domain.AccessStatusPending, 1, 1)
+		if scopedButUnresolved {
+			return nil
+		}
+		_, total, err := s.accessRequestRepo.FindAll(gctx, domain.AccessStatusPending, agencyFilter, 1, 1)
 		pendingRequests = total
 		return err
 	})

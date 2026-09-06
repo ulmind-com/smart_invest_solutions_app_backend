@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/smart-invest-solutions/backend/internal/domain"
+	"github.com/smart-invest-solutions/backend/internal/middleware"
 	"github.com/smart-invest-solutions/backend/pkg/response"
 )
 
@@ -23,7 +24,7 @@ func NewAccessRequestHandler(service domain.AccessRequestService) *AccessRequest
 
 // SubmitRequest handles client access request submission.
 // @Summary      Request for Access (Client Sign up request)
-// @Description  Submits a request for access to the platform with Name, Contact No, and Email. Status is set to PENDING until approved by an Admin.
+// @Description  Submits a request for access to the platform with Name, Contact No, and Email. An optional Agency ID (an admin's Admin ID) routes the request to that admin specifically — an invalid Agency ID is rejected. Status is set to PENDING until approved by an Admin.
 // @Tags         Access Requests
 // @Accept       json
 // @Produce      json
@@ -50,7 +51,7 @@ func (h *AccessRequestHandler) SubmitRequest(c *gin.Context) {
 
 // GetAllRequests handles listing access requests for admin.
 // @Summary      Get all Access Requests (Admin Only)
-// @Description  Retrieves all access requests with optional filtering by status (PENDING, APPROVED, REJECTED).
+// @Description  Retrieves access requests with optional filtering by status (PENDING, APPROVED, REJECTED). A super_admin sees every request; a plain admin sees only requests whose Agency ID matches their own Admin ID.
 // @Tags         Access Requests (Admin)
 // @Accept       json
 // @Produce      json
@@ -67,7 +68,13 @@ func (h *AccessRequestHandler) GetAllRequests(c *gin.Context) {
 	page, _ := strconv.ParseInt(c.DefaultQuery("page", "1"), 10, 64)
 	limit, _ := strconv.ParseInt(c.DefaultQuery("limit", "10"), 10, 64)
 
-	requests, total, err := h.service.GetAllRequests(c.Request.Context(), status, page, limit)
+	claims, ok := middleware.GetClaims(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	requests, total, err := h.service.GetAllRequests(c.Request.Context(), claims.Role, claims.UserID.Hex(), status, page, limit)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err.Error())
 		return
@@ -90,7 +97,13 @@ func (h *AccessRequestHandler) GetAllRequests(c *gin.Context) {
 func (h *AccessRequestHandler) GetRequestByID(c *gin.Context) {
 	id := c.Param("id")
 
-	req, err := h.service.GetRequestByID(c.Request.Context(), id)
+	claims, ok := middleware.GetClaims(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	req, err := h.service.GetRequestByID(c.Request.Context(), claims.Role, claims.UserID.Hex(), id)
 	if err != nil {
 		response.Error(c, http.StatusNotFound, err.Error())
 		return
@@ -119,7 +132,13 @@ func (h *AccessRequestHandler) ApproveRequest(c *gin.Context) {
 	var dto domain.ApproveAccessRequestDTO
 	_ = c.ShouldBindJSON(&dto)
 
-	userResp, err := h.service.ApproveRequest(c.Request.Context(), id, &dto)
+	claims, ok := middleware.GetClaims(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	userResp, err := h.service.ApproveRequest(c.Request.Context(), claims.Role, claims.UserID.Hex(), id, &dto)
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, err.Error())
 		return
@@ -148,7 +167,13 @@ func (h *AccessRequestHandler) RejectRequest(c *gin.Context) {
 	var dto domain.RejectAccessRequestDTO
 	_ = c.ShouldBindJSON(&dto)
 
-	req, err := h.service.RejectRequest(c.Request.Context(), id, &dto)
+	claims, ok := middleware.GetClaims(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	req, err := h.service.RejectRequest(c.Request.Context(), claims.Role, claims.UserID.Hex(), id, &dto)
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, err.Error())
 		return

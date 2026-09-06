@@ -204,6 +204,28 @@ func GetMigrations(cfg *config.Config) []Migration {
 				return err
 			},
 		},
+		{
+			Version:     6,
+			Description: "Create sparse indexes for the Agency ID multi-tenancy feature",
+			Up: func(ctx context.Context, db *mongo.Database) error {
+				usersCollection := db.Collection("users")
+				usersIndex := mongo.IndexModel{
+					Keys:    bson.D{{Key: "agency_id", Value: 1}},
+					Options: options.Index().SetSparse(true),
+				}
+				if _, err := usersCollection.Indexes().CreateOne(ctx, usersIndex); err != nil {
+					return err
+				}
+
+				accessRequestsCollection := db.Collection("access_requests")
+				accessRequestsIndex := mongo.IndexModel{
+					Keys:    bson.D{{Key: "applied_agency_id", Value: 1}},
+					Options: options.Index().SetSparse(true),
+				}
+				_, err := accessRequestsCollection.Indexes().CreateOne(ctx, accessRequestsIndex)
+				return err
+			},
+		},
 	}
 }
 
