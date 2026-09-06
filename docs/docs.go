@@ -3535,7 +3535,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Creates a new catalog product with an optional brochure file upload. Admin/super_admin only.",
+                "description": "Creates a new catalog product with an optional brochure file upload. Super Admin only — a plain admin can browse the catalog but cannot create products.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -3545,7 +3545,7 @@ const docTemplate = `{
                 "tags": [
                     "Product Catalog"
                 ],
-                "summary": "Add Product",
+                "summary": "Add Product (Super Admin only)",
                 "parameters": [
                     {
                         "type": "string",
@@ -3618,7 +3618,7 @@ const docTemplate = `{
                         }
                     },
                     "403": {
-                        "description": "Forbidden — Admin role required",
+                        "description": "Forbidden — super_admin role required",
                         "schema": {
                             "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
                         }
@@ -3692,7 +3692,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Updates product fields and/or replaces the brochure file. Admin/super_admin only.",
+                "description": "Updates product fields and/or replaces the brochure file. Super Admin only — a plain admin can browse the catalog but cannot modify products.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -3702,7 +3702,7 @@ const docTemplate = `{
                 "tags": [
                     "Product Catalog"
                 ],
-                "summary": "Update Product",
+                "summary": "Update Product (Super Admin only)",
                 "parameters": [
                     {
                         "type": "string",
@@ -3780,7 +3780,7 @@ const docTemplate = `{
                         }
                     },
                     "403": {
-                        "description": "Forbidden — Admin role required",
+                        "description": "Forbidden — super_admin role required",
                         "schema": {
                             "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
                         }
@@ -3799,7 +3799,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Permanently removes a product and its brochure asset from Cloudinary. Admin/super_admin only.",
+                "description": "Permanently removes a product and its brochure asset from Cloudinary. Super Admin only.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3809,7 +3809,7 @@ const docTemplate = `{
                 "tags": [
                     "Product Catalog"
                 ],
-                "summary": "Delete Product",
+                "summary": "Delete Product (Super Admin only)",
                 "parameters": [
                     {
                         "type": "string",
@@ -3839,7 +3839,7 @@ const docTemplate = `{
                         }
                     },
                     "403": {
-                        "description": "Forbidden — Admin role required",
+                        "description": "Forbidden — super_admin role required",
                         "schema": {
                             "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
                         }

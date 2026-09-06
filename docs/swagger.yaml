@@ -3492,7 +3492,8 @@ paths:
       consumes:
       - multipart/form-data
       description: Creates a new catalog product with an optional brochure file upload.
-        Admin/super_admin only.
+        Super Admin only — a plain admin can browse the catalog but cannot create
+        products.
       parameters:
       - description: Product Name
         in: formData
@@ -3541,12 +3542,12 @@ paths:
           schema:
             $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "403":
-          description: Forbidden — Admin role required
+          description: Forbidden — super_admin role required
           schema:
             $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
-      summary: Add Product
+      summary: Add Product (Super Admin only)
       tags:
       - Product Catalog
   /products/{id}:
@@ -3554,7 +3555,7 @@ paths:
       consumes:
       - application/json
       description: Permanently removes a product and its brochure asset from Cloudinary.
-        Admin/super_admin only.
+        Super Admin only.
       parameters:
       - description: Product ID
         in: path
@@ -3577,12 +3578,12 @@ paths:
           schema:
             $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "403":
-          description: Forbidden — Admin role required
+          description: Forbidden — super_admin role required
           schema:
             $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
-      summary: Delete Product
+      summary: Delete Product (Super Admin only)
       tags:
       - Product Catalog
     get:
@@ -3624,8 +3625,8 @@ paths:
     put:
       consumes:
       - multipart/form-data
-      description: Updates product fields and/or replaces the brochure file. Admin/super_admin
-        only.
+      description: Updates product fields and/or replaces the brochure file. Super
+        Admin only — a plain admin can browse the catalog but cannot modify products.
       parameters:
       - description: Product ID
         in: path
@@ -3677,7 +3678,7 @@ paths:
           schema:
             $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "403":
-          description: Forbidden — Admin role required
+          description: Forbidden — super_admin role required
           schema:
             $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "404":
@@ -3686,7 +3687,7 @@ paths:
             $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
-      summary: Update Product
+      summary: Update Product (Super Admin only)
       tags:
       - Product Catalog
   /referrals/all:

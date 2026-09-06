@@ -23,18 +23,26 @@ func NewProductService(repo domain.ProductRepository, storageSvc StorageService)
 	return &productService{repo: repo, storageSvc: storageSvc}
 }
 
-// isAgencyRole reports whether the requester is staff (admin/super_admin) — such requesters get
-// full CRUD access and may view inactive/unpublished products. Any other role (client, advisor)
-// is treated as a read-only catalog browser restricted to published (IsActive == true) products.
+// isAgencyRole reports whether the requester is staff (admin/super_admin) — such requesters may
+// view inactive/unpublished products (but not necessarily write them; see isSuperAdmin). Any other
+// role (client, advisor) is treated as a read-only catalog browser restricted to published
+// (IsActive == true) products.
 func isAgencyRole(requesterRole string) bool {
 	return requesterRole == domain.RoleAdmin || requesterRole == domain.RoleSuperAdmin
 }
 
-// CreateProduct adds a new catalog product. Admin/super_admin only. If a brochure file is
-// supplied it is uploaded to Cloudinary first; IsActive defaults to true (published) when omitted.
+// isSuperAdmin reports whether the requester may create, update, or delete a catalog product. A
+// plain admin can browse the full catalog (including drafts) but cannot modify it — only a Super
+// Admin curates the product list.
+func isSuperAdmin(requesterRole string) bool {
+	return requesterRole == domain.RoleSuperAdmin
+}
+
+// CreateProduct adds a new catalog product. Super Admin only. If a brochure file is supplied it is
+// uploaded to Cloudinary first; IsActive defaults to true (published) when omitted.
 func (s *productService) CreateProduct(ctx context.Context, requesterRole string, dto *domain.CreateProductDTO, file io.Reader, filename string) (*domain.Product, error) {
-	if !isAgencyRole(requesterRole) {
-		return nil, fmt.Errorf("access denied: only admin can create products")
+	if !isSuperAdmin(requesterRole) {
+		return nil, fmt.Errorf("access denied: only a super admin can create products")
 	}
 
 	if !domain.IsValidProductCategory(dto.Category) {
@@ -115,12 +123,12 @@ func (s *productService) GetAllProducts(ctx context.Context, requesterRole strin
 	return &domain.ProductListResponse{Total: total, Data: products}, nil
 }
 
-// UpdateProduct modifies an existing product. Admin/super_admin only. If a new brochure file is
+// UpdateProduct modifies an existing product. Super Admin only. If a new brochure file is
 // supplied, the OLD brochure is purged from Cloudinary first, then the new file is uploaded and
 // its URL/PublicID are written onto the DTO before persisting.
 func (s *productService) UpdateProduct(ctx context.Context, requesterRole, idStr string, dto *domain.UpdateProductDTO, newFile io.Reader, filename string) (*domain.Product, error) {
-	if !isAgencyRole(requesterRole) {
-		return nil, fmt.Errorf("access denied: only admin can update products")
+	if !isSuperAdmin(requesterRole) {
+		return nil, fmt.Errorf("access denied: only a super admin can update products")
 	}
 
 	id, err := bson.ObjectIDFromHex(idStr)
@@ -154,10 +162,10 @@ func (s *productService) UpdateProduct(ctx context.Context, requesterRole, idStr
 }
 
 // DeleteProduct removes a product from MongoDB and cascade-deletes its brochure asset from
-// Cloudinary. Admin/super_admin only.
+// Cloudinary. Super Admin only.
 func (s *productService) DeleteProduct(ctx context.Context, requesterRole, idStr string) error {
-	if !isAgencyRole(requesterRole) {
-		return fmt.Errorf("access denied: only admin can delete products")
+	if !isSuperAdmin(requesterRole) {
+		return fmt.Errorf("access denied: only a super admin can delete products")
 	}
 
 	id, err := bson.ObjectIDFromHex(idStr)
