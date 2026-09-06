@@ -303,9 +303,10 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 		}
 
 		// Product Catalog routes — fulfills the "KNOW ABOUT ALL PRODUCT" requirement. GET routes
-		// are open to any authenticated role (client/advisor/admin/super_admin); the service layer
-		// forces client/advisor requesters to the published (is_active=true) subset. Writes
-		// (create/update/delete) are gated to admin/super_admin at the router level, with the
+		// are open to any authenticated role (client/advisor/admin/super_admin) — the service layer
+		// forces client/advisor requesters to the published (is_active=true) subset, but lets a
+		// plain admin view drafts too. Writes (create/update/delete) are Super Admin only — a plain
+		// admin can view the full catalog but never modify it — gated at the router level, with the
 		// service layer re-checking the role as defense in depth.
 		products := v1.Group("/products")
 		{
@@ -314,12 +315,12 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			products.GET("", productHandler.GetProducts)
 			products.GET("/:id", productHandler.GetByID)
 
-			adminProducts := products.Group("")
-			adminProducts.Use(middleware.RequireRole(domain.RoleAdmin))
+			superAdminProducts := products.Group("")
+			superAdminProducts.Use(middleware.RequireRole(domain.RoleSuperAdmin))
 			{
-				adminProducts.POST("", productHandler.CreateProduct)
-				adminProducts.PUT("/:id", productHandler.UpdateProduct)
-				adminProducts.DELETE("/:id", productHandler.DeleteProduct)
+				superAdminProducts.POST("", productHandler.CreateProduct)
+				superAdminProducts.PUT("/:id", productHandler.UpdateProduct)
+				superAdminProducts.DELETE("/:id", productHandler.DeleteProduct)
 			}
 		}
 

@@ -43,8 +43,8 @@ func parseKeyBenefits(raw []string) []string {
 }
 
 // CreateProduct handles adding a new catalog product (Admin/Super Admin only).
-// @Summary      Add Product
-// @Description  Creates a new catalog product with an optional brochure file upload. Admin/super_admin only.
+// @Summary      Add Product (Super Admin only)
+// @Description  Creates a new catalog product with an optional brochure file upload. Super Admin only — a plain admin can browse the catalog but cannot create products.
 // @Tags         Product Catalog
 // @Accept       multipart/form-data
 // @Produce      json
@@ -57,7 +57,7 @@ func parseKeyBenefits(raw []string) []string {
 // @Success      201  {object}  response.APIResponse{data=domain.Product}  "Product created successfully"
 // @Failure      400  {object}  response.APIResponse  "Bad request"
 // @Failure      401  {object}  response.APIResponse  "Unauthorized"
-// @Failure      403  {object}  response.APIResponse  "Forbidden — Admin role required"
+// @Failure      403  {object}  response.APIResponse  "Forbidden — super_admin role required"
 // @Security     BearerAuth
 // @Router       /products [post]
 func (h *ProductHandler) CreateProduct(c *gin.Context) {
@@ -185,8 +185,8 @@ func (h *ProductHandler) GetByID(c *gin.Context) {
 
 // UpdateProduct handles updating an existing product, optionally replacing its brochure
 // (Admin/Super Admin only; old brochure is purged from Cloudinary automatically).
-// @Summary      Update Product
-// @Description  Updates product fields and/or replaces the brochure file. Admin/super_admin only.
+// @Summary      Update Product (Super Admin only)
+// @Description  Updates product fields and/or replaces the brochure file. Super Admin only — a plain admin can browse the catalog but cannot modify products.
 // @Tags         Product Catalog
 // @Accept       multipart/form-data
 // @Produce      json
@@ -200,7 +200,7 @@ func (h *ProductHandler) GetByID(c *gin.Context) {
 // @Success      200  {object}  response.APIResponse{data=domain.Product}  "Product updated successfully"
 // @Failure      400  {object}  response.APIResponse  "Bad request"
 // @Failure      401  {object}  response.APIResponse  "Unauthorized"
-// @Failure      403  {object}  response.APIResponse  "Forbidden — Admin role required"
+// @Failure      403  {object}  response.APIResponse  "Forbidden — super_admin role required"
 // @Failure      404  {object}  response.APIResponse  "Product not found"
 // @Security     BearerAuth
 // @Router       /products/{id} [put]
@@ -259,8 +259,8 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 
 // DeleteProduct handles deleting a product and cascade-purging its brochure from Cloudinary
 // (Admin/Super Admin only).
-// @Summary      Delete Product
-// @Description  Permanently removes a product and its brochure asset from Cloudinary. Admin/super_admin only.
+// @Summary      Delete Product (Super Admin only)
+// @Description  Permanently removes a product and its brochure asset from Cloudinary. Super Admin only.
 // @Tags         Product Catalog
 // @Accept       json
 // @Produce      json
@@ -268,7 +268,7 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 // @Success      200  {object}  response.APIResponse  "Product deleted successfully"
 // @Failure      400  {object}  response.APIResponse  "Bad request"
 // @Failure      401  {object}  response.APIResponse  "Unauthorized"
-// @Failure      403  {object}  response.APIResponse  "Forbidden — Admin role required"
+// @Failure      403  {object}  response.APIResponse  "Forbidden — super_admin role required"
 // @Security     BearerAuth
 // @Router       /products/{id} [delete]
 func (h *ProductHandler) DeleteProduct(c *gin.Context) {
