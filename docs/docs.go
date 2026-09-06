@@ -25,7 +25,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Retrieves all access requests with optional filtering by status (PENDING, APPROVED, REJECTED).",
+                "description": "Retrieves access requests with optional filtering by status (PENDING, APPROVED, REJECTED). A super_admin sees every request; a plain admin sees only requests whose Agency ID matches their own Admin ID.",
                 "consumes": [
                     "application/json"
                 ],
@@ -93,7 +93,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Submits a request for access to the platform with Name, Contact No, and Email. Status is set to PENDING until approved by an Admin.",
+                "description": "Submits a request for access to the platform with Name, Contact No, and Email. An optional Agency ID (an admin's Admin ID) routes the request to that admin specifically — an invalid Agency ID is rejected. Status is set to PENDING until approved by an Admin.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1287,7 +1287,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns platform-wide aggregated totals: active clients, pending access requests, and mapped/unmapped policy counts across Life, Health, General Insurance, and Fixed Deposits. Admin/super_admin only.",
+                "description": "Returns aggregated totals. A super_admin gets platform-wide active clients and pending access requests; a plain admin gets those two counts limited to their own agency. Mapped/unmapped policy counts across Life, Health, General Insurance, and Fixed Deposits remain platform-wide for every caller. Admin/super_admin only.",
                 "consumes": [
                     "application/json"
                 ],
@@ -4335,7 +4335,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Retrieves a paginated list of all users. Only accessible by admin and super_admin roles.",
+                "description": "Retrieves a paginated user list. A super_admin sees every account; a plain admin sees only role=client accounts whose Agency ID matches their own Admin ID.",
                 "consumes": [
                     "application/json"
                 ],
@@ -5215,6 +5215,10 @@ const docTemplate = `{
                 "admin_notes": {
                     "type": "string"
                 },
+                "applied_agency_id": {
+                    "description": "AppliedAgencyID is the AdminID (e.g. \"ADM-7F3K9Q\") the applicant supplied to say which\nagency/admin they want to be managed by. Validated against a real admin account at\nsubmission time. Empty means unassigned — visible only to a super_admin.",
+                    "type": "string"
+                },
                 "applied_referral_code": {
                     "type": "string"
                 },
@@ -5399,6 +5403,11 @@ const docTemplate = `{
                 "phone"
             ],
             "properties": {
+                "agency_id": {
+                    "description": "AgencyID is the Agency ID (an admin's AdminID, e.g. \"ADM-7F3K9Q\") the applicant was given by\ntheir agent/advisor. When supplied it must match a real admin account, or submission fails.",
+                    "type": "string",
+                    "example": "ADM-7F3K9Q"
+                },
                 "applied_referral_code": {
                     "type": "string"
                 },
@@ -6877,6 +6886,9 @@ const docTemplate = `{
         "github_com_smart-invest-solutions_backend_internal_domain.UpdateUserRequest": {
             "type": "object",
             "properties": {
+                "agency_id": {
+                    "type": "string"
+                },
                 "email": {
                     "type": "string"
                 },
@@ -6933,6 +6945,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "admin_id": {
+                    "type": "string"
+                },
+                "agency_id": {
                     "type": "string"
                 },
                 "app_validity_end_date": {

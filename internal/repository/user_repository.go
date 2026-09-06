@@ -117,12 +117,20 @@ func (r *userRepository) FindAllByRoles(ctx context.Context, roles []string, pag
 	return users, total, nil
 }
 
-// FindAll retrieves a paginated list of users.
-func (r *userRepository) FindAll(ctx context.Context, page, limit int64) ([]*domain.User, int64, error) {
+// FindAll retrieves a paginated list of users, optionally narrowed by role and/or agency.
+func (r *userRepository) FindAll(ctx context.Context, roleFilter, agencyIDFilter string, page, limit int64) ([]*domain.User, int64, error) {
 	skip := (page - 1) * limit
 
+	filter := bson.M{}
+	if roleFilter != "" {
+		filter["role"] = roleFilter
+	}
+	if agencyIDFilter != "" {
+		filter["agency_id"] = agencyIDFilter
+	}
+
 	// Get total count
-	total, err := r.collection.CountDocuments(ctx, bson.M{})
+	total, err := r.collection.CountDocuments(ctx, filter)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to count users: %w", err)
 	}
@@ -133,7 +141,7 @@ func (r *userRepository) FindAll(ctx context.Context, page, limit int64) ([]*dom
 		SetLimit(limit).
 		SetSort(bson.D{{Key: "created_at", Value: -1}})
 
-	cursor, err := r.collection.Find(ctx, bson.M{}, opts)
+	cursor, err := r.collection.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to find users: %w", err)
 	}
@@ -167,6 +175,9 @@ func (r *userRepository) Update(ctx context.Context, id bson.ObjectID, req *doma
 	}
 	if req.IsActive != nil {
 		updateFields["is_active"] = *req.IsActive
+	}
+	if req.AgencyID != nil {
+		updateFields["agency_id"] = *req.AgencyID
 	}
 
 	filter := bson.M{"_id": id}
