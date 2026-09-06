@@ -422,7 +422,7 @@ func (h *UserHandler) ResetPassword(c *gin.Context) {
 
 // CreateAdmin handles creating a new Admin account. Super Admin only.
 // @Summary      Create Admin account (Super Admin only)
-// @Description  Creates a new Admin account from Name/Email/Phone. Auto-generates a unique Admin ID, a random password, and a 4-digit PIN, then emails the credentials to the new admin. The response also returns the plaintext password/PIN once, so the Super Admin can share them even if the email fails to deliver. Only accessible by super_admin.
+// @Description  Creates a new Admin account from Name/Email/Phone/ExpiryDate. Auto-generates a unique Admin ID, a random password, and a 4-digit PIN, then emails the credentials to the new admin. ExpiryDate must be in the future — once it passes, the admin cannot log in until a Super Admin renews it via PUT /admins/{id}/expiry. The response also returns the plaintext password/PIN once, so the Super Admin can share them even if the email fails to deliver. Only accessible by super_admin.
 // @Tags         Admin Accounts
 // @Accept       json
 // @Produce      json
@@ -545,4 +545,90 @@ func (h *UserHandler) ImpersonateUser(c *gin.Context) {
 	}
 
 	response.Success(c, "Successfully impersonated target account", loginResp)
+}
+
+// ListExpiringAdmins handles fetching admin accounts whose access is expiring soon or has already
+// expired. Super Admin only.
+// @Summary      List expiring admin accounts (Super Admin only)
+// @Description  Returns admin accounts (role=admin) whose configured expiry date falls within the given window or has already passed, sorted soonest-first. Use this to power a "renewals needed" screen. Only accessible by super_admin.
+// @Tags         Admin Accounts
+// @Accept       json
+// @Produce      json
+// @Param        within_days  query     int  false  "Number of days ahead to include (default: 2)"
+// @Success      200          {object}  response.APIResponse{data=[]domain.UserResponse}  "Expiring admin accounts retrieved successfully"
+// @Failure      401          {object}  response.APIResponse  "Unauthorized"
+// @Failure      403          {object}  response.APIResponse  "Forbidden — super_admin role required"
+// @Security     BearerAuth
+// @Router       /admins/expiring [get]
+func (h *UserHandler) ListExpiringAdmins(c *gin.Context) {
+	withinDays, err := strconv.Atoi(c.DefaultQuery("within_days", "2"))
+	if err != nil || withinDays < 0 {
+		withinDays = 2
+	}
+
+	admins, err := h.userService.ListExpiringAdmins(c.Request.Context(), withinDays)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	response.Success(c, "Expiring admin accounts retrieved successfully", admins)
+}
+
+// RenewAdminExpiry handles extending an admin account's expiry date. Super Admin only.
+// @Summary      Renew an admin account's expiry date (Super Admin only)
+// @Description  Sets a new (future) expiry date on an admin account, reactivating login for an already-expired admin, and emails the admin a confirmation. Only accessible by super_admin.
+// @Tags         Admin Accounts
+// @Accept       json
+// @Produce      json
+// @Param        id       path      string                          true  "Admin User ID (MongoDB ObjectID)"
+// @Param        request  body      domain.RenewAdminExpiryRequest  true  "New expiry date"
+// @Success      200      {object}  response.APIResponse{data=domain.UserResponse}  "Admin expiry date renewed successfully"
+// @Failure      400      {object}  response.APIResponse  "Bad request (e.g. expiry date not in the future, or target is not an admin account)"
+// @Failure      401      {object}  response.APIResponse  "Unauthorized"
+// @Failure      403      {object}  response.APIResponse  "Forbidden — super_admin role required"
+// @Failure      422      {object}  response.APIResponse  "Validation error"
+// @Security     BearerAuth
+// @Router       /admins/{id}/expiry [put]
+func (h *UserHandler) RenewAdminExpiry(c *gin.Context) {
+	targetID := c.Param("id")
+
+	var req domain.RenewAdminExpiryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ValidationError(c, err.Error())
+		return
+	}
+
+	updated, err := h.userService.RenewAdminExpiry(c.Request.Context(), targetID, &req)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	response.Success(c, "Admin expiry date renewed successfully", updated)
+}
+
+// SendAdminExpiryAlert handles emailing an admin whose access is expiring soon (or has expired) a
+// renewal reminder. Super Admin only.
+// @Summary      Send an expiry alert email to an admin (Super Admin only)
+// @Description  Sends an email to the given admin warning that their access is expiring soon (or has expired), asking them to contact the Super Admin to renew. Throttled to one alert per hour per admin. Only accessible by super_admin.
+// @Tags         Admin Accounts
+// @Accept       json
+// @Produce      json
+// @Param        id   path      string  true  "Admin User ID (MongoDB ObjectID)"
+// @Success      200  {object}  response.APIResponse  "Expiry alert email sent successfully"
+// @Failure      400  {object}  response.APIResponse  "Bad request (e.g. no expiry date set, or an alert was already sent recently)"
+// @Failure      401  {object}  response.APIResponse  "Unauthorized"
+// @Failure      403  {object}  response.APIResponse  "Forbidden — super_admin role required"
+// @Security     BearerAuth
+// @Router       /admins/{id}/send-expiry-alert [post]
+func (h *UserHandler) SendAdminExpiryAlert(c *gin.Context) {
+	targetID := c.Param("id")
+
+	if err := h.userService.SendAdminExpiryAlert(c.Request.Context(), targetID); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	response.Success(c, "Expiry alert email sent successfully", nil)
 }

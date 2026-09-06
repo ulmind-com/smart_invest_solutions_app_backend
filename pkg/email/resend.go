@@ -23,6 +23,8 @@ type EmailService interface {
 	SendPasswordResetConfirmationEmail(ctx context.Context, toEmail string) error
 	SendAccountDeletionEmail(ctx context.Context, toEmail, name string) error
 	SendAdminCredentialsEmail(ctx context.Context, toEmail, name, adminID, password, pin string) error
+	SendAdminExpiryAlertEmail(ctx context.Context, toEmail, name string, expiryDate time.Time) error
+	SendAdminExpiryRenewedEmail(ctx context.Context, toEmail, name string, newExpiryDate time.Time) error
 }
 
 // ResendService implements EmailService using the Resend HTTP API.
@@ -377,6 +379,85 @@ func (s *ResendService) SendAdminCredentialsEmail(ctx context.Context, toEmail, 
 </body>
 </html>
 `, name, adminID, toEmail, password, pin)
+
+	return s.sendResendRequest(ctx, subject, toEmail, htmlBody)
+}
+
+// SendAdminExpiryAlertEmail warns an admin that their Admin Portal access is expiring soon (or has
+// already expired), asking them to contact their Super Admin to renew it before being locked out.
+func (s *ResendService) SendAdminExpiryAlertEmail(ctx context.Context, toEmail, name string, expiryDate time.Time) error {
+	subject := "⏰ Your Admin Access Is Expiring Soon — Smart Invest Solutions"
+
+	daysLeft := int(time.Until(expiryDate).Hours() / 24)
+	var statusLine string
+	switch {
+	case daysLeft < 0:
+		statusLine = fmt.Sprintf("expired on <strong>%s</strong>", expiryDate.Format("02 Jan 2006"))
+	case daysLeft == 0:
+		statusLine = fmt.Sprintf("expires <strong>today</strong>, %s", expiryDate.Format("02 Jan 2006"))
+	case daysLeft == 1:
+		statusLine = fmt.Sprintf("expires <strong>tomorrow</strong>, %s", expiryDate.Format("02 Jan 2006"))
+	default:
+		statusLine = fmt.Sprintf("expires in <strong>%d days</strong>, on %s", daysLeft, expiryDate.Format("02 Jan 2006"))
+	}
+
+	htmlBody := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0f172a; margin: 0; padding: 20px; color: #f8fafc; }
+        .container { max-width: 550px; margin: 0 auto; background: #1e293b; border-radius: 16px; padding: 30px; border: 1px solid #334155; }
+        .header { text-align: center; margin-bottom: 24px; }
+        .header h1 { color: #38bdf8; font-size: 24px; margin: 0; }
+        .alert-box { background: #0f172a; border-left: 4px solid #f59e0b; border-radius: 8px; padding: 20px; margin: 20px 0; }
+        .status-badge { display: inline-block; background: #f59e0b; color: #0f172a; font-weight: bold; font-size: 12px; padding: 4px 12px; border-radius: 12px; text-transform: uppercase; }
+        .footer { text-align: center; margin-top: 24px; font-size: 12px; color: #64748b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Smart Invest Solutions</h1>
+            <p style="color: #94a3b8; font-size: 14px; margin-top: 4px;">Admin Portal Access Alert</p>
+        </div>
+
+        <h2>Hello %s,</h2>
+        <div class="alert-box">
+            <p style="margin: 0 0 10px 0;"><span class="status-badge">⏰ Access Expiring</span></p>
+            <p style="font-size: 14px; color: #f8fafc; margin: 0;">
+                Your Admin Portal access %s.
+            </p>
+        </div>
+        <p style="font-size: 14px; color: #cbd5e1;">Please contact your Super Admin as soon as possible to renew your access and avoid being locked out of the Admin Portal.</p>
+
+        <div class="footer">&copy; Smart Invest Solutions. All rights reserved.</div>
+    </div>
+</body>
+</html>
+`, name, statusLine)
+
+	return s.sendResendRequest(ctx, subject, toEmail, htmlBody)
+}
+
+// SendAdminExpiryRenewedEmail confirms to an admin that their Super Admin has extended their access.
+func (s *ResendService) SendAdminExpiryRenewedEmail(ctx context.Context, toEmail, name string, newExpiryDate time.Time) error {
+	subject := "✅ Your Admin Access Has Been Renewed — Smart Invest Solutions"
+
+	htmlBody := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<body style="font-family: sans-serif; padding: 20px; background-color: #0f172a; color: #f8fafc;">
+    <div style="max-width: 500px; margin: 0 auto; background: #1e293b; padding: 24px; border-radius: 12px; border: 1px solid #334155;">
+        <h2 style="color: #34d399;">Access Renewed</h2>
+        <p>Hello %s,</p>
+        <p>Your Super Admin has renewed your Admin Portal access. Your account is now valid until <strong>%s</strong>.</p>
+        <p style="color: #94a3b8; font-size: 13px;">You can continue signing in to the Admin Portal as usual.</p>
+    </div>
+</body>
+</html>
+`, name, newExpiryDate.Format("02 Jan 2006"))
 
 	return s.sendResendRequest(ctx, subject, toEmail, htmlBody)
 }

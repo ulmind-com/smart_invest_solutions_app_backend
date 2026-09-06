@@ -187,6 +187,23 @@ func GetMigrations(cfg *config.Config) []Migration {
 				return nil
 			},
 		},
+		{
+			Version:     5,
+			Description: "Create sparse index on users.admin_expiry_date",
+			Up: func(ctx context.Context, db *mongo.Database) error {
+				collection := db.Collection("users")
+
+				// Sparse because most accounts (clients, super_admins, and legacy admins created
+				// before this feature existed) never set this field.
+				expiryIndex := mongo.IndexModel{
+					Keys:    bson.D{{Key: "admin_expiry_date", Value: 1}},
+					Options: options.Index().SetSparse(true),
+				}
+
+				_, err := collection.Indexes().CreateOne(ctx, expiryIndex)
+				return err
+			},
+		},
 	}
 }
 

@@ -1,6 +1,6 @@
 basePath: /api/v1
 definitions:
-  domain.AccessRequest:
+  github_com_smart-invest-solutions_backend_internal_domain.AccessRequest:
     properties:
       admin_notes:
         type: string
@@ -28,16 +28,16 @@ definitions:
     - name
     - phone
     type: object
-  domain.AdminDashboardDTO:
+  github_com_smart-invest-solutions_backend_internal_domain.AdminDashboardDTO:
     properties:
       pending_access_requests:
         type: integer
       policy_stats:
-        $ref: '#/definitions/domain.PolicyStats'
+        $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.PolicyStats'
       total_active_clients:
         type: integer
     type: object
-  domain.AdminLoginRequest:
+  github_com_smart-invest-solutions_backend_internal_domain.AdminLoginRequest:
     properties:
       admin_id:
         example: ADM-7F3K9Q
@@ -51,12 +51,12 @@ definitions:
     required:
     - pin
     type: object
-  domain.ApproveAccessRequestDTO:
+  github_com_smart-invest-solutions_backend_internal_domain.ApproveAccessRequestDTO:
     properties:
       admin_notes:
         type: string
     type: object
-  domain.CalculatorResponseDTO:
+  github_com_smart-invest-solutions_backend_internal_domain.CalculatorResponseDTO:
     properties:
       applied_interest_rate:
         description: Tells client which rate was applied
@@ -68,7 +68,7 @@ definitions:
       total_value:
         type: number
     type: object
-  domain.CalculatorSettings:
+  github_com_smart-invest-solutions_backend_internal_domain.CalculatorSettings:
     properties:
       default_fd_rate:
         description: e.g. 7.0 (%)
@@ -84,7 +84,7 @@ definitions:
       updated_at:
         type: string
     type: object
-  domain.ChangePasswordRequest:
+  github_com_smart-invest-solutions_backend_internal_domain.ChangePasswordRequest:
     properties:
       confirm_password:
         type: string
@@ -97,7 +97,7 @@ definitions:
     - current_password
     - new_password
     type: object
-  domain.ClientDashboardDTO:
+  github_com_smart-invest-solutions_backend_internal_domain.ClientDashboardDTO:
     properties:
       total_family_members:
         type: integer
@@ -112,10 +112,10 @@ definitions:
       upcoming_premiums:
         description: Life/Health premiums due within the next 30 days
         items:
-          $ref: '#/definitions/domain.UpcomingPayment'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UpcomingPayment'
         type: array
     type: object
-  domain.CreateAccessRequestDTO:
+  github_com_smart-invest-solutions_backend_internal_domain.CreateAccessRequestDTO:
     properties:
       applied_referral_code:
         type: string
@@ -132,9 +132,12 @@ definitions:
     - name
     - phone
     type: object
-  domain.CreateAdminRequest:
+  github_com_smart-invest-solutions_backend_internal_domain.CreateAdminRequest:
     properties:
       email:
+        type: string
+      expiry_date:
+        example: "2026-06-30T00:00:00Z"
         type: string
       name:
         type: string
@@ -142,13 +145,14 @@ definitions:
         type: string
     required:
     - email
+    - expiry_date
     - name
     - phone
     type: object
-  domain.CreateAdminResponse:
+  github_com_smart-invest-solutions_backend_internal_domain.CreateAdminResponse:
     properties:
       admin:
-        $ref: '#/definitions/domain.UserResponse'
+        $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserResponse'
       admin_id:
         type: string
       credentials_email_sent:
@@ -160,7 +164,7 @@ definitions:
       temporary_pin:
         type: string
     type: object
-  domain.CreateFamilyMemberDTO:
+  github_com_smart-invest-solutions_backend_internal_domain.CreateFamilyMemberDTO:
     properties:
       blood_group:
         type: string
@@ -180,7 +184,7 @@ definitions:
     - phone
     - relation_with_hof
     type: object
-  domain.CreateFixedDepositDTO:
+  github_com_smart-invest-solutions_backend_internal_domain.CreateFixedDepositDTO:
     properties:
       account_type:
         type: string
@@ -227,7 +231,7 @@ definitions:
     - principal_amount
     - term_months
     type: object
-  domain.CreateGeneralInsuranceDTO:
+  github_com_smart-invest-solutions_backend_internal_domain.CreateGeneralInsuranceDTO:
     properties:
       advisor_contact:
         type: string
@@ -247,7 +251,7 @@ definitions:
     - policy_no
     - vehicle_no
     type: object
-  domain.CreateHealthInsuranceDTO:
+  github_com_smart-invest-solutions_backend_internal_domain.CreateHealthInsuranceDTO:
     properties:
       company_name:
         type: string
@@ -256,9 +260,9 @@ definitions:
       is_mapped:
         type: boolean
       policy_details:
-        $ref: '#/definitions/domain.CreateHealthPolicyDetailsDTO'
+        $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreateHealthPolicyDetailsDTO'
       premium_details:
-        $ref: '#/definitions/domain.CreateHealthPremiumDetailsDTO'
+        $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreateHealthPremiumDetailsDTO'
       user_id:
         example: 64f1a2b3c4d5e6f7a8b9c0d1
         type: string
@@ -268,7 +272,7 @@ definitions:
     - policy_details
     - premium_details
     type: object
-  domain.CreateHealthPolicyDetailsDTO:
+  github_com_smart-invest-solutions_backend_internal_domain.CreateHealthPolicyDetailsDTO:
     properties:
       doc:
         type: string
@@ -287,7 +291,7 @@ definitions:
     - policy_no
     - sum_insured
     type: object
-  domain.CreateHealthPremiumDetailsDTO:
+  github_com_smart-invest-solutions_backend_internal_domain.CreateHealthPremiumDetailsDTO:
     properties:
       installment_premium:
         type: number
@@ -305,7 +309,7 @@ definitions:
     - next_due_date
     - payment_mode
     type: object
-  domain.CreateLifeInsuranceDTO:
+  github_com_smart-invest-solutions_backend_internal_domain.CreateLifeInsuranceDTO:
     properties:
       company_name:
         type: string
@@ -314,9 +318,9 @@ definitions:
       is_mapped:
         type: boolean
       policy_details:
-        $ref: '#/definitions/domain.CreatePolicyDetailsDTO'
+        $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreatePolicyDetailsDTO'
       premium_details:
-        $ref: '#/definitions/domain.CreatePremiumDetailsDTO'
+        $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreatePremiumDetailsDTO'
       user_id:
         example: 64f1a2b3c4d5e6f7a8b9c0d1
         type: string
@@ -326,7 +330,7 @@ definitions:
     - policy_details
     - premium_details
     type: object
-  domain.CreatePolicyDetailsDTO:
+  github_com_smart-invest-solutions_backend_internal_domain.CreatePolicyDetailsDTO:
     properties:
       doc:
         type: string
@@ -354,7 +358,7 @@ definitions:
     - sum_assured
     - term
     type: object
-  domain.CreatePremiumDetailsDTO:
+  github_com_smart-invest-solutions_backend_internal_domain.CreatePremiumDetailsDTO:
     properties:
       installment_premium:
         type: number
@@ -372,7 +376,7 @@ definitions:
     - next_due_date
     - payment_mode
     type: object
-  domain.CreateSupportTicketDTO:
+  github_com_smart-invest-solutions_backend_internal_domain.CreateSupportTicketDTO:
     properties:
       category:
         enum:
@@ -393,7 +397,7 @@ definitions:
     - description
     - subject
     type: object
-  domain.CreateUserRequest:
+  github_com_smart-invest-solutions_backend_internal_domain.CreateUserRequest:
     properties:
       email:
         type: string
@@ -408,7 +412,7 @@ definitions:
     - name
     - password
     type: object
-  domain.Document:
+  github_com_smart-invest-solutions_backend_internal_domain.Document:
     properties:
       category:
         description: e.g. Aadhaar Card, PAN Card, Bank Passbook, Policy, Custom
@@ -435,16 +439,16 @@ definitions:
     required:
     - name
     type: object
-  domain.DocumentListResponse:
+  github_com_smart-invest-solutions_backend_internal_domain.DocumentListResponse:
     properties:
       data:
         items:
-          $ref: '#/definitions/domain.Document'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.Document'
         type: array
       total:
         type: integer
     type: object
-  domain.FDRequestDTO:
+  github_com_smart-invest-solutions_backend_internal_domain.FDRequestDTO:
     properties:
       compounding_frequency:
         enum:
@@ -464,7 +468,7 @@ definitions:
     - principal
     - tenure_months
     type: object
-  domain.FamilyMember:
+  github_com_smart-invest-solutions_backend_internal_domain.FamilyMember:
     properties:
       blood_group:
         type: string
@@ -493,16 +497,16 @@ definitions:
     - phone
     - relation_with_hof
     type: object
-  domain.FamilyMemberListResponse:
+  github_com_smart-invest-solutions_backend_internal_domain.FamilyMemberListResponse:
     properties:
       data:
         items:
-          $ref: '#/definitions/domain.FamilyMember'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.FamilyMember'
         type: array
       total:
         type: integer
     type: object
-  domain.FixedDeposit:
+  github_com_smart-invest-solutions_backend_internal_domain.FixedDeposit:
     properties:
       account_type:
         type: string
@@ -546,14 +550,14 @@ definitions:
       user_id:
         type: string
     type: object
-  domain.ForgotPasswordRequest:
+  github_com_smart-invest-solutions_backend_internal_domain.ForgotPasswordRequest:
     properties:
       email:
         type: string
     required:
     - email
     type: object
-  domain.GeneralInsurance:
+  github_com_smart-invest-solutions_backend_internal_domain.GeneralInsurance:
     properties:
       advisor_contact:
         type: string
@@ -582,16 +586,16 @@ definitions:
     - policy_no
     - vehicle_no
     type: object
-  domain.GeneralInsuranceListResponse:
+  github_com_smart-invest-solutions_backend_internal_domain.GeneralInsuranceListResponse:
     properties:
       data:
         items:
-          $ref: '#/definitions/domain.GeneralInsurance'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.GeneralInsurance'
         type: array
       total:
         type: integer
     type: object
-  domain.GeneralInsuranceWithCustomer:
+  github_com_smart-invest-solutions_backend_internal_domain.GeneralInsuranceWithCustomer:
     properties:
       advisor_contact:
         type: string
@@ -618,7 +622,7 @@ definitions:
       vehicle_no:
         type: string
     type: object
-  domain.HealthInsurance:
+  github_com_smart-invest-solutions_backend_internal_domain.HealthInsurance:
     properties:
       company_name:
         description: e.g. Star Health, Care Health
@@ -633,15 +637,15 @@ definitions:
         description: Admin tracking flag — admin/super_admin only can change on update
         type: boolean
       policy_details:
-        $ref: '#/definitions/domain.HealthPolicyDetails'
+        $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.HealthPolicyDetails'
       premium_details:
-        $ref: '#/definitions/domain.HealthPremiumDetails'
+        $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.HealthPremiumDetails'
       updated_at:
         type: string
       user_id:
         type: string
     type: object
-  domain.HealthPolicyDetails:
+  github_com_smart-invest-solutions_backend_internal_domain.HealthPolicyDetails:
     properties:
       doc:
         description: Date of Commencement
@@ -658,7 +662,7 @@ definitions:
       sum_insured:
         type: number
     type: object
-  domain.HealthPremiumDetails:
+  github_com_smart-invest-solutions_backend_internal_domain.HealthPremiumDetails:
     properties:
       installment_premium:
         type: number
@@ -668,7 +672,7 @@ definitions:
       payment_mode:
         type: string
     type: object
-  domain.ImpersonateUserRequest:
+  github_com_smart-invest-solutions_backend_internal_domain.ImpersonateUserRequest:
     properties:
       reason:
         type: string
@@ -677,7 +681,7 @@ definitions:
     required:
     - target_user_id
     type: object
-  domain.LifeInsurance:
+  github_com_smart-invest-solutions_backend_internal_domain.LifeInsurance:
     properties:
       company_name:
         type: string
@@ -691,22 +695,22 @@ definitions:
         description: 'Admin flag: formally mapped to their agency portfolio'
         type: boolean
       policy_details:
-        $ref: '#/definitions/domain.PolicyDetails'
+        $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.PolicyDetails'
       premium_details:
-        $ref: '#/definitions/domain.PremiumDetails'
+        $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.PremiumDetails'
       updated_at:
         type: string
       user_id:
         type: string
     type: object
-  domain.LoginResponse:
+  github_com_smart-invest-solutions_backend_internal_domain.LoginResponse:
     properties:
       token:
         type: string
       user:
-        $ref: '#/definitions/domain.UserResponse'
+        $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserResponse'
     type: object
-  domain.LumpsumRequestDTO:
+  github_com_smart-invest-solutions_backend_internal_domain.LumpsumRequestDTO:
     properties:
       expected_return_rate:
         description: 'Optional: Uses Admin default if nil'
@@ -719,7 +723,7 @@ definitions:
     - time_period_years
     - total_investment
     type: object
-  domain.PolicyDetails:
+  github_com_smart-invest-solutions_backend_internal_domain.PolicyDetails:
     properties:
       doc:
         description: Date of Commencement
@@ -744,14 +748,14 @@ definitions:
         description: Total policy duration in years
         type: integer
     type: object
-  domain.PolicyStats:
+  github_com_smart-invest-solutions_backend_internal_domain.PolicyStats:
     properties:
       mapped:
         type: integer
       unmapped:
         type: integer
     type: object
-  domain.PremiumDetails:
+  github_com_smart-invest-solutions_backend_internal_domain.PremiumDetails:
     properties:
       installment_premium:
         type: number
@@ -761,7 +765,7 @@ definitions:
       payment_mode:
         type: string
     type: object
-  domain.Product:
+  github_com_smart-invest-solutions_backend_internal_domain.Product:
     properties:
       brochure_public_id:
         type: string
@@ -786,25 +790,25 @@ definitions:
       updated_at:
         type: string
     type: object
-  domain.ProductListResponse:
+  github_com_smart-invest-solutions_backend_internal_domain.ProductListResponse:
     properties:
       data:
         items:
-          $ref: '#/definitions/domain.Product'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.Product'
         type: array
       total:
         type: integer
     type: object
-  domain.ReferralListResponse:
+  github_com_smart-invest-solutions_backend_internal_domain.ReferralListResponse:
     properties:
       data:
         items:
-          $ref: '#/definitions/domain.ReferralRecordWithDetails'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ReferralRecordWithDetails'
         type: array
       total:
         type: integer
     type: object
-  domain.ReferralRecordWithDetails:
+  github_com_smart-invest-solutions_backend_internal_domain.ReferralRecordWithDetails:
     properties:
       created_at:
         type: string
@@ -825,7 +829,7 @@ definitions:
       updated_at:
         type: string
     type: object
-  domain.ReferralStatsDTO:
+  github_com_smart-invest-solutions_backend_internal_domain.ReferralStatsDTO:
     properties:
       app_validity_end_date:
         type: string
@@ -838,12 +842,20 @@ definitions:
       total_pending:
         type: integer
     type: object
-  domain.RejectAccessRequestDTO:
+  github_com_smart-invest-solutions_backend_internal_domain.RejectAccessRequestDTO:
     properties:
       reason:
         type: string
     type: object
-  domain.ResendEmailOTPRequest:
+  github_com_smart-invest-solutions_backend_internal_domain.RenewAdminExpiryRequest:
+    properties:
+      expiry_date:
+        example: "2026-12-31T00:00:00Z"
+        type: string
+    required:
+    - expiry_date
+    type: object
+  github_com_smart-invest-solutions_backend_internal_domain.ResendEmailOTPRequest:
     properties:
       email:
         example: user@example.com
@@ -851,7 +863,7 @@ definitions:
     required:
     - email
     type: object
-  domain.ResetPasswordRequest:
+  github_com_smart-invest-solutions_backend_internal_domain.ResetPasswordRequest:
     properties:
       confirm_password:
         type: string
@@ -867,7 +879,7 @@ definitions:
     - new_password
     - otp
     type: object
-  domain.SIPRequestDTO:
+  github_com_smart-invest-solutions_backend_internal_domain.SIPRequestDTO:
     properties:
       expected_return_rate:
         description: 'Optional: Uses Admin default if nil'
@@ -880,7 +892,7 @@ definitions:
     - monthly_investment
     - time_period_years
     type: object
-  domain.SupportTicket:
+  github_com_smart-invest-solutions_backend_internal_domain.SupportTicket:
     properties:
       admin_notes:
         description: Internal notes for the agency — admin/super_admin only
@@ -905,20 +917,28 @@ definitions:
       user_id:
         type: string
     type: object
-  domain.SyncResultDTO:
+  github_com_smart-invest-solutions_backend_internal_domain.SyncResultDTO:
     properties:
+      failed_to_update_in_db:
+        type: integer
       successfully_updated_in_db:
         type: integer
       total_policies_found_in_pdf:
         type: integer
       unmapped_policies:
         items:
-          $ref: '#/definitions/domain.UnmappedPolicy'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UnmappedPolicy'
         type: array
     type: object
-  domain.UnmappedPolicy:
+  github_com_smart-invest-solutions_backend_internal_domain.UnmappedPolicy:
     properties:
       assured_name:
+        type: string
+      calculated_next_due_date:
+        description: |-
+          CalculatedNextDueDate is what the sync worked out from FUP and mode. It is
+          the point of the whole run, and an admin adding this policy by hand needs
+          it just as much as one whose policy already matched.
         type: string
       doc:
         type: string
@@ -931,7 +951,7 @@ definitions:
       premium:
         type: number
     type: object
-  domain.UpcomingPayment:
+  github_com_smart-invest-solutions_backend_internal_domain.UpcomingPayment:
     properties:
       amount:
         type: number
@@ -946,7 +966,7 @@ definitions:
         example: Life Insurance
         type: string
     type: object
-  domain.UpdateCalculatorSettingsDTO:
+  github_com_smart-invest-solutions_backend_internal_domain.UpdateCalculatorSettingsDTO:
     properties:
       default_fd_rate:
         minimum: 0
@@ -958,7 +978,7 @@ definitions:
         minimum: 0
         type: number
     type: object
-  domain.UpdateFamilyMemberDTO:
+  github_com_smart-invest-solutions_backend_internal_domain.UpdateFamilyMemberDTO:
     properties:
       blood_group:
         type: string
@@ -973,7 +993,7 @@ definitions:
       relation_with_hof:
         type: string
     type: object
-  domain.UpdateFixedDepositDTO:
+  github_com_smart-invest-solutions_backend_internal_domain.UpdateFixedDepositDTO:
     properties:
       account_type:
         type: string
@@ -1004,7 +1024,7 @@ definitions:
       term_months:
         type: integer
     type: object
-  domain.UpdateGeneralInsuranceDTO:
+  github_com_smart-invest-solutions_backend_internal_domain.UpdateGeneralInsuranceDTO:
     properties:
       advisor_contact:
         type: string
@@ -1019,7 +1039,7 @@ definitions:
       vehicle_no:
         type: string
     type: object
-  domain.UpdateHealthInsuranceDTO:
+  github_com_smart-invest-solutions_backend_internal_domain.UpdateHealthInsuranceDTO:
     properties:
       company_name:
         type: string
@@ -1049,7 +1069,7 @@ definitions:
       sum_insured:
         type: number
     type: object
-  domain.UpdateLifeInsuranceDTO:
+  github_com_smart-invest-solutions_backend_internal_domain.UpdateLifeInsuranceDTO:
     properties:
       company_name:
         type: string
@@ -1085,14 +1105,14 @@ definitions:
       term:
         type: integer
     type: object
-  domain.UpdateProfileRequest:
+  github_com_smart-invest-solutions_backend_internal_domain.UpdateProfileRequest:
     properties:
       name:
         type: string
       phone:
         type: string
     type: object
-  domain.UpdateSupportTicketDTO:
+  github_com_smart-invest-solutions_backend_internal_domain.UpdateSupportTicketDTO:
     properties:
       admin_notes:
         type: string
@@ -1108,7 +1128,7 @@ definitions:
       subject:
         type: string
     type: object
-  domain.UpdateUserRequest:
+  github_com_smart-invest-solutions_backend_internal_domain.UpdateUserRequest:
     properties:
       email:
         type: string
@@ -1123,7 +1143,7 @@ definitions:
       role:
         type: string
     type: object
-  domain.UserLoginRequest:
+  github_com_smart-invest-solutions_backend_internal_domain.UserLoginRequest:
     properties:
       admin_id:
         example: ADM-7F3K9Q
@@ -1144,8 +1164,10 @@ definitions:
         example: user@example.com
         type: string
     type: object
-  domain.UserResponse:
+  github_com_smart-invest-solutions_backend_internal_domain.UserResponse:
     properties:
+      admin_expiry_date:
+        type: string
       admin_id:
         type: string
       app_validity_end_date:
@@ -1171,7 +1193,7 @@ definitions:
       updated_at:
         type: string
     type: object
-  domain.VerifyEmailOTPRequest:
+  github_com_smart-invest-solutions_backend_internal_domain.VerifyEmailOTPRequest:
     properties:
       email:
         example: user@example.com
@@ -1183,7 +1205,7 @@ definitions:
     - email
     - otp
     type: object
-  domain.VerifyOTPRequest:
+  github_com_smart-invest-solutions_backend_internal_domain.VerifyOTPRequest:
     properties:
       email:
         type: string
@@ -1193,7 +1215,7 @@ definitions:
     - email
     - otp
     type: object
-  response.APIResponse:
+  github_com_smart-invest-solutions_backend_pkg_response.APIResponse:
     properties:
       data: {}
       error:
@@ -1203,7 +1225,7 @@ definitions:
       success:
         type: boolean
     type: object
-  response.PaginatedResponse:
+  github_com_smart-invest-solutions_backend_pkg_response.PaginatedResponse:
     properties:
       data: {}
       limit:
@@ -1255,21 +1277,21 @@ paths:
           description: Access requests retrieved successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.PaginatedResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.PaginatedResponse'
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/domain.AccessRequest'
+                    $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.AccessRequest'
                   type: array
               type: object
         "401":
           description: Unauthorized — Bearer Token required
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "403":
           description: Forbidden — Admin role required
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get all Access Requests (Admin Only)
@@ -1286,7 +1308,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/domain.CreateAccessRequestDTO'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreateAccessRequestDTO'
       produces:
       - application/json
       responses:
@@ -1294,19 +1316,19 @@ paths:
           description: Access request submitted successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.AccessRequest'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.AccessRequest'
               type: object
         "400":
           description: Bad request (email already exists or pending request exists)
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "422":
           description: Validation error
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       summary: Request for Access (Client Sign up request)
       tags:
       - Access Requests
@@ -1328,15 +1350,15 @@ paths:
           description: Access request retrieved successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.AccessRequest'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.AccessRequest'
               type: object
         "404":
           description: Request not found
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get Access Request by ID (Admin Only)
@@ -1359,7 +1381,7 @@ paths:
         in: body
         name: request
         schema:
-          $ref: '#/definitions/domain.ApproveAccessRequestDTO'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ApproveAccessRequestDTO'
       produces:
       - application/json
       responses:
@@ -1367,23 +1389,23 @@ paths:
           description: Access request approved, account created, and credentials emailed
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.UserResponse'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserResponse'
               type: object
         "400":
           description: Bad request (already approved or invalid ID)
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "403":
           description: Forbidden — Admin role required
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Approve Access Request & Email Credentials (Admin Only)
@@ -1404,7 +1426,7 @@ paths:
         in: body
         name: request
         schema:
-          $ref: '#/definitions/domain.RejectAccessRequestDTO'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.RejectAccessRequestDTO'
       produces:
       - application/json
       responses:
@@ -1412,23 +1434,23 @@ paths:
           description: Access request rejected
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.AccessRequest'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.AccessRequest'
               type: object
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "403":
           description: Forbidden — Admin role required
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Reject Access Request (Admin Only)
@@ -1456,21 +1478,21 @@ paths:
           description: Admin accounts retrieved successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.PaginatedResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.PaginatedResponse'
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/domain.UserResponse'
+                    $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserResponse'
                   type: array
               type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "403":
           description: Forbidden — super_admin role required
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get all Admin accounts (Super Admin only)
@@ -1479,18 +1501,19 @@ paths:
     post:
       consumes:
       - application/json
-      description: Creates a new Admin account from Name/Email/Phone. Auto-generates
+      description: Creates a new Admin account from Name/Email/Phone/ExpiryDate. Auto-generates
         a unique Admin ID, a random password, and a 4-digit PIN, then emails the credentials
-        to the new admin. The response also returns the plaintext password/PIN once,
-        so the Super Admin can share them even if the email fails to deliver. Only
-        accessible by super_admin.
+        to the new admin. ExpiryDate must be in the future — once it passes, the admin
+        cannot log in until a Super Admin renews it via PUT /admins/{id}/expiry. The
+        response also returns the plaintext password/PIN once, so the Super Admin
+        can share them even if the email fails to deliver. Only accessible by super_admin.
       parameters:
       - description: New Admin details
         in: body
         name: request
         required: true
         schema:
-          $ref: '#/definitions/domain.CreateAdminRequest'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreateAdminRequest'
       produces:
       - application/json
       responses:
@@ -1498,27 +1521,27 @@ paths:
           description: Admin account created successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.CreateAdminResponse'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreateAdminResponse'
               type: object
         "400":
           description: Bad request (e.g. email already in use)
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "403":
           description: Forbidden — super_admin role required
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "422":
           description: Validation error
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Create Admin account (Super Admin only)
@@ -1543,22 +1566,152 @@ paths:
         "200":
           description: Admin account deleted successfully
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "403":
           description: Forbidden — super_admin role required
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Delete Admin account (Super Admin only)
+      tags:
+      - Admin Accounts
+  /admins/{id}/expiry:
+    put:
+      consumes:
+      - application/json
+      description: Sets a new (future) expiry date on an admin account, reactivating
+        login for an already-expired admin, and emails the admin a confirmation. Only
+        accessible by super_admin.
+      parameters:
+      - description: Admin User ID (MongoDB ObjectID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: New expiry date
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.RenewAdminExpiryRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Admin expiry date renewed successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserResponse'
+              type: object
+        "400":
+          description: Bad request (e.g. expiry date not in the future, or target
+            is not an admin account)
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "403":
+          description: Forbidden — super_admin role required
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "422":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Renew an admin account's expiry date (Super Admin only)
+      tags:
+      - Admin Accounts
+  /admins/{id}/send-expiry-alert:
+    post:
+      consumes:
+      - application/json
+      description: Sends an email to the given admin warning that their access is
+        expiring soon (or has expired), asking them to contact the Super Admin to
+        renew. Throttled to one alert per hour per admin. Only accessible by super_admin.
+      parameters:
+      - description: Admin User ID (MongoDB ObjectID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Expiry alert email sent successfully
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad request (e.g. no expiry date set, or an alert was already
+            sent recently)
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "403":
+          description: Forbidden — super_admin role required
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Send an expiry alert email to an admin (Super Admin only)
+      tags:
+      - Admin Accounts
+  /admins/expiring:
+    get:
+      consumes:
+      - application/json
+      description: Returns admin accounts (role=admin) whose configured expiry date
+        falls within the given window or has already passed, sorted soonest-first.
+        Use this to power a "renewals needed" screen. Only accessible by super_admin.
+      parameters:
+      - description: 'Number of days ahead to include (default: 2)'
+        in: query
+        name: within_days
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Expiring admin accounts retrieved successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserResponse'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+        "403":
+          description: Forbidden — super_admin role required
+          schema:
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: List expiring admin accounts (Super Admin only)
       tags:
       - Admin Accounts
   /admins/impersonate:
@@ -1573,7 +1726,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/domain.ImpersonateUserRequest'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ImpersonateUserRequest'
       produces:
       - application/json
       responses:
@@ -1581,23 +1734,23 @@ paths:
           description: Successfully impersonated target account
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.LoginResponse'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.LoginResponse'
               type: object
         "400":
           description: Invalid request payload or target account inactive/super_admin
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "403":
           description: Forbidden — super_admin role required
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Impersonate user or admin account (Super Admin only)
@@ -1617,7 +1770,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/domain.AdminLoginRequest'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.AdminLoginRequest'
       produces:
       - application/json
       responses:
@@ -1626,20 +1779,20 @@ paths:
             role
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.LoginResponse'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.LoginResponse'
               type: object
         "401":
           description: Invalid credentials, account disabled, or account temporarily
             locked
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "422":
           description: Validation error
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       summary: Login (admin/super_admin)
       tags:
       - Authentication
@@ -1663,27 +1816,27 @@ paths:
           description: LIC Premium Due List PDF processed successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.SyncResultDTO'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.SyncResultDTO'
               type: object
         "400":
           description: Bad request — missing file or invalid PDF file format
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized — token missing or invalid
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "403":
           description: Forbidden — admin role required
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Process LIC Premium Due List PDF (Admin only)
@@ -1702,7 +1855,7 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/domain.FDRequestDTO'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.FDRequestDTO'
       produces:
       - application/json
       responses:
@@ -1710,23 +1863,23 @@ paths:
           description: FD calculation completed successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.CalculatorResponseDTO'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CalculatorResponseDTO'
               type: object
         "400":
           description: Bad request — invalid parameters
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized — token missing or invalid
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Calculate Fixed Deposit (FD) returns
@@ -1745,7 +1898,7 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/domain.LumpsumRequestDTO'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.LumpsumRequestDTO'
       produces:
       - application/json
       responses:
@@ -1753,23 +1906,23 @@ paths:
           description: Lumpsum calculation completed successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.CalculatorResponseDTO'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CalculatorResponseDTO'
               type: object
         "400":
           description: Bad request — invalid parameters
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized — token missing or invalid
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Calculate Lumpsum returns
@@ -1786,19 +1939,19 @@ paths:
           description: Calculator settings retrieved successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.CalculatorSettings'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CalculatorSettings'
               type: object
         "401":
           description: Unauthorized — token missing or invalid
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get global calculator default rates
@@ -1815,7 +1968,7 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/domain.UpdateCalculatorSettingsDTO'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UpdateCalculatorSettingsDTO'
       produces:
       - application/json
       responses:
@@ -1823,27 +1976,27 @@ paths:
           description: Calculator settings updated successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.CalculatorSettings'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CalculatorSettings'
               type: object
         "400":
           description: Bad request — invalid input format
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized — token missing or invalid
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "403":
           description: Forbidden — admin role required
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Update global calculator default rates (Admin only)
@@ -1862,7 +2015,7 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/domain.SIPRequestDTO'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.SIPRequestDTO'
       produces:
       - application/json
       responses:
@@ -1870,23 +2023,23 @@ paths:
           description: SIP calculation completed successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.CalculatorResponseDTO'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CalculatorResponseDTO'
               type: object
         "400":
           description: Bad request — invalid parameters
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized — token missing or invalid
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Calculate SIP returns
@@ -1906,19 +2059,19 @@ paths:
           description: Dashboard retrieved successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.AdminDashboardDTO'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.AdminDashboardDTO'
               type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "403":
           description: Forbidden — admin role required
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get admin dashboard
@@ -1938,19 +2091,19 @@ paths:
           description: Dashboard retrieved successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.ClientDashboardDTO'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ClientDashboardDTO'
               type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "403":
           description: Forbidden — client role required
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get client dashboard
@@ -1974,15 +2127,15 @@ paths:
           description: Documents retrieved successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.DocumentListResponse'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.DocumentListResponse'
               type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get & Search E-Vault documents
@@ -2015,19 +2168,19 @@ paths:
           description: Document uploaded successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.Document'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.Document'
               type: object
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Upload document to E-Vault
@@ -2051,15 +2204,15 @@ paths:
         "200":
           description: Document deleted successfully
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Delete document
@@ -2082,19 +2235,19 @@ paths:
           description: Document retrieved successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.Document'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.Document'
               type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "404":
           description: Document not found
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get document by ID
@@ -2130,23 +2283,23 @@ paths:
           description: Document updated successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.Document'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.Document'
               type: object
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "404":
           description: Document not found
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Update / Replace document
@@ -2174,19 +2327,19 @@ paths:
           description: Documents retrieved successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.DocumentListResponse'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.DocumentListResponse'
               type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "403":
           description: Forbidden — Admin role required
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get user's E-Vault documents (Admin Only)
@@ -2205,15 +2358,15 @@ paths:
           description: Family members retrieved successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.FamilyMemberListResponse'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.FamilyMemberListResponse'
               type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get all my family members
@@ -2230,7 +2383,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/domain.CreateFamilyMemberDTO'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreateFamilyMemberDTO'
       produces:
       - application/json
       responses:
@@ -2238,23 +2391,23 @@ paths:
           description: Family member added successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.FamilyMember'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.FamilyMember'
               type: object
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "422":
           description: Validation error
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Add a new family member
@@ -2277,15 +2430,15 @@ paths:
         "200":
           description: Family member deleted successfully
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Delete family member
@@ -2308,19 +2461,19 @@ paths:
           description: Family member retrieved successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.FamilyMember'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.FamilyMember'
               type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "404":
           description: Family member not found
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get family member by ID
@@ -2342,7 +2495,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/domain.UpdateFamilyMemberDTO'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UpdateFamilyMemberDTO'
       produces:
       - application/json
       responses:
@@ -2350,23 +2503,23 @@ paths:
           description: Family member updated successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.FamilyMember'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.FamilyMember'
               type: object
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "404":
           description: Family member not found
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Update / Edit family member
@@ -2391,19 +2544,19 @@ paths:
           description: Family members retrieved successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.FamilyMemberListResponse'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.FamilyMemberListResponse'
               type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "403":
           description: Forbidden — Admin role required
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get user's family members (Admin Only)
@@ -2436,11 +2589,11 @@ paths:
         "200":
           description: Fixed Deposits retrieved successfully
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get Fixed Deposits
@@ -2458,7 +2611,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/domain.CreateFixedDepositDTO'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreateFixedDepositDTO'
       produces:
       - application/json
       responses:
@@ -2466,23 +2619,23 @@ paths:
           description: Fixed Deposit added successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.FixedDeposit'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.FixedDeposit'
               type: object
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "422":
           description: Validation error
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Add Fixed Deposit
@@ -2506,15 +2659,15 @@ paths:
         "200":
           description: Fixed Deposit deleted successfully
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "400":
           description: Bad request or access denied
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Delete Fixed Deposit
@@ -2538,19 +2691,19 @@ paths:
           description: Fixed Deposit retrieved successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.FixedDeposit'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.FixedDeposit'
               type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "404":
           description: Fixed Deposit not found or access denied
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get Fixed Deposit by ID
@@ -2574,7 +2727,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/domain.UpdateFixedDepositDTO'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UpdateFixedDepositDTO'
       produces:
       - application/json
       responses:
@@ -2582,23 +2735,23 @@ paths:
           description: Fixed Deposit updated successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.FixedDeposit'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.FixedDeposit'
               type: object
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "404":
           description: Fixed Deposit not found or access denied
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Update / Edit Fixed Deposit
@@ -2617,15 +2770,15 @@ paths:
           description: General insurance policies retrieved successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.GeneralInsuranceListResponse'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.GeneralInsuranceListResponse'
               type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get all my General Insurance policies
@@ -2642,7 +2795,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/domain.CreateGeneralInsuranceDTO'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreateGeneralInsuranceDTO'
       produces:
       - application/json
       responses:
@@ -2650,23 +2803,23 @@ paths:
           description: General Insurance policy added successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.GeneralInsurance'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.GeneralInsurance'
               type: object
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "422":
           description: Validation error
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Add General Insurance policy
@@ -2690,15 +2843,15 @@ paths:
         "200":
           description: Policy deleted successfully
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Delete General Insurance policy
@@ -2721,19 +2874,19 @@ paths:
           description: Policy retrieved successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.GeneralInsurance'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.GeneralInsurance'
               type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "404":
           description: Policy not found
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get General Insurance policy by ID
@@ -2755,7 +2908,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/domain.UpdateGeneralInsuranceDTO'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UpdateGeneralInsuranceDTO'
       produces:
       - application/json
       responses:
@@ -2763,23 +2916,23 @@ paths:
           description: Policy updated successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.GeneralInsurance'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.GeneralInsurance'
               type: object
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "404":
           description: Policy not found
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Update / Edit General Insurance policy
@@ -2809,21 +2962,21 @@ paths:
           description: Policies retrieved successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.PaginatedResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.PaginatedResponse'
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/domain.GeneralInsuranceWithCustomer'
+                    $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.GeneralInsuranceWithCustomer'
                   type: array
               type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "403":
           description: Forbidden — Admin role required
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get all clients' General Insurance policies (Admin Only)
@@ -2848,19 +3001,19 @@ paths:
           description: Policies retrieved successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.GeneralInsuranceListResponse'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.GeneralInsuranceListResponse'
               type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "403":
           description: Forbidden — Admin role required
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get user's General Insurance policies (Admin Only)
@@ -2893,11 +3046,11 @@ paths:
         "200":
           description: Policies retrieved successfully
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get Health Insurance policies
@@ -2915,7 +3068,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/domain.CreateHealthInsuranceDTO'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreateHealthInsuranceDTO'
       produces:
       - application/json
       responses:
@@ -2923,23 +3076,23 @@ paths:
           description: Health Insurance policy added successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.HealthInsurance'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.HealthInsurance'
               type: object
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "422":
           description: Validation error
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Add Health Insurance policy
@@ -2963,15 +3116,15 @@ paths:
         "200":
           description: Policy deleted successfully
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "400":
           description: Bad request or access denied
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Delete Health Insurance policy
@@ -2995,19 +3148,19 @@ paths:
           description: Policy retrieved successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.HealthInsurance'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.HealthInsurance'
               type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "404":
           description: Policy not found or access denied
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get Health Insurance policy by ID
@@ -3033,7 +3186,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/domain.UpdateHealthInsuranceDTO'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UpdateHealthInsuranceDTO'
       produces:
       - application/json
       responses:
@@ -3041,23 +3194,23 @@ paths:
           description: Policy updated successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.HealthInsurance'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.HealthInsurance'
               type: object
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "404":
           description: Policy not found or access denied
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Update / Edit Health Insurance policy
@@ -3090,11 +3243,11 @@ paths:
         "200":
           description: Policies retrieved successfully
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get Life Insurance policies
@@ -3112,7 +3265,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/domain.CreateLifeInsuranceDTO'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreateLifeInsuranceDTO'
       produces:
       - application/json
       responses:
@@ -3120,23 +3273,23 @@ paths:
           description: Life Insurance policy added successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.LifeInsurance'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.LifeInsurance'
               type: object
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "422":
           description: Validation error
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Add Life Insurance policy
@@ -3160,15 +3313,15 @@ paths:
         "200":
           description: Policy deleted successfully
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "400":
           description: Bad request or access denied
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Delete Life Insurance policy
@@ -3192,19 +3345,19 @@ paths:
           description: Policy retrieved successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.LifeInsurance'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.LifeInsurance'
               type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "404":
           description: Policy not found or access denied
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get Life Insurance policy by ID
@@ -3227,7 +3380,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/domain.UpdateLifeInsuranceDTO'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UpdateLifeInsuranceDTO'
       produces:
       - application/json
       responses:
@@ -3235,23 +3388,23 @@ paths:
           description: Policy updated successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.LifeInsurance'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.LifeInsurance'
               type: object
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "404":
           description: Policy not found or access denied
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Update / Edit Life Insurance policy
@@ -3288,15 +3441,15 @@ paths:
           description: Products retrieved successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.ProductListResponse'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ProductListResponse'
               type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get Products
@@ -3341,23 +3494,23 @@ paths:
           description: Product created successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.Product'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.Product'
               type: object
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "403":
           description: Forbidden — Admin role required
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Add Product
@@ -3381,19 +3534,19 @@ paths:
         "200":
           description: Product deleted successfully
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "403":
           description: Forbidden — Admin role required
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Delete Product
@@ -3417,19 +3570,19 @@ paths:
           description: Product retrieved successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.Product'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.Product'
               type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "404":
           description: Product not found
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get Product by ID
@@ -3477,27 +3630,27 @@ paths:
           description: Product updated successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.Product'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.Product'
               type: object
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "403":
           description: Forbidden — Admin role required
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "404":
           description: Product not found
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Update Product
@@ -3523,23 +3676,23 @@ paths:
           description: Referral records retrieved successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.ReferralListResponse'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ReferralListResponse'
               type: object
         "401":
           description: Unauthorized — token missing or invalid
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "403":
           description: Forbidden — admin role required
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get all agency referral records (Admin only)
@@ -3557,19 +3710,19 @@ paths:
           description: Referral stats retrieved successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.ReferralStatsDTO'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ReferralStatsDTO'
               type: object
         "401":
           description: Unauthorized — token missing or invalid
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get client referral stats and code
@@ -3598,11 +3751,11 @@ paths:
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Download Client Portfolio Report
@@ -3639,11 +3792,11 @@ paths:
         "200":
           description: Tickets retrieved successfully
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get Support Tickets
@@ -3662,7 +3815,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/domain.CreateSupportTicketDTO'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreateSupportTicketDTO'
       produces:
       - application/json
       responses:
@@ -3670,23 +3823,23 @@ paths:
           description: Support ticket created successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.SupportTicket'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.SupportTicket'
               type: object
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "422":
           description: Validation error
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Open a Support Ticket
@@ -3709,19 +3862,19 @@ paths:
         "200":
           description: Ticket deleted successfully
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "403":
           description: Forbidden — super_admin only
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Delete Support Ticket
@@ -3745,19 +3898,19 @@ paths:
           description: Ticket retrieved successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.SupportTicket'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.SupportTicket'
               type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "404":
           description: Ticket not found or access denied
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get Support Ticket by ID
@@ -3782,7 +3935,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/domain.UpdateSupportTicketDTO'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UpdateSupportTicketDTO'
       produces:
       - application/json
       responses:
@@ -3790,23 +3943,23 @@ paths:
           description: Ticket updated successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.SupportTicket'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.SupportTicket'
               type: object
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "404":
           description: Ticket not found or access denied
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Update Support Ticket
@@ -3834,25 +3987,25 @@ paths:
           description: Users retrieved successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.PaginatedResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.PaginatedResponse'
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/domain.UserResponse'
+                    $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserResponse'
                   type: array
               type: object
         "401":
           description: Unauthorized — token missing or invalid
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "403":
           description: Forbidden — admin role required
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get all users (Admin only)
@@ -3876,20 +4029,20 @@ paths:
         "200":
           description: User deleted successfully
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "403":
           description: Forbidden — admin role required, or only super_admin can delete
             admin accounts
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Delete user (Admin only)
@@ -3913,15 +4066,15 @@ paths:
           description: User retrieved successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.UserResponse'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserResponse'
               type: object
         "404":
           description: User not found
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get user by ID
@@ -3944,7 +4097,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/domain.UpdateUserRequest'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UpdateUserRequest'
       produces:
       - application/json
       responses:
@@ -3952,28 +4105,28 @@ paths:
           description: User updated successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.UserResponse'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserResponse'
               type: object
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "403":
           description: Forbidden — only super_admin can modify admin accounts or assign
             admin roles
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "422":
           description: Validation error
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Update user
@@ -3991,26 +4144,26 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/domain.ChangePasswordRequest'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ChangePasswordRequest'
       produces:
       - application/json
       responses:
         "200":
           description: Password changed successfully
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "400":
           description: Bad request or current password mismatch
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "422":
           description: Validation error
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Change password
@@ -4028,18 +4181,18 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/domain.ForgotPasswordRequest'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ForgotPasswordRequest'
       produces:
       - application/json
       responses:
         "200":
           description: If an account exists with this email, an OTP has been sent.
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "422":
           description: Validation error
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       summary: Request password reset OTP
       tags:
       - Authentication
@@ -4057,7 +4210,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/domain.UserLoginRequest'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserLoginRequest'
       produces:
       - application/json
       responses:
@@ -4066,20 +4219,20 @@ paths:
             role
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.LoginResponse'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.LoginResponse'
               type: object
         "401":
           description: Invalid credentials, account disabled, or account temporarily
             locked
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "422":
           description: Validation error
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       summary: Login (client/advisor)
       tags:
       - Authentication
@@ -4097,19 +4250,19 @@ paths:
         "200":
           description: Account permanently deleted
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "400":
           description: Admin/super_admin accounts cannot be self-deleted
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "500":
           description: Failed to delete account
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Delete logged-in user account
@@ -4126,15 +4279,15 @@ paths:
           description: Profile retrieved successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.UserResponse'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserResponse'
               type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Get current user profile
@@ -4153,7 +4306,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/domain.UpdateProfileRequest'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UpdateProfileRequest'
       produces:
       - application/json
       responses:
@@ -4161,23 +4314,23 @@ paths:
           description: Profile updated successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.UserResponse'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserResponse'
               type: object
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "422":
           description: Validation error
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       security:
       - BearerAuth: []
       summary: Update user profile
@@ -4195,7 +4348,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/domain.CreateUserRequest'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.CreateUserRequest'
       produces:
       - application/json
       responses:
@@ -4203,19 +4356,19 @@ paths:
           description: User registered successfully
           schema:
             allOf:
-            - $ref: '#/definitions/response.APIResponse'
+            - $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.UserResponse'
+                  $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserResponse'
               type: object
         "400":
           description: Bad request (email already exists, etc.)
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "422":
           description: Validation error
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       summary: Register a new user
       tags:
       - Authentication
@@ -4231,22 +4384,22 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/domain.ResendEmailOTPRequest'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ResendEmailOTPRequest'
       produces:
       - application/json
       responses:
         "200":
           description: Verification OTP sent successfully
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "400":
           description: Rate limit exceeded or email already verified
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       summary: Resend signup email OTP
       tags:
       - User Authentication
@@ -4261,22 +4414,22 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/domain.ResetPasswordRequest'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ResetPasswordRequest'
       produces:
       - application/json
       responses:
         "200":
           description: Password reset successfully
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "400":
           description: Invalid OTP, password mismatch or weak password
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "422":
           description: Validation error
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       summary: Reset password using OTP
       tags:
       - Authentication
@@ -4293,22 +4446,22 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/domain.VerifyEmailOTPRequest'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.VerifyEmailOTPRequest'
       produces:
       - application/json
       responses:
         "200":
           description: Email verified successfully
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "400":
           description: Invalid or expired OTP code
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       summary: Verify signup email OTP
       tags:
       - User Authentication
@@ -4324,22 +4477,22 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/domain.VerifyOTPRequest'
+          $ref: '#/definitions/github_com_smart-invest-solutions_backend_internal_domain.VerifyOTPRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OTP verified successfully
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "400":
           description: Invalid or expired OTP code
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
         "422":
           description: Validation error
           schema:
-            $ref: '#/definitions/response.APIResponse'
+            $ref: '#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse'
       summary: Verify password reset OTP
       tags:
       - Authentication

@@ -31,8 +31,15 @@ type User struct {
 	AppValidityEndDate  time.Time     `bson:"app_validity_end_date,omitempty" json:"app_validity_end_date,omitempty"`
 	FailedLoginAttempts int           `bson:"failed_login_attempts" json:"-"`
 	LockedUntil         *time.Time    `bson:"locked_until,omitempty" json:"-"`
-	CreatedAt           time.Time     `bson:"created_at" json:"created_at"`
-	UpdatedAt           time.Time     `bson:"updated_at" json:"updated_at"`
+	// AdminExpiryDate is set only for role=admin accounts (never for super_admin, which never
+	// expires). A Super Admin picks this date when creating the admin; once it passes, the admin
+	// can no longer log in until a Super Admin renews it via RenewAdminExpiry.
+	AdminExpiryDate *time.Time `bson:"admin_expiry_date,omitempty" json:"admin_expiry_date,omitempty"`
+	// LastExpiryAlertSentAt throttles the Super Admin's manual "send expiry alert" action to at
+	// most once per cooldown window, so repeated taps don't flood the admin's inbox.
+	LastExpiryAlertSentAt *time.Time `bson:"last_expiry_alert_sent_at,omitempty" json:"-"`
+	CreatedAt             time.Time  `bson:"created_at" json:"created_at"`
+	UpdatedAt             time.Time  `bson:"updated_at" json:"updated_at"`
 }
 
 // CreateUserRequest represents the request payload for creating a new user.
@@ -103,6 +110,7 @@ type UserResponse struct {
 	AdminID            string        `json:"admin_id,omitempty"`
 	ReferralCode       string        `json:"referral_code,omitempty"`
 	AppValidityEndDate time.Time     `json:"app_validity_end_date,omitempty"`
+	AdminExpiryDate    *time.Time    `json:"admin_expiry_date,omitempty"`
 	CreatedAt          time.Time     `json:"created_at"`
 	UpdatedAt          time.Time     `json:"updated_at"`
 }
@@ -120,16 +128,26 @@ func (u *User) ToResponse() *UserResponse {
 		AdminID:            u.AdminID,
 		ReferralCode:       u.ReferralCode,
 		AppValidityEndDate: u.AppValidityEndDate,
+		AdminExpiryDate:    u.AdminExpiryDate,
 		CreatedAt:          u.CreatedAt,
 		UpdatedAt:          u.UpdatedAt,
 	}
 }
 
 // CreateAdminRequest represents the payload used by a Super Admin to create a new Admin account.
+// ExpiryDate is mandatory: every admin account created this way has a fixed validity period after
+// which it can no longer log in until a Super Admin renews it (super_admin accounts never expire).
 type CreateAdminRequest struct {
-	Name  string `json:"name" binding:"required"`
-	Email string `json:"email" binding:"required,email"`
-	Phone string `json:"phone" binding:"required"`
+	Name       string    `json:"name" binding:"required"`
+	Email      string    `json:"email" binding:"required,email"`
+	Phone      string    `json:"phone" binding:"required"`
+	ExpiryDate time.Time `json:"expiry_date" binding:"required" example:"2026-06-30T00:00:00Z"`
+}
+
+// RenewAdminExpiryRequest represents the payload used by a Super Admin to push an admin account's
+// expiry date forward (or otherwise change it). The new date must be in the future.
+type RenewAdminExpiryRequest struct {
+	ExpiryDate time.Time `json:"expiry_date" binding:"required" example:"2026-12-31T00:00:00Z"`
 }
 
 // CreateAdminResponse represents the response returned after successfully creating an Admin account.
@@ -167,6 +185,16 @@ type UserRepository interface {
 	RecordFailedLogin(ctx context.Context, id bson.ObjectID) (int, error)
 	ClearFailedLogins(ctx context.Context, id bson.ObjectID) error
 	LockAccount(ctx context.Context, id bson.ObjectID, until time.Time) error
+	// FindExpiringAdmins returns role=admin accounts whose admin_expiry_date is set and falls at or
+	// before the given cutoff (so it captures both already-expired admins and those approaching it),
+	// sorted soonest-first.
+	FindExpiringAdmins(ctx context.Context, cutoff time.Time) ([]*User, error)
+	// UpdateAdminExpiry sets a new expiry date on an admin account and clears any previously
+	// recorded expiry-alert timestamp so a fresh alert cooldown starts.
+	UpdateAdminExpiry(ctx context.Context, id bson.ObjectID, expiryDate time.Time) error
+	// RecordExpiryAlertSent stamps the time an expiry-warning email was sent to an admin, used to
+	// throttle repeat sends.
+	RecordExpiryAlertSent(ctx context.Context, id bson.ObjectID) error
 }
 
 // UserService defines the interface for user business logic operations.
@@ -185,4 +213,13 @@ type UserService interface {
 	CreateAdmin(ctx context.Context, req *CreateAdminRequest) (*CreateAdminResponse, error)
 	GetAllAdmins(ctx context.Context, page, limit int64) ([]*UserResponse, int64, error)
 	DeleteAdmin(ctx context.Context, requesterID, targetID string) error
+	// ListExpiringAdmins returns admin accounts expiring within withinDays (or already expired),
+	// soonest-first.
+	ListExpiringAdmins(ctx context.Context, withinDays int) ([]*UserResponse, error)
+	// RenewAdminExpiry pushes an admin account's expiry date forward, reactivating login if it had
+	// already expired, and emails the admin a confirmation.
+	RenewAdminExpiry(ctx context.Context, targetID string, req *RenewAdminExpiryRequest) (*UserResponse, error)
+	// SendAdminExpiryAlert emails a specific admin a reminder that their access is expiring soon or
+	// has expired. Throttled to one alert per cooldown window per admin.
+	SendAdminExpiryAlert(ctx context.Context, targetID string) error
 }
