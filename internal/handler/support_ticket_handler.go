@@ -58,7 +58,7 @@ func (h *SupportTicketHandler) CreateTicket(c *gin.Context) {
 // GetTickets handles fetching support tickets — a client's own list, or the full paginated Admin
 // master list (with optional status/category filters) for admin/super_admin.
 // @Summary      Get Support Tickets
-// @Description  Clients receive their own tickets (optionally filtered by status/category). Admin/super_admin receive a paginated master list across all clients (page, limit, status, category query params), each row enriched with the customer's name and contact number.
+// @Description  Clients receive their own tickets (optionally filtered by status/category). A super_admin receives a paginated master list across every client; a plain admin receives one scoped to clients under their own Agency ID. Each row is enriched with the customer's name, contact number, and Agency ID.
 // @Tags         Support Tickets
 // @Accept       json
 // @Produce      json
@@ -84,7 +84,7 @@ func (h *SupportTicketHandler) GetTickets(c *gin.Context) {
 		page, _ := strconv.ParseInt(c.DefaultQuery("page", "1"), 10, 64)
 		limit, _ := strconv.ParseInt(c.DefaultQuery("limit", "10"), 10, 64)
 
-		tickets, total, err := h.service.GetAllTickets(c.Request.Context(), page, limit, status, category)
+		tickets, total, err := h.service.GetAllTickets(c.Request.Context(), claims.Role, claims.UserID.Hex(), page, limit, status, category)
 		if err != nil {
 			response.Error(c, http.StatusBadRequest, err.Error())
 			return

@@ -63,14 +63,17 @@ type SupportTicketWithCustomer struct {
 	UserID       bson.ObjectID `bson:"user_id" json:"user_id"`
 	CustomerName string        `bson:"customer_name" json:"customer_name"`
 	ContactNo    string        `bson:"contact_no" json:"contact_no"`
-	TicketNumber string        `bson:"ticket_number" json:"ticket_number"`
-	Category     string        `bson:"category" json:"category"`
-	Subject      string        `bson:"subject" json:"subject"`
-	Description  string        `bson:"description" json:"description"`
-	Status       string        `bson:"status" json:"status"`
-	AdminNotes   string        `bson:"admin_notes,omitempty" json:"admin_notes,omitempty"`
-	CreatedAt    time.Time     `bson:"created_at" json:"created_at"`
-	UpdatedAt    time.Time     `bson:"updated_at" json:"updated_at"`
+	// AgencyID is the raising client's Agency ID (their agency_id field) — surfaced so a Super
+	// Admin can see which admin's agency each ticket belongs to. Empty for unassigned clients.
+	AgencyID     string    `bson:"agency_id,omitempty" json:"agency_id,omitempty"`
+	TicketNumber string    `bson:"ticket_number" json:"ticket_number"`
+	Category     string    `bson:"category" json:"category"`
+	Subject      string    `bson:"subject" json:"subject"`
+	Description  string    `bson:"description" json:"description"`
+	Status       string    `bson:"status" json:"status"`
+	AdminNotes   string    `bson:"admin_notes,omitempty" json:"admin_notes,omitempty"`
+	CreatedAt    time.Time `bson:"created_at" json:"created_at"`
+	UpdatedAt    time.Time `bson:"updated_at" json:"updated_at"`
 }
 
 // CreateSupportTicketDTO represents the payload for opening a new support ticket. UserID is
@@ -105,18 +108,25 @@ type SupportTicketRepository interface {
 	Create(ctx context.Context, ticket *SupportTicket) (*SupportTicket, error)
 	GetByID(ctx context.Context, id bson.ObjectID) (*SupportTicket, error)
 	GetByUserID(ctx context.Context, userID bson.ObjectID, status, category string) ([]*SupportTicket, int64, error)
-	GetAll(ctx context.Context, page, limit int64, status, category string) ([]*SupportTicketWithCustomer, int64, error)
+	// agencyID, when non-empty, restricts results to tickets raised by clients whose Agency ID
+	// matches exactly — the per-agency support queue.
+	GetAll(ctx context.Context, page, limit int64, status, category, agencyID string) ([]*SupportTicketWithCustomer, int64, error)
 	Update(ctx context.Context, id bson.ObjectID, dto *UpdateSupportTicketDTO) (*SupportTicket, error)
 	Delete(ctx context.Context, id bson.ObjectID) error
 	DeleteAllByUserID(ctx context.Context, userID bson.ObjectID) error
 }
 
-// SupportTicketService defines business logic operations for support tickets.
+// SupportTicketService defines business logic operations for support tickets. GetTicketByID,
+// UpdateTicket, and DeleteTicket all scope by the caller: a super_admin has unrestricted access; a
+// plain admin is limited to tickets raised by clients under their own Agency ID (a client's own
+// tickets are always visible only to themself, regardless of role checks above).
 type SupportTicketService interface {
 	CreateTicket(ctx context.Context, requesterRole, requesterID string, dto *CreateSupportTicketDTO) (*SupportTicket, error)
 	GetTicketByID(ctx context.Context, requesterRole, requesterID, idStr string) (*SupportTicket, error)
 	GetMyTickets(ctx context.Context, requesterID, status, category string) (*SupportTicketListResponse, error)
-	GetAllTickets(ctx context.Context, page, limit int64, status, category string) ([]*SupportTicketWithCustomer, int64, error)
+	// GetAllTickets returns the paginated Admin master list, scoped to the caller: a super_admin
+	// sees every ticket; a plain admin sees only tickets raised by clients under their own agency.
+	GetAllTickets(ctx context.Context, requesterRole, requesterID string, page, limit int64, status, category string) ([]*SupportTicketWithCustomer, int64, error)
 	UpdateTicket(ctx context.Context, requesterRole, requesterID, idStr string, dto *UpdateSupportTicketDTO) (*SupportTicket, error)
 	DeleteTicket(ctx context.Context, requesterRole, requesterID, idStr string) error
 	DeleteAllByUserID(ctx context.Context, userIDStr string) error
