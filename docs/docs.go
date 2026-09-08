@@ -6195,6 +6195,10 @@ const docTemplate = `{
                 "advisor_name": {
                     "type": "string"
                 },
+                "agency_id": {
+                    "description": "AgencyID is the owning customer's Agency ID — surfaced so a Super Admin can see which admin's\nagency each policy belongs to. Empty for unassigned clients.",
+                    "type": "string"
+                },
                 "company_name": {
                     "type": "string"
                 },

@@ -186,6 +186,7 @@ func (r *generalInsuranceRepository) FindAllAdmin(ctx context.Context, page, lim
 			{Key: "user_id", Value: 1},
 			{Key: "customer_name", Value: "$customer.name"},
 			{Key: "contact_no", Value: "$customer.phone"},
+			{Key: "agency_id", Value: "$customer.agency_id"},
 			{Key: "vehicle_no", Value: 1},
 			{Key: "policy_no", Value: 1},
 			{Key: "date_of_expiry", Value: 1},

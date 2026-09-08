@@ -51,18 +51,21 @@ type GeneralInsuranceListResponse struct {
 // customer's name and contact number — used for the Admin master list view (all clients' policies
 // at a glance) so the Admin doesn't have to look up each client separately.
 type GeneralInsuranceWithCustomer struct {
-	ID             bson.ObjectID `bson:"_id" json:"id"`
-	UserID         bson.ObjectID `bson:"user_id" json:"user_id"`
-	CustomerName   string        `bson:"customer_name" json:"customer_name"`
-	ContactNo      string        `bson:"contact_no" json:"contact_no"`
-	VehicleNo      string        `bson:"vehicle_no" json:"vehicle_no"`
-	PolicyNo       string        `bson:"policy_no" json:"policy_no"`
-	DateOfExpiry   string        `bson:"date_of_expiry" json:"date_of_expiry"`
-	CompanyName    string        `bson:"company_name" json:"company_name"`
-	AdvisorName    string        `bson:"advisor_name,omitempty" json:"advisor_name,omitempty"`
-	AdvisorContact string        `bson:"advisor_contact,omitempty" json:"advisor_contact,omitempty"`
-	CreatedAt      time.Time     `bson:"created_at" json:"created_at"`
-	UpdatedAt      time.Time     `bson:"updated_at" json:"updated_at"`
+	ID           bson.ObjectID `bson:"_id" json:"id"`
+	UserID       bson.ObjectID `bson:"user_id" json:"user_id"`
+	CustomerName string        `bson:"customer_name" json:"customer_name"`
+	ContactNo    string        `bson:"contact_no" json:"contact_no"`
+	// AgencyID is the owning customer's Agency ID — surfaced so a Super Admin can see which admin's
+	// agency each policy belongs to. Empty for unassigned clients.
+	AgencyID       string    `bson:"agency_id,omitempty" json:"agency_id,omitempty"`
+	VehicleNo      string    `bson:"vehicle_no" json:"vehicle_no"`
+	PolicyNo       string    `bson:"policy_no" json:"policy_no"`
+	DateOfExpiry   string    `bson:"date_of_expiry" json:"date_of_expiry"`
+	CompanyName    string    `bson:"company_name" json:"company_name"`
+	AdvisorName    string    `bson:"advisor_name,omitempty" json:"advisor_name,omitempty"`
+	AdvisorContact string    `bson:"advisor_contact,omitempty" json:"advisor_contact,omitempty"`
+	CreatedAt      time.Time `bson:"created_at" json:"created_at"`
+	UpdatedAt      time.Time `bson:"updated_at" json:"updated_at"`
 }
 
 // GeneralInsuranceRepository defines database operations for general insurances.

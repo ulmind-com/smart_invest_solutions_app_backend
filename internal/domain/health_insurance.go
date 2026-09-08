@@ -49,6 +49,9 @@ type HealthInsuranceWithCustomer struct {
 	CompanyName    string        `bson:"company_name" json:"company_name"`
 	CustomerName   string        `bson:"customer_name" json:"customer_name"`
 	ContactNo      string        `bson:"contact_no" json:"contact_no"`
+	// AgencyID is the owning customer's Agency ID — surfaced so a Super Admin can see which admin's
+	// agency each policy belongs to. Empty for unassigned clients.
+	AgencyID string `bson:"agency_id,omitempty" json:"agency_id,omitempty"`
 	// LICCustomerID is looked up live from the insured family member's record (never cached on the
 	// policy itself), so editing it on the family member instantly reflects here with no staleness.
 	LICCustomerID  string               `bson:"lic_customer_id,omitempty" json:"lic_customer_id,omitempty"`

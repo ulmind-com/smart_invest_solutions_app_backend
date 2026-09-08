@@ -177,6 +177,7 @@ func (r *healthInsuranceRepository) GetAll(ctx context.Context, page, limit int6
 			{Key: "company_name", Value: 1},
 			{Key: "customer_name", Value: "$customer.name"},
 			{Key: "contact_no", Value: "$customer.phone"},
+			{Key: "agency_id", Value: "$customer.agency_id"},
 			{Key: "lic_customer_id", Value: "$family.lic_customer_id"},
 			{Key: "policy_details", Value: 1},
 			{Key: "premium_details", Value: 1},
