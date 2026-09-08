@@ -960,7 +960,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Uploads and parses an LIC Premium Due List PDF file, extracts policy numbers, assured names, DOC, FUP, Mode, and Premiums, calculates next due dates, updates existing policies in MongoDB, and returns unmapped policy records.",
+                "description": "Uploads and parses an LIC Premium Due List PDF file, extracts policy numbers, assured names, DOC, FUP, Mode, and Premiums, calculates next due dates, updates existing policies in MongoDB, and returns unmapped policy records. This is a day-to-day operational task for regular agency admins — Super Admin accounts are deliberately excluded, unlike every other admin-only route in this API.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -970,7 +970,7 @@ const docTemplate = `{
                 "tags": [
                     "Agency Sync"
                 ],
-                "summary": "Process LIC Premium Due List PDF (Admin only)",
+                "summary": "Process LIC Premium Due List PDF (Admin only, not Super Admin)",
                 "parameters": [
                     {
                         "type": "file",
@@ -1012,7 +1012,7 @@ const docTemplate = `{
                         }
                     },
                     "403": {
-                        "description": "Forbidden — admin role required",
+                        "description": "Forbidden — admin role required (super_admin excluded)",
                         "schema": {
                             "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
                         }
