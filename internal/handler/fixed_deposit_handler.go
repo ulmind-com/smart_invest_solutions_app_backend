@@ -58,7 +58,7 @@ func (h *FixedDepositHandler) CreateFD(c *gin.Context) {
 // GetFDs handles fetching Fixed Deposits — a client's own list, or the full paginated Admin
 // master list (with optional is_mapped filter) for admin/super_admin.
 // @Summary      Get Fixed Deposits
-// @Description  Clients receive their own Fixed Deposits (unpaginated list + total). Admin/super_admin receive a paginated master list across all clients (page, limit, is_mapped query params), each row enriched with the customer's name and contact number.
+// @Description  Clients receive their own Fixed Deposits (unpaginated list + total). A super_admin receives a paginated master list across all clients (page, limit, is_mapped query params); a plain admin receives one scoped to clients under their own Agency ID. Each row is enriched with the customer's name, contact number, and Agency ID.
 // @Tags         Fixed Deposit
 // @Accept       json
 // @Produce      json
@@ -90,7 +90,7 @@ func (h *FixedDepositHandler) GetFDs(c *gin.Context) {
 			isMapped = &parsed
 		}
 
-		fds, total, err := h.service.GetAllFDs(c.Request.Context(), page, limit, isMapped)
+		fds, total, err := h.service.GetAllFDs(c.Request.Context(), claims.Role, claims.UserID.Hex(), page, limit, isMapped)
 		if err != nil {
 			response.Error(c, http.StatusInternalServerError, err.Error())
 			return

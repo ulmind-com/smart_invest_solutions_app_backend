@@ -2705,9 +2705,10 @@ paths:
       consumes:
       - application/json
       description: Clients receive their own Fixed Deposits (unpaginated list + total).
-        Admin/super_admin receive a paginated master list across all clients (page,
-        limit, is_mapped query params), each row enriched with the customer's name
-        and contact number.
+        A super_admin receives a paginated master list across all clients (page, limit,
+        is_mapped query params); a plain admin receives one scoped to clients under
+        their own Agency ID. Each row is enriched with the customer's name, contact
+        number, and Agency ID.
       parameters:
       - description: 'Page number — Admin only (default: 1)'
         in: query
@@ -3081,9 +3082,9 @@ paths:
       consumes:
       - application/json
       description: Retrieves a paginated master list of every general/vehicle insurance
-        policy across all clients — Customer Name, Contact No, Vehicle No, Policy
-        No, Date of Expiry, Company Name — for the Admin dashboard. Accessible by
-        admin and super_admin.
+        policy — Customer Name, Contact No, Agency ID, Vehicle No, Policy No, Date
+        of Expiry, Company Name. A super_admin receives every client's policies; a
+        plain admin receives one scoped to clients under their own Agency ID.
       parameters:
       - description: 'Page number (default: 1)'
         in: query
@@ -3162,9 +3163,10 @@ paths:
       consumes:
       - application/json
       description: Clients receive their own policies (unpaginated list + total).
-        Admin/super_admin receive a paginated master list across all clients (page,
-        limit, is_mapped query params), each row enriched with the customer's name
-        and contact number.
+        A super_admin receives a paginated master list across all clients (page, limit,
+        is_mapped query params); a plain admin receives one scoped to clients under
+        their own Agency ID. Each row is enriched with the customer's name, contact
+        number, and Agency ID.
       parameters:
       - description: 'Page number — Admin only (default: 1)'
         in: query
@@ -3364,9 +3366,10 @@ paths:
       consumes:
       - application/json
       description: Clients receive their own policies (unpaginated list + total).
-        Admin/super_admin receive a paginated master list across all clients (page,
-        limit, is_mapped query params), each row enriched with the customer's name
-        and contact number.
+        A super_admin receives a paginated master list across all clients (page, limit,
+        is_mapped query params); a plain admin receives one scoped to clients under
+        their own Agency ID. Each row is enriched with the customer's name, contact
+        number, and Agency ID.
       parameters:
       - description: 'Page number — Admin only (default: 1)'
         in: query

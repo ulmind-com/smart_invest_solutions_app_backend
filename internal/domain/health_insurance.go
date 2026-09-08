@@ -127,8 +127,9 @@ type HealthInsuranceRepository interface {
 	GetByID(ctx context.Context, id bson.ObjectID) (*HealthInsurance, error)
 	GetByUserID(ctx context.Context, userID bson.ObjectID) ([]*HealthInsurance, int64, error)
 	// licCustomerID, when non-empty, restricts results to policies whose insured family member
-	// carries that exact LIC Customer ID — the "one ID, many policies" lookup.
-	GetAll(ctx context.Context, page, limit int64, isMapped *bool, licCustomerID string) ([]*HealthInsuranceWithCustomer, int64, error)
+	// carries that exact LIC Customer ID — the "one ID, many policies" lookup. agencyID, when
+	// non-empty, restricts results to policies whose owning customer belongs to that agency.
+	GetAll(ctx context.Context, page, limit int64, isMapped *bool, licCustomerID, agencyID string) ([]*HealthInsuranceWithCustomer, int64, error)
 	Update(ctx context.Context, id bson.ObjectID, dto *UpdateHealthInsuranceDTO) (*HealthInsurance, error)
 	Delete(ctx context.Context, id bson.ObjectID) error
 	DeleteAllByUserID(ctx context.Context, userID bson.ObjectID) error
@@ -142,7 +143,7 @@ type HealthInsuranceService interface {
 	CreatePolicy(ctx context.Context, requesterRole, requesterID string, dto *CreateHealthInsuranceDTO) (*HealthInsurance, error)
 	GetPolicyByID(ctx context.Context, requesterRole, requesterID, idStr string) (*HealthInsurance, error)
 	GetMyPolicies(ctx context.Context, requesterID string) (*HealthInsuranceListResponse, error)
-	GetAllPolicies(ctx context.Context, page, limit int64, isMapped *bool, licCustomerID string) ([]*HealthInsuranceWithCustomer, int64, error)
+	GetAllPolicies(ctx context.Context, requesterRole, requesterID string, page, limit int64, isMapped *bool, licCustomerID string) ([]*HealthInsuranceWithCustomer, int64, error)
 	UpdatePolicy(ctx context.Context, requesterRole, requesterID, idStr string, dto *UpdateHealthInsuranceDTO) (*HealthInsurance, error)
 	DeletePolicy(ctx context.Context, requesterRole, requesterID, idStr string) error
 	DeleteAllByUserID(ctx context.Context, userIDStr string) error

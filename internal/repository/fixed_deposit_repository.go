@@ -93,39 +93,76 @@ func (r *fixedDepositRepository) GetByUserID(ctx context.Context, userID bson.Ob
 }
 
 // GetAll retrieves a paginated master list of every Fixed Deposit across all clients, optionally
-// filtered by is_mapped, each row enriched (via $lookup on the users collection) with the owning
-// customer's name and contact number for the Admin dashboard view.
-func (r *fixedDepositRepository) GetAll(ctx context.Context, page, limit int64, isMapped *bool) ([]*domain.FixedDepositWithCustomer, int64, error) {
+// filtered by is_mapped and/or the owning customer's Agency ID (agencyID — empty means no
+// restriction, used to scope a plain admin's view to their own agency), each row enriched (via
+// $lookup on the users collection) with the owning customer's name, contact number, and Agency ID
+// for the Admin dashboard view.
+func (r *fixedDepositRepository) GetAll(ctx context.Context, page, limit int64, isMapped *bool, agencyID string) ([]*domain.FixedDepositWithCustomer, int64, error) {
 	skip := (page - 1) * limit
 
-	filter := bson.M{}
+	basePipeline := mongo.Pipeline{}
 	if isMapped != nil {
-		filter["is_mapped"] = *isMapped
+		basePipeline = append(basePipeline, bson.D{{Key: "$match", Value: bson.D{{Key: "is_mapped", Value: *isMapped}}}})
+	}
+	if agencyID != "" {
+		basePipeline = append(basePipeline,
+			bson.D{{Key: "$lookup", Value: bson.D{
+				{Key: "from", Value: usersCollection},
+				{Key: "localField", Value: "user_id"},
+				{Key: "foreignField", Value: "_id"},
+				{Key: "as", Value: "customer"},
+			}}},
+			bson.D{{Key: "$unwind", Value: bson.D{
+				{Key: "path", Value: "$customer"},
+				{Key: "preserveNullAndEmptyArrays", Value: true},
+			}}},
+			bson.D{{Key: "$match", Value: bson.D{{Key: "customer.agency_id", Value: agencyID}}}},
+		)
 	}
 
-	total, err := r.collection.CountDocuments(ctx, filter)
+	countPipeline := append(mongo.Pipeline{}, basePipeline...)
+	countPipeline = append(countPipeline, bson.D{{Key: "$count", Value: "total"}})
+
+	countCursor, err := r.collection.Aggregate(ctx, countPipeline)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to count fixed deposits: %w", err)
 	}
+	defer countCursor.Close(ctx)
 
-	pipeline := mongo.Pipeline{}
-	if isMapped != nil {
-		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.D{{Key: "is_mapped", Value: *isMapped}}}})
+	var countResult []struct {
+		Total int64 `bson:"total"`
 	}
+	if err := countCursor.All(ctx, &countResult); err != nil {
+		return nil, 0, fmt.Errorf("failed to decode fixed deposit count: %w", err)
+	}
+	var total int64
+	if len(countResult) > 0 {
+		total = countResult[0].Total
+	}
+
+	pipeline := append(mongo.Pipeline{}, basePipeline...)
 	pipeline = append(pipeline,
 		bson.D{{Key: "$sort", Value: bson.D{{Key: "created_at", Value: -1}}}},
 		bson.D{{Key: "$skip", Value: skip}},
 		bson.D{{Key: "$limit", Value: limit}},
-		bson.D{{Key: "$lookup", Value: bson.D{
-			{Key: "from", Value: usersCollection},
-			{Key: "localField", Value: "user_id"},
-			{Key: "foreignField", Value: "_id"},
-			{Key: "as", Value: "customer"},
-		}}},
-		bson.D{{Key: "$unwind", Value: bson.D{
-			{Key: "path", Value: "$customer"},
-			{Key: "preserveNullAndEmptyArrays", Value: true},
-		}}},
+	)
+	// The customer lookup above only runs in basePipeline when filtering by agency; when it
+	// doesn't, it still needs to happen here so every row gets customer_name/contact/agency_id.
+	if agencyID == "" {
+		pipeline = append(pipeline,
+			bson.D{{Key: "$lookup", Value: bson.D{
+				{Key: "from", Value: usersCollection},
+				{Key: "localField", Value: "user_id"},
+				{Key: "foreignField", Value: "_id"},
+				{Key: "as", Value: "customer"},
+			}}},
+			bson.D{{Key: "$unwind", Value: bson.D{
+				{Key: "path", Value: "$customer"},
+				{Key: "preserveNullAndEmptyArrays", Value: true},
+			}}},
+		)
+	}
+	pipeline = append(pipeline,
 		bson.D{{Key: "$project", Value: bson.D{
 			{Key: "_id", Value: 1},
 			{Key: "user_id", Value: 1},

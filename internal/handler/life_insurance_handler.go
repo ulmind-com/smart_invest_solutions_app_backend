@@ -58,7 +58,7 @@ func (h *LifeInsuranceHandler) CreatePolicy(c *gin.Context) {
 // GetPolicies handles fetching Life Insurance policies — a client's own list, or the full
 // paginated Admin master list (with optional is_mapped filter) for admin/super_admin.
 // @Summary      Get Life Insurance policies
-// @Description  Clients receive their own policies (unpaginated list + total). Admin/super_admin receive a paginated master list across all clients (page, limit, is_mapped query params), each row enriched with the customer's name and contact number.
+// @Description  Clients receive their own policies (unpaginated list + total). A super_admin receives a paginated master list across all clients (page, limit, is_mapped query params); a plain admin receives one scoped to clients under their own Agency ID. Each row is enriched with the customer's name, contact number, and Agency ID.
 // @Tags         Life Insurance
 // @Accept       json
 // @Produce      json
@@ -93,7 +93,7 @@ func (h *LifeInsuranceHandler) GetPolicies(c *gin.Context) {
 
 		licCustomerID := c.Query("lic_customer_id")
 
-		policies, total, err := h.service.GetAllPolicies(c.Request.Context(), page, limit, isMapped, licCustomerID)
+		policies, total, err := h.service.GetAllPolicies(c.Request.Context(), claims.Role, claims.UserID.Hex(), page, limit, isMapped, licCustomerID)
 		if err != nil {
 			response.Error(c, http.StatusInternalServerError, err.Error())
 			return

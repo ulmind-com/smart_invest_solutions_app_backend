@@ -112,7 +112,9 @@ type FixedDepositRepository interface {
 	Create(ctx context.Context, fd *FixedDeposit) (*FixedDeposit, error)
 	GetByID(ctx context.Context, id bson.ObjectID) (*FixedDeposit, error)
 	GetByUserID(ctx context.Context, userID bson.ObjectID) ([]*FixedDeposit, int64, error)
-	GetAll(ctx context.Context, page, limit int64, isMapped *bool) ([]*FixedDepositWithCustomer, int64, error)
+	// agencyID, when non-empty, restricts results to FDs whose owning customer belongs to that
+	// agency.
+	GetAll(ctx context.Context, page, limit int64, isMapped *bool, agencyID string) ([]*FixedDepositWithCustomer, int64, error)
 	Update(ctx context.Context, id bson.ObjectID, dto *UpdateFixedDepositDTO) (*FixedDeposit, error)
 	Delete(ctx context.Context, id bson.ObjectID) error
 	DeleteAllByUserID(ctx context.Context, userID bson.ObjectID) error
@@ -126,7 +128,7 @@ type FixedDepositService interface {
 	CreateFD(ctx context.Context, requesterRole, requesterID string, dto *CreateFixedDepositDTO) (*FixedDeposit, error)
 	GetFDByID(ctx context.Context, requesterRole, requesterID, idStr string) (*FixedDeposit, error)
 	GetMyFDs(ctx context.Context, requesterID string) (*FixedDepositListResponse, error)
-	GetAllFDs(ctx context.Context, page, limit int64, isMapped *bool) ([]*FixedDepositWithCustomer, int64, error)
+	GetAllFDs(ctx context.Context, requesterRole, requesterID string, page, limit int64, isMapped *bool) ([]*FixedDepositWithCustomer, int64, error)
 	UpdateFD(ctx context.Context, requesterRole, requesterID, idStr string, dto *UpdateFixedDepositDTO) (*FixedDeposit, error)
 	DeleteFD(ctx context.Context, requesterRole, requesterID, idStr string) error
 	DeleteAllByUserID(ctx context.Context, userIDStr string) error

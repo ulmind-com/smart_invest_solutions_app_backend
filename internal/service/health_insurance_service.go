@@ -140,8 +140,10 @@ func (s *healthInsuranceService) GetMyPolicies(ctx context.Context, requesterID 
 }
 
 // GetAllPolicies returns the paginated Admin master list across every client, optionally
-// filtered to unmapped/mapped policies.
-func (s *healthInsuranceService) GetAllPolicies(ctx context.Context, page, limit int64, isMapped *bool, licCustomerID string) ([]*domain.HealthInsuranceWithCustomer, int64, error) {
+// filtered to unmapped/mapped policies. A plain admin only ever sees policies belonging to their
+// own agency's clients; super_admin sees every agency (see resolveCallerAgencyID /
+// canAccessAgencyScopedRecord in user_service.go).
+func (s *healthInsuranceService) GetAllPolicies(ctx context.Context, requesterRole, requesterID string, page, limit int64, isMapped *bool, licCustomerID string) ([]*domain.HealthInsuranceWithCustomer, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -149,7 +151,14 @@ func (s *healthInsuranceService) GetAllPolicies(ctx context.Context, page, limit
 		limit = 10
 	}
 
-	return s.repo.GetAll(ctx, page, limit, isMapped, strings.TrimSpace(licCustomerID))
+	agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
+	if requesterRole == domain.RoleAdmin && agencyFilter == "" {
+		// Fail closed, exactly like the other agency-scoped listings: an admin whose own agency
+		// can't be resolved must never fall through to the platform-wide (super_admin) view.
+		return []*domain.HealthInsuranceWithCustomer{}, 0, nil
+	}
+
+	return s.repo.GetAll(ctx, page, limit, isMapped, strings.TrimSpace(licCustomerID), agencyFilter)
 }
 
 // UpdatePolicy modifies an existing policy, enforcing ownership for client requesters,

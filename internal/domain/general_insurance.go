@@ -76,7 +76,9 @@ type GeneralInsuranceRepository interface {
 	Update(ctx context.Context, id, userID bson.ObjectID, update *UpdateGeneralInsuranceDTO) (*GeneralInsurance, error)
 	Delete(ctx context.Context, id, userID bson.ObjectID) error
 	DeleteAllByUserID(ctx context.Context, userID bson.ObjectID) error
-	FindAllAdmin(ctx context.Context, page, limit int64) ([]*GeneralInsuranceWithCustomer, int64, error)
+	// agencyID, when non-empty, restricts results to policies whose owning customer belongs to
+	// that agency.
+	FindAllAdmin(ctx context.Context, page, limit int64, agencyID string) ([]*GeneralInsuranceWithCustomer, int64, error)
 	// ReassignOwner moves every policy owned by fromUserID to toUserID — used by
 	// MergeFamilyAccounts — and returns how many records were moved.
 	ReassignOwner(ctx context.Context, fromUserID, toUserID bson.ObjectID) (int64, error)
@@ -91,5 +93,5 @@ type GeneralInsuranceService interface {
 	DeleteInsurance(ctx context.Context, idStr, userIDStr string) error
 	GetInsurancesByUserIDAdmin(ctx context.Context, targetUserIDStr string) (*GeneralInsuranceListResponse, error)
 	DeleteAllByUserID(ctx context.Context, userIDStr string) error
-	GetAllInsurancesAdmin(ctx context.Context, page, limit int64) ([]*GeneralInsuranceWithCustomer, int64, error)
+	GetAllInsurancesAdmin(ctx context.Context, requesterRole, requesterID string, page, limit int64) ([]*GeneralInsuranceWithCustomer, int64, error)
 }
