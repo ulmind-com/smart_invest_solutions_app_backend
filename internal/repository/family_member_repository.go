@@ -148,3 +148,16 @@ func (r *familyMemberRepository) DeleteAllByUserID(ctx context.Context, userID b
 	_, err := r.collection.DeleteMany(ctx, bson.M{"user_id": userID})
 	return err
 }
+
+// ReassignOwner moves every family member owned by fromUserID to toUserID — used by
+// MergeFamilyAccounts.
+func (r *familyMemberRepository) ReassignOwner(ctx context.Context, fromUserID, toUserID bson.ObjectID) (int64, error) {
+	result, err := r.collection.UpdateMany(ctx,
+		bson.M{"user_id": fromUserID},
+		bson.M{"$set": bson.M{"user_id": toUserID, "updated_at": time.Now().UTC()}},
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to reassign family members: %w", err)
+	}
+	return result.ModifiedCount, nil
+}

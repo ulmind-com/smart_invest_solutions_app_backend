@@ -114,6 +114,9 @@ type SupportTicketRepository interface {
 	Update(ctx context.Context, id bson.ObjectID, dto *UpdateSupportTicketDTO) (*SupportTicket, error)
 	Delete(ctx context.Context, id bson.ObjectID) error
 	DeleteAllByUserID(ctx context.Context, userID bson.ObjectID) error
+	// ReassignOwner moves every ticket raised by fromUserID to toUserID — used by
+	// MergeFamilyAccounts — and returns how many records were moved.
+	ReassignOwner(ctx context.Context, fromUserID, toUserID bson.ObjectID) (int64, error)
 }
 
 // SupportTicketService defines business logic operations for support tickets. GetTicketByID,

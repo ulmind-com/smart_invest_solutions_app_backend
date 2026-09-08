@@ -150,6 +150,9 @@ type LifeInsuranceRepository interface {
 	// only returned for failures affecting the whole operation (e.g. connectivity issues).
 	BulkUpdateFromSync(ctx context.Context, records []LICParsedRecord) (modifiedCount int64, failedCount int, err error)
 	GetExistingPolicyNumbers(ctx context.Context, policyNos []string) (map[string]bool, error)
+	// ReassignOwner moves every policy owned by fromUserID to toUserID — used by
+	// MergeFamilyAccounts — and returns how many records were moved.
+	ReassignOwner(ctx context.Context, fromUserID, toUserID bson.ObjectID) (int64, error)
 }
 
 // LifeInsuranceService defines business logic operations for life insurance policies.

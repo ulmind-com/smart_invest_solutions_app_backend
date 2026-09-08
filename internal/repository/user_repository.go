@@ -237,6 +237,28 @@ func (r *userRepository) UpdatePIN(ctx context.Context, id bson.ObjectID, hashed
 	return nil
 }
 
+// MarkMerged deactivates a user account and stamps it as merged into another — used only by
+// MergeFamilyAccounts, on the "secondary" side of a merge.
+func (r *userRepository) MarkMerged(ctx context.Context, id, mergedIntoID bson.ObjectID) error {
+	filter := bson.M{"_id": id}
+	update := bson.M{
+		"$set": bson.M{
+			"is_active":           false,
+			"merged_into_user_id": mergedIntoID,
+			"updated_at":          time.Now().UTC(),
+		},
+	}
+
+	result, err := r.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to mark user as merged: %w", err)
+	}
+	if result.MatchedCount == 0 {
+		return fmt.Errorf("user not found")
+	}
+	return nil
+}
+
 // Delete removes a user document from the database.
 func (r *userRepository) Delete(ctx context.Context, id bson.ObjectID) error {
 	result, err := r.collection.DeleteOne(ctx, bson.M{"_id": id})

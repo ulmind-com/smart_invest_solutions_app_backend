@@ -74,6 +74,9 @@ type GeneralInsuranceRepository interface {
 	Delete(ctx context.Context, id, userID bson.ObjectID) error
 	DeleteAllByUserID(ctx context.Context, userID bson.ObjectID) error
 	FindAllAdmin(ctx context.Context, page, limit int64) ([]*GeneralInsuranceWithCustomer, int64, error)
+	// ReassignOwner moves every policy owned by fromUserID to toUserID — used by
+	// MergeFamilyAccounts — and returns how many records were moved.
+	ReassignOwner(ctx context.Context, fromUserID, toUserID bson.ObjectID) (int64, error)
 }
 
 // GeneralInsuranceService defines business logic operations for general insurances.

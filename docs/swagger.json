@@ -679,6 +679,81 @@
                 }
             }
         },
+        "/admins/merge-family": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Moves every family member, Life/Health/General policy, Fixed Deposit, E-Vault document, and support ticket owned by secondary_user_id onto primary_user_id, then deactivates the secondary account and marks it merged — it can never sign in again, but nothing is deleted. Both accounts must currently be role=client and neither may already be on either side of an earlier merge. Only accessible by super_admin.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin Accounts"
+                ],
+                "summary": "Merge two client accounts into one family (Super Admin only)",
+                "parameters": [
+                    {
+                        "description": "Primary and secondary account IDs",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.MergeFamilyAccountsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Accounts merged successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.MergeFamilyAccountsResult"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request (e.g. same account twice, non-client role, or an account already merged)",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden — super_admin role required",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/admins/{id}": {
             "delete": {
                 "security": [
@@ -6296,6 +6371,52 @@
                 }
             }
         },
+        "github_com_smart-invest-solutions_backend_internal_domain.MergeFamilyAccountsRequest": {
+            "type": "object",
+            "required": [
+                "primary_user_id",
+                "secondary_user_id"
+            ],
+            "properties": {
+                "primary_user_id": {
+                    "type": "string",
+                    "example": "64f1a2b3c4d5e6f7a8b9c0d1"
+                },
+                "secondary_user_id": {
+                    "type": "string",
+                    "example": "64f1a2b3c4d5e6f7a8b9c0d2"
+                }
+            }
+        },
+        "github_com_smart-invest-solutions_backend_internal_domain.MergeFamilyAccountsResult": {
+            "type": "object",
+            "properties": {
+                "documents_moved": {
+                    "type": "integer"
+                },
+                "family_members_moved": {
+                    "type": "integer"
+                },
+                "fixed_deposits_moved": {
+                    "type": "integer"
+                },
+                "general_policies_moved": {
+                    "type": "integer"
+                },
+                "health_policies_moved": {
+                    "type": "integer"
+                },
+                "life_policies_moved": {
+                    "type": "integer"
+                },
+                "primary": {
+                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UserResponse"
+                },
+                "tickets_moved": {
+                    "type": "integer"
+                }
+            }
+        },
         "github_com_smart-invest-solutions_backend_internal_domain.PolicyDetails": {
             "type": "object",
             "properties": {
@@ -6984,6 +7105,9 @@
                 },
                 "is_email_verified": {
                     "type": "boolean"
+                },
+                "merged_into_user_id": {
+                    "type": "string"
                 },
                 "name": {
                     "type": "string"

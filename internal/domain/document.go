@@ -56,6 +56,10 @@ type DocumentRepository interface {
 	Update(ctx context.Context, id, userID bson.ObjectID, update *UpdateDocumentDTO) (*Document, error)
 	Delete(ctx context.Context, id, userID bson.ObjectID) error
 	DeleteAllByUserID(ctx context.Context, userID bson.ObjectID) error
+	// ReassignOwner moves every document owned by fromUserID to toUserID — used by
+	// MergeFamilyAccounts — and returns how many records were moved. The underlying Cloudinary
+	// asset is untouched; only DB ownership changes.
+	ReassignOwner(ctx context.Context, fromUserID, toUserID bson.ObjectID) (int64, error)
 }
 
 // DocumentService defines business logic operations for documents.
