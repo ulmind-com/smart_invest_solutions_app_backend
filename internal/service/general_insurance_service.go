@@ -14,13 +14,15 @@ const (
 )
 
 type generalInsuranceService struct {
-	repo domain.GeneralInsuranceRepository
+	repo     domain.GeneralInsuranceRepository
+	userRepo domain.UserRepository
 }
 
 // NewGeneralInsuranceService creates a new instance of GeneralInsuranceService.
-func NewGeneralInsuranceService(repo domain.GeneralInsuranceRepository) domain.GeneralInsuranceService {
+func NewGeneralInsuranceService(repo domain.GeneralInsuranceRepository, userRepo domain.UserRepository) domain.GeneralInsuranceService {
 	return &generalInsuranceService{
-		repo: repo,
+		repo:     repo,
+		userRepo: userRepo,
 	}
 }
 
@@ -156,7 +158,9 @@ func (s *generalInsuranceService) DeleteAllByUserID(ctx context.Context, userIDS
 // GetAllInsurancesAdmin returns a paginated master list of every general insurance policy across
 // all clients, each enriched with the owning customer's name and contact number — lets Admin/
 // Super Admin see at a glance which client holds which policy, vehicle, expiry date, and insurer.
-func (s *generalInsuranceService) GetAllInsurancesAdmin(ctx context.Context, page, limit int64) ([]*domain.GeneralInsuranceWithCustomer, int64, error) {
+// A plain admin only ever sees policies belonging to their own agency's clients; super_admin sees
+// every agency (see resolveCallerAgencyID / canAccessAgencyScopedRecord in user_service.go).
+func (s *generalInsuranceService) GetAllInsurancesAdmin(ctx context.Context, requesterRole, requesterID string, page, limit int64) ([]*domain.GeneralInsuranceWithCustomer, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -164,5 +168,12 @@ func (s *generalInsuranceService) GetAllInsurancesAdmin(ctx context.Context, pag
 		limit = 10
 	}
 
-	return s.repo.FindAllAdmin(ctx, page, limit)
+	agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
+	if requesterRole == domain.RoleAdmin && agencyFilter == "" {
+		// Fail closed, exactly like the other agency-scoped listings: an admin whose own agency
+		// can't be resolved must never fall through to the platform-wide (super_admin) view.
+		return []*domain.GeneralInsuranceWithCustomer{}, 0, nil
+	}
+
+	return s.repo.FindAllAdmin(ctx, page, limit, agencyFilter)
 }

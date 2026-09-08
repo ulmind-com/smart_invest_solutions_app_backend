@@ -191,37 +191,58 @@ func (s *dashboardService) GetAdminDashboard(ctx context.Context, requesterRole,
 		return err
 	})
 	g.Go(func() error {
-		_, total, err := s.lifeInsuranceRepo.GetAll(gctx, 1, 1, &mappedFilter, "")
+		if scopedButUnresolved {
+			return nil
+		}
+		_, total, err := s.lifeInsuranceRepo.GetAll(gctx, 1, 1, &mappedFilter, "", agencyFilter)
 		lifeMapped = total
 		return err
 	})
 	g.Go(func() error {
-		_, total, err := s.lifeInsuranceRepo.GetAll(gctx, 1, 1, &unmappedFilter, "")
+		if scopedButUnresolved {
+			return nil
+		}
+		_, total, err := s.lifeInsuranceRepo.GetAll(gctx, 1, 1, &unmappedFilter, "", agencyFilter)
 		lifeUnmapped = total
 		return err
 	})
 	g.Go(func() error {
-		_, total, err := s.healthInsuranceRepo.GetAll(gctx, 1, 1, &mappedFilter, "")
+		if scopedButUnresolved {
+			return nil
+		}
+		_, total, err := s.healthInsuranceRepo.GetAll(gctx, 1, 1, &mappedFilter, "", agencyFilter)
 		healthMapped = total
 		return err
 	})
 	g.Go(func() error {
-		_, total, err := s.healthInsuranceRepo.GetAll(gctx, 1, 1, &unmappedFilter, "")
+		if scopedButUnresolved {
+			return nil
+		}
+		_, total, err := s.healthInsuranceRepo.GetAll(gctx, 1, 1, &unmappedFilter, "", agencyFilter)
 		healthUnmapped = total
 		return err
 	})
 	g.Go(func() error {
-		_, total, err := s.generalInsuranceRepo.FindAllAdmin(gctx, 1, 1)
+		if scopedButUnresolved {
+			return nil
+		}
+		_, total, err := s.generalInsuranceRepo.FindAllAdmin(gctx, 1, 1, agencyFilter)
 		generalTotal = total
 		return err
 	})
 	g.Go(func() error {
-		_, total, err := s.fixedDepositRepo.GetAll(gctx, 1, 1, &mappedFilter)
+		if scopedButUnresolved {
+			return nil
+		}
+		_, total, err := s.fixedDepositRepo.GetAll(gctx, 1, 1, &mappedFilter, agencyFilter)
 		fdMapped = total
 		return err
 	})
 	g.Go(func() error {
-		_, total, err := s.fixedDepositRepo.GetAll(gctx, 1, 1, &unmappedFilter)
+		if scopedButUnresolved {
+			return nil
+		}
+		_, total, err := s.fixedDepositRepo.GetAll(gctx, 1, 1, &unmappedFilter, agencyFilter)
 		fdUnmapped = total
 		return err
 	})

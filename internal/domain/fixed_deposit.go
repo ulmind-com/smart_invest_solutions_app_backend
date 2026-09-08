@@ -34,26 +34,29 @@ type FixedDeposit struct {
 // FixedDepositWithCustomer represents a Fixed Deposit enriched with the owning customer's name
 // and contact number — used for the Admin master list view.
 type FixedDepositWithCustomer struct {
-	ID               bson.ObjectID `bson:"_id" json:"id"`
-	UserID           bson.ObjectID `bson:"user_id" json:"user_id"`
-	FamilyMemberID   bson.ObjectID `bson:"family_member_id" json:"family_member_id"`
-	CustomerName     string        `bson:"customer_name" json:"customer_name"`
-	ContactNo        string        `bson:"contact_no" json:"contact_no"`
-	FDNumber         string        `bson:"fd_number" json:"fd_number"`
-	FDName           string        `bson:"fd_name" json:"fd_name"`
-	CompanyName      string        `bson:"company_name" json:"company_name"`
-	PrincipalAmount  float64       `bson:"principal_amount" json:"principal_amount"`
-	MaturityAmount   float64       `bson:"maturity_amount" json:"maturity_amount"`
-	Term             int           `bson:"term_months" json:"term_months"`
-	OpeningDate      time.Time     `bson:"opening_date" json:"opening_date"`
-	MaturityDate     time.Time     `bson:"maturity_date" json:"maturity_date"`
-	NomineeName      string        `bson:"nominee_name" json:"nominee_name"`
-	SecondHolderName string        `bson:"second_holder_name,omitempty" json:"second_holder_name,omitempty"`
-	AccountType      string        `bson:"account_type" json:"account_type"`
-	Address          string        `bson:"address" json:"address"`
-	IsMapped         bool          `bson:"is_mapped" json:"is_mapped"`
-	CreatedAt        time.Time     `bson:"created_at" json:"created_at"`
-	UpdatedAt        time.Time     `bson:"updated_at" json:"updated_at"`
+	ID             bson.ObjectID `bson:"_id" json:"id"`
+	UserID         bson.ObjectID `bson:"user_id" json:"user_id"`
+	FamilyMemberID bson.ObjectID `bson:"family_member_id" json:"family_member_id"`
+	CustomerName   string        `bson:"customer_name" json:"customer_name"`
+	ContactNo      string        `bson:"contact_no" json:"contact_no"`
+	// AgencyID is the owning customer's Agency ID — surfaced so a Super Admin can see which admin's
+	// agency each FD belongs to. Empty for unassigned clients.
+	AgencyID         string    `bson:"agency_id,omitempty" json:"agency_id,omitempty"`
+	FDNumber         string    `bson:"fd_number" json:"fd_number"`
+	FDName           string    `bson:"fd_name" json:"fd_name"`
+	CompanyName      string    `bson:"company_name" json:"company_name"`
+	PrincipalAmount  float64   `bson:"principal_amount" json:"principal_amount"`
+	MaturityAmount   float64   `bson:"maturity_amount" json:"maturity_amount"`
+	Term             int       `bson:"term_months" json:"term_months"`
+	OpeningDate      time.Time `bson:"opening_date" json:"opening_date"`
+	MaturityDate     time.Time `bson:"maturity_date" json:"maturity_date"`
+	NomineeName      string    `bson:"nominee_name" json:"nominee_name"`
+	SecondHolderName string    `bson:"second_holder_name,omitempty" json:"second_holder_name,omitempty"`
+	AccountType      string    `bson:"account_type" json:"account_type"`
+	Address          string    `bson:"address" json:"address"`
+	IsMapped         bool      `bson:"is_mapped" json:"is_mapped"`
+	CreatedAt        time.Time `bson:"created_at" json:"created_at"`
+	UpdatedAt        time.Time `bson:"updated_at" json:"updated_at"`
 }
 
 // CreateFixedDepositDTO represents the payload for adding a new Fixed Deposit. UserID is optional
@@ -109,7 +112,9 @@ type FixedDepositRepository interface {
 	Create(ctx context.Context, fd *FixedDeposit) (*FixedDeposit, error)
 	GetByID(ctx context.Context, id bson.ObjectID) (*FixedDeposit, error)
 	GetByUserID(ctx context.Context, userID bson.ObjectID) ([]*FixedDeposit, int64, error)
-	GetAll(ctx context.Context, page, limit int64, isMapped *bool) ([]*FixedDepositWithCustomer, int64, error)
+	// agencyID, when non-empty, restricts results to FDs whose owning customer belongs to that
+	// agency.
+	GetAll(ctx context.Context, page, limit int64, isMapped *bool, agencyID string) ([]*FixedDepositWithCustomer, int64, error)
 	Update(ctx context.Context, id bson.ObjectID, dto *UpdateFixedDepositDTO) (*FixedDeposit, error)
 	Delete(ctx context.Context, id bson.ObjectID) error
 	DeleteAllByUserID(ctx context.Context, userID bson.ObjectID) error
@@ -123,7 +128,7 @@ type FixedDepositService interface {
 	CreateFD(ctx context.Context, requesterRole, requesterID string, dto *CreateFixedDepositDTO) (*FixedDeposit, error)
 	GetFDByID(ctx context.Context, requesterRole, requesterID, idStr string) (*FixedDeposit, error)
 	GetMyFDs(ctx context.Context, requesterID string) (*FixedDepositListResponse, error)
-	GetAllFDs(ctx context.Context, page, limit int64, isMapped *bool) ([]*FixedDepositWithCustomer, int64, error)
+	GetAllFDs(ctx context.Context, requesterRole, requesterID string, page, limit int64, isMapped *bool) ([]*FixedDepositWithCustomer, int64, error)
 	UpdateFD(ctx context.Context, requesterRole, requesterID, idStr string, dto *UpdateFixedDepositDTO) (*FixedDeposit, error)
 	DeleteFD(ctx context.Context, requesterRole, requesterID, idStr string) error
 	DeleteAllByUserID(ctx context.Context, userIDStr string) error

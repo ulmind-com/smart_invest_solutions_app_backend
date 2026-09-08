@@ -93,10 +93,12 @@ func (r *healthInsuranceRepository) GetByUserID(ctx context.Context, userID bson
 }
 
 // GetAll retrieves a paginated master list of every health insurance policy across all clients,
-// optionally filtered by is_mapped and/or the insured family member's LIC Customer ID, each row
-// enriched (via $lookup) with the owning customer's name/contact and that Customer ID — the latter
-// is looked up live from family_members every call, never cached, so it can never go stale.
-func (r *healthInsuranceRepository) GetAll(ctx context.Context, page, limit int64, isMapped *bool, licCustomerID string) ([]*domain.HealthInsuranceWithCustomer, int64, error) {
+// optionally filtered by is_mapped, the insured family member's LIC Customer ID, and/or the owning
+// customer's Agency ID (agencyID — empty means no restriction, used to scope a plain admin's view
+// to their own agency), each row enriched (via $lookup) with the owning customer's name/contact/
+// agency and that Customer ID — the latter is looked up live from family_members every call, never
+// cached, so it can never go stale.
+func (r *healthInsuranceRepository) GetAll(ctx context.Context, page, limit int64, isMapped *bool, licCustomerID, agencyID string) ([]*domain.HealthInsuranceWithCustomer, int64, error) {
 	skip := (page - 1) * limit
 
 	basePipeline := mongo.Pipeline{}
@@ -116,6 +118,24 @@ func (r *healthInsuranceRepository) GetAll(ctx context.Context, page, limit int6
 				{Key: "preserveNullAndEmptyArrays", Value: true},
 			}}},
 			bson.D{{Key: "$match", Value: bson.D{{Key: "family.lic_customer_id", Value: licCustomerID}}}},
+		)
+	}
+	// The customer lookup moves ahead of pagination (rather than staying in the page-only section
+	// below) whenever it's needed to filter by agency — count and page must agree on which agency
+	// the record belongs to.
+	if agencyID != "" {
+		basePipeline = append(basePipeline,
+			bson.D{{Key: "$lookup", Value: bson.D{
+				{Key: "from", Value: usersCollection},
+				{Key: "localField", Value: "user_id"},
+				{Key: "foreignField", Value: "_id"},
+				{Key: "as", Value: "customer"},
+			}}},
+			bson.D{{Key: "$unwind", Value: bson.D{
+				{Key: "path", Value: "$customer"},
+				{Key: "preserveNullAndEmptyArrays", Value: true},
+			}}},
+			bson.D{{Key: "$match", Value: bson.D{{Key: "customer.agency_id", Value: agencyID}}}},
 		)
 	}
 
@@ -144,17 +164,23 @@ func (r *healthInsuranceRepository) GetAll(ctx context.Context, page, limit int6
 		bson.D{{Key: "$sort", Value: bson.D{{Key: "created_at", Value: -1}}}},
 		bson.D{{Key: "$skip", Value: skip}},
 		bson.D{{Key: "$limit", Value: limit}},
-		bson.D{{Key: "$lookup", Value: bson.D{
-			{Key: "from", Value: usersCollection},
-			{Key: "localField", Value: "user_id"},
-			{Key: "foreignField", Value: "_id"},
-			{Key: "as", Value: "customer"},
-		}}},
-		bson.D{{Key: "$unwind", Value: bson.D{
-			{Key: "path", Value: "$customer"},
-			{Key: "preserveNullAndEmptyArrays", Value: true},
-		}}},
 	)
+	// The customer lookup above only runs in basePipeline when filtering by agency; when it
+	// doesn't, it still needs to happen here so every row gets customer_name/contact/agency_id.
+	if agencyID == "" {
+		pipeline = append(pipeline,
+			bson.D{{Key: "$lookup", Value: bson.D{
+				{Key: "from", Value: usersCollection},
+				{Key: "localField", Value: "user_id"},
+				{Key: "foreignField", Value: "_id"},
+				{Key: "as", Value: "customer"},
+			}}},
+			bson.D{{Key: "$unwind", Value: bson.D{
+				{Key: "path", Value: "$customer"},
+				{Key: "preserveNullAndEmptyArrays", Value: true},
+			}}},
+		)
+	}
 	if licCustomerID == "" {
 		pipeline = append(pipeline,
 			bson.D{{Key: "$lookup", Value: bson.D{
@@ -177,6 +203,7 @@ func (r *healthInsuranceRepository) GetAll(ctx context.Context, page, limit int6
 			{Key: "company_name", Value: 1},
 			{Key: "customer_name", Value: "$customer.name"},
 			{Key: "contact_no", Value: "$customer.phone"},
+			{Key: "agency_id", Value: "$customer.agency_id"},
 			{Key: "lic_customer_id", Value: "$family.lic_customer_id"},
 			{Key: "policy_details", Value: 1},
 			{Key: "premium_details", Value: 1},

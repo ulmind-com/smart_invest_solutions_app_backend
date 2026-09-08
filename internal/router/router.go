@@ -82,7 +82,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	passResetService := service.NewPasswordResetService(passResetRepo, userRepo, emailSvc)
 	emailVerifService := service.NewEmailVerificationService(emailVerifRepo, userRepo, accessReqRepo, emailSvc)
 	familyMemberService := service.NewFamilyMemberService(familyMemberRepo)
-	generalInsuranceService := service.NewGeneralInsuranceService(generalInsuranceRepo)
+	generalInsuranceService := service.NewGeneralInsuranceService(generalInsuranceRepo, userRepo)
 	documentService := service.NewDocumentService(documentRepo, storageSvc)
 	lifeInsuranceService := service.NewLifeInsuranceService(lifeInsuranceRepo, userRepo, familyMemberRepo)
 	fixedDepositService := service.NewFixedDepositService(fixedDepositRepo, userRepo, familyMemberRepo)

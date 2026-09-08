@@ -59,6 +59,9 @@ type LifeInsuranceWithCustomer struct {
 	CompanyName    string        `bson:"company_name" json:"company_name"`
 	CustomerName   string        `bson:"customer_name" json:"customer_name"`
 	ContactNo      string        `bson:"contact_no" json:"contact_no"`
+	// AgencyID is the owning customer's Agency ID — surfaced so a Super Admin can see which admin's
+	// agency each policy belongs to. Empty for unassigned clients.
+	AgencyID string `bson:"agency_id,omitempty" json:"agency_id,omitempty"`
 	// LICCustomerID is looked up live from the insured family member's record (never cached on the
 	// policy itself), so editing it on the family member instantly reflects on every one of their
 	// policies here with no risk of going stale.
@@ -140,8 +143,9 @@ type LifeInsuranceRepository interface {
 	GetByID(ctx context.Context, id bson.ObjectID) (*LifeInsurance, error)
 	GetByUserID(ctx context.Context, userID bson.ObjectID) ([]*LifeInsurance, int64, error)
 	// licCustomerID, when non-empty, restricts results to policies whose insured family member
-	// carries that exact LIC Customer ID — the "one ID, many policies" lookup.
-	GetAll(ctx context.Context, page, limit int64, isMapped *bool, licCustomerID string) ([]*LifeInsuranceWithCustomer, int64, error)
+	// carries that exact LIC Customer ID — the "one ID, many policies" lookup. agencyID, when
+	// non-empty, restricts results to policies whose owning customer belongs to that agency.
+	GetAll(ctx context.Context, page, limit int64, isMapped *bool, licCustomerID, agencyID string) ([]*LifeInsuranceWithCustomer, int64, error)
 	Update(ctx context.Context, id bson.ObjectID, dto *UpdateLifeInsuranceDTO) (*LifeInsurance, error)
 	Delete(ctx context.Context, id bson.ObjectID) error
 	DeleteAllByUserID(ctx context.Context, userID bson.ObjectID) error
@@ -160,7 +164,7 @@ type LifeInsuranceService interface {
 	CreatePolicy(ctx context.Context, requesterRole, requesterID string, dto *CreateLifeInsuranceDTO) (*LifeInsurance, error)
 	GetPolicyByID(ctx context.Context, requesterRole, requesterID, idStr string) (*LifeInsurance, error)
 	GetMyPolicies(ctx context.Context, requesterID string) (*LifeInsuranceListResponse, error)
-	GetAllPolicies(ctx context.Context, page, limit int64, isMapped *bool, licCustomerID string) ([]*LifeInsuranceWithCustomer, int64, error)
+	GetAllPolicies(ctx context.Context, requesterRole, requesterID string, page, limit int64, isMapped *bool, licCustomerID string) ([]*LifeInsuranceWithCustomer, int64, error)
 	UpdatePolicy(ctx context.Context, requesterRole, requesterID, idStr string, dto *UpdateLifeInsuranceDTO) (*LifeInsurance, error)
 	DeletePolicy(ctx context.Context, requesterRole, requesterID, idStr string) error
 	DeleteAllByUserID(ctx context.Context, userIDStr string) error

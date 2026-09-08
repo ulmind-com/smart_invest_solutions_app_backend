@@ -204,11 +204,12 @@ func (h *GeneralInsuranceHandler) GetInsurancesByUserIDAdmin(c *gin.Context) {
 	response.Success(c, "Policies retrieved successfully", respData)
 }
 
-// GetAllInsurancesAdmin handles fetching a paginated master list of every client's General
-// Insurance policy for the Admin dashboard — each row enriched with the customer's name and
-// contact number, so Admin can see at a glance which client holds which policy/vehicle/company.
+// GetAllInsurancesAdmin handles fetching a paginated master list of General Insurance policies for
+// the Admin dashboard — each row enriched with the customer's name, contact number, and Agency ID,
+// so Admin can see at a glance which client holds which policy/vehicle/company. A super_admin sees
+// every client's policies; a plain admin sees only those under their own Agency ID.
 // @Summary      Get all clients' General Insurance policies (Admin Only)
-// @Description  Retrieves a paginated master list of every general/vehicle insurance policy across all clients — Customer Name, Contact No, Vehicle No, Policy No, Date of Expiry, Company Name — for the Admin dashboard. Accessible by admin and super_admin.
+// @Description  Retrieves a paginated master list of every general/vehicle insurance policy — Customer Name, Contact No, Agency ID, Vehicle No, Policy No, Date of Expiry, Company Name. A super_admin receives every client's policies; a plain admin receives one scoped to clients under their own Agency ID.
 // @Tags         General Insurance (Admin)
 // @Accept       json
 // @Produce      json
@@ -220,10 +221,16 @@ func (h *GeneralInsuranceHandler) GetInsurancesByUserIDAdmin(c *gin.Context) {
 // @Security     BearerAuth
 // @Router       /general-insurances/all [get]
 func (h *GeneralInsuranceHandler) GetAllInsurancesAdmin(c *gin.Context) {
+	claims, ok := middleware.GetClaims(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
 	page, _ := strconv.ParseInt(c.DefaultQuery("page", "1"), 10, 64)
 	limit, _ := strconv.ParseInt(c.DefaultQuery("limit", "10"), 10, 64)
 
-	policies, total, err := h.service.GetAllInsurancesAdmin(c.Request.Context(), page, limit)
+	policies, total, err := h.service.GetAllInsurancesAdmin(c.Request.Context(), claims.Role, claims.UserID.Hex(), page, limit)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err.Error())
 		return

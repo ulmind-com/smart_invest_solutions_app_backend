@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/smart-invest-solutions/backend/internal/domain"
+	"github.com/smart-invest-solutions/backend/internal/middleware"
 	"github.com/smart-invest-solutions/backend/pkg/response"
 )
 
@@ -24,8 +25,8 @@ func NewAgencySyncHandler(agencySyncService domain.AgencySyncService) *AgencySyn
 }
 
 // ProcessLICDueList handles uploading and bulk-syncing Life Insurance policies from an LIC Premium Due List PDF.
-// @Summary      Process LIC Premium Due List PDF (Admin only)
-// @Description  Uploads and parses an LIC Premium Due List PDF file, extracts policy numbers, assured names, DOC, FUP, Mode, and Premiums, calculates next due dates, updates existing policies in MongoDB, and returns unmapped policy records.
+// @Summary      Process LIC Premium Due List PDF (Admin only, not Super Admin)
+// @Description  Uploads and parses an LIC Premium Due List PDF file, extracts policy numbers, assured names, DOC, FUP, Mode, and Premiums, calculates next due dates, updates existing policies in MongoDB, and returns unmapped policy records. This is a day-to-day operational task for regular agency admins — Super Admin accounts are deliberately excluded, unlike every other admin-only route in this API.
 // @Tags         Agency Sync
 // @Accept       multipart/form-data
 // @Produce      json
@@ -33,11 +34,20 @@ func NewAgencySyncHandler(agencySyncService domain.AgencySyncService) *AgencySyn
 // @Success      200   {object}  response.APIResponse{data=domain.SyncResultDTO}  "LIC Premium Due List PDF processed successfully"
 // @Failure      400   {object}  response.APIResponse  "Bad request — missing file or invalid PDF file format"
 // @Failure      401   {object}  response.APIResponse  "Unauthorized — token missing or invalid"
-// @Failure      403   {object}  response.APIResponse  "Forbidden — admin role required"
+// @Failure      403   {object}  response.APIResponse  "Forbidden — admin role required (super_admin excluded)"
 // @Failure      500   {object}  response.APIResponse  "Internal server error"
 // @Security     BearerAuth
 // @Router       /agency/sync/lic-due-list [post]
 func (h *AgencySyncHandler) ProcessLICDueList(c *gin.Context) {
+	// Agency Sync is deliberately admin-only — unlike every other admin-gated route in this API,
+	// a super_admin is NOT allowed here (RequireRole's usual "super_admin can do anything admin
+	// can" bypass has to be overridden explicitly, since it can't be turned off in the shared
+	// middleware without affecting every other admin-only route).
+	if claims, ok := middleware.GetClaims(c); ok && claims.Role == domain.RoleSuperAdmin {
+		response.Error(c, http.StatusForbidden, "Agency Sync is only available to admin accounts")
+		return
+	}
+
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, "PDF file is required in 'file' form field")

@@ -137,8 +137,10 @@ func (s *fixedDepositService) GetMyFDs(ctx context.Context, requesterID string) 
 }
 
 // GetAllFDs returns the paginated Admin master list across every client, optionally filtered to
-// unmapped/mapped Fixed Deposits.
-func (s *fixedDepositService) GetAllFDs(ctx context.Context, page, limit int64, isMapped *bool) ([]*domain.FixedDepositWithCustomer, int64, error) {
+// unmapped/mapped Fixed Deposits. A plain admin only ever sees FDs belonging to their own agency's
+// clients; super_admin sees every agency (see resolveCallerAgencyID / canAccessAgencyScopedRecord
+// in user_service.go).
+func (s *fixedDepositService) GetAllFDs(ctx context.Context, requesterRole, requesterID string, page, limit int64, isMapped *bool) ([]*domain.FixedDepositWithCustomer, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -146,7 +148,14 @@ func (s *fixedDepositService) GetAllFDs(ctx context.Context, page, limit int64, 
 		limit = 10
 	}
 
-	return s.repo.GetAll(ctx, page, limit, isMapped)
+	agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
+	if requesterRole == domain.RoleAdmin && agencyFilter == "" {
+		// Fail closed, exactly like the other agency-scoped listings: an admin whose own agency
+		// can't be resolved must never fall through to the platform-wide (super_admin) view.
+		return []*domain.FixedDepositWithCustomer{}, 0, nil
+	}
+
+	return s.repo.GetAll(ctx, page, limit, isMapped, agencyFilter)
 }
 
 // UpdateFD modifies an existing Fixed Deposit, enforcing ownership for client requesters,

@@ -960,7 +960,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Uploads and parses an LIC Premium Due List PDF file, extracts policy numbers, assured names, DOC, FUP, Mode, and Premiums, calculates next due dates, updates existing policies in MongoDB, and returns unmapped policy records.",
+                "description": "Uploads and parses an LIC Premium Due List PDF file, extracts policy numbers, assured names, DOC, FUP, Mode, and Premiums, calculates next due dates, updates existing policies in MongoDB, and returns unmapped policy records. This is a day-to-day operational task for regular agency admins — Super Admin accounts are deliberately excluded, unlike every other admin-only route in this API.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -970,7 +970,7 @@ const docTemplate = `{
                 "tags": [
                     "Agency Sync"
                 ],
-                "summary": "Process LIC Premium Due List PDF (Admin only)",
+                "summary": "Process LIC Premium Due List PDF (Admin only, not Super Admin)",
                 "parameters": [
                     {
                         "type": "file",
@@ -1012,7 +1012,7 @@ const docTemplate = `{
                         }
                     },
                     "403": {
-                        "description": "Forbidden — admin role required",
+                        "description": "Forbidden — admin role required (super_admin excluded)",
                         "schema": {
                             "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
                         }
@@ -2206,7 +2206,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Clients receive their own Fixed Deposits (unpaginated list + total). Admin/super_admin receive a paginated master list across all clients (page, limit, is_mapped query params), each row enriched with the customer's name and contact number.",
+                "description": "Clients receive their own Fixed Deposits (unpaginated list + total). A super_admin receives a paginated master list across all clients (page, limit, is_mapped query params); a plain admin receives one scoped to clients under their own Agency ID. Each row is enriched with the customer's name, contact number, and Agency ID.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2622,7 +2622,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Retrieves a paginated master list of every general/vehicle insurance policy across all clients — Customer Name, Contact No, Vehicle No, Policy No, Date of Expiry, Company Name — for the Admin dashboard. Accessible by admin and super_admin.",
+                "description": "Retrieves a paginated master list of every general/vehicle insurance policy — Customer Name, Contact No, Agency ID, Vehicle No, Policy No, Date of Expiry, Company Name. A super_admin receives every client's policies; a plain admin receives one scoped to clients under their own Agency ID.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2934,7 +2934,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Clients receive their own policies (unpaginated list + total). Admin/super_admin receive a paginated master list across all clients (page, limit, is_mapped query params), each row enriched with the customer's name and contact number.",
+                "description": "Clients receive their own policies (unpaginated list + total). A super_admin receives a paginated master list across all clients (page, limit, is_mapped query params); a plain admin receives one scoped to clients under their own Agency ID. Each row is enriched with the customer's name, contact number, and Agency ID.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3243,7 +3243,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Clients receive their own policies (unpaginated list + total). Admin/super_admin receive a paginated master list across all clients (page, limit, is_mapped query params), each row enriched with the customer's name and contact number.",
+                "description": "Clients receive their own policies (unpaginated list + total). A super_admin receives a paginated master list across all clients (page, limit, is_mapped query params); a plain admin receives one scoped to clients under their own Agency ID. Each row is enriched with the customer's name, contact number, and Agency ID.",
                 "consumes": [
                     "application/json"
                 ],
@@ -6193,6 +6193,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "advisor_name": {
+                    "type": "string"
+                },
+                "agency_id": {
+                    "description": "AgencyID is the owning customer's Agency ID — surfaced so a Super Admin can see which admin's\nagency each policy belongs to. Empty for unassigned clients.",
                     "type": "string"
                 },
                 "company_name": {
