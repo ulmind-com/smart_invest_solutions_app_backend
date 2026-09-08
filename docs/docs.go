@@ -4032,7 +4032,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Clients receive their own tickets (optionally filtered by status/category). Admin/super_admin receive a paginated master list across all clients (page, limit, status, category query params), each row enriched with the customer's name and contact number.",
+                "description": "Clients receive their own tickets (optionally filtered by status/category). A super_admin receives a paginated master list across every client; a plain admin receives one scoped to clients under their own Agency ID. Each row is enriched with the customer's name, contact number, and Agency ID.",
                 "consumes": [
                     "application/json"
                 ],

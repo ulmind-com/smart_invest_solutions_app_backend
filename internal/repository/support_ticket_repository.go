@@ -101,36 +101,25 @@ func (r *supportTicketRepository) GetByUserID(ctx context.Context, userID bson.O
 }
 
 // GetAll retrieves a paginated master list of every support ticket across all clients, optionally
-// filtered by status and/or category, each row enriched (via $lookup on the users collection)
-// with the requesting customer's name and contact number for the Admin dashboard view.
-func (r *supportTicketRepository) GetAll(ctx context.Context, page, limit int64, status, category string) ([]*domain.SupportTicketWithCustomer, int64, error) {
+// filtered by status, category, and/or the raising client's Agency ID, each row enriched (via
+// $lookup on the users collection) with the requesting customer's name, contact number, and Agency
+// ID. The agency filter runs against the joined customer document (agency_id lives on the user, not
+// the ticket), so filtering and enrichment share one pipeline.
+func (r *supportTicketRepository) GetAll(ctx context.Context, page, limit int64, status, category, agencyID string) ([]*domain.SupportTicketWithCustomer, int64, error) {
 	skip := (page - 1) * limit
 
-	filter := bson.M{}
+	basePipeline := mongo.Pipeline{}
+	matchStage := bson.D{}
 	if status != "" {
-		filter["status"] = status
+		matchStage = append(matchStage, bson.E{Key: "status", Value: status})
 	}
 	if category != "" {
-		filter["category"] = category
+		matchStage = append(matchStage, bson.E{Key: "category", Value: category})
 	}
-
-	total, err := r.collection.CountDocuments(ctx, filter)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to count support tickets: %w", err)
+	if len(matchStage) > 0 {
+		basePipeline = append(basePipeline, bson.D{{Key: "$match", Value: matchStage}})
 	}
-
-	pipeline := mongo.Pipeline{}
-	if len(filter) > 0 {
-		matchStage := bson.D{}
-		for k, v := range filter {
-			matchStage = append(matchStage, bson.E{Key: k, Value: v})
-		}
-		pipeline = append(pipeline, bson.D{{Key: "$match", Value: matchStage}})
-	}
-	pipeline = append(pipeline,
-		bson.D{{Key: "$sort", Value: bson.D{{Key: "created_at", Value: -1}}}},
-		bson.D{{Key: "$skip", Value: skip}},
-		bson.D{{Key: "$limit", Value: limit}},
+	basePipeline = append(basePipeline,
 		bson.D{{Key: "$lookup", Value: bson.D{
 			{Key: "from", Value: usersCollection},
 			{Key: "localField", Value: "user_id"},
@@ -141,11 +130,42 @@ func (r *supportTicketRepository) GetAll(ctx context.Context, page, limit int64,
 			{Key: "path", Value: "$customer"},
 			{Key: "preserveNullAndEmptyArrays", Value: true},
 		}}},
+	)
+	if agencyID != "" {
+		basePipeline = append(basePipeline, bson.D{{Key: "$match", Value: bson.D{{Key: "customer.agency_id", Value: agencyID}}}})
+	}
+
+	countPipeline := append(mongo.Pipeline{}, basePipeline...)
+	countPipeline = append(countPipeline, bson.D{{Key: "$count", Value: "total"}})
+
+	countCursor, err := r.collection.Aggregate(ctx, countPipeline)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count support tickets: %w", err)
+	}
+	defer countCursor.Close(ctx)
+
+	var countResult []struct {
+		Total int64 `bson:"total"`
+	}
+	if err := countCursor.All(ctx, &countResult); err != nil {
+		return nil, 0, fmt.Errorf("failed to decode support ticket count: %w", err)
+	}
+	var total int64
+	if len(countResult) > 0 {
+		total = countResult[0].Total
+	}
+
+	pipeline := append(mongo.Pipeline{}, basePipeline...)
+	pipeline = append(pipeline,
+		bson.D{{Key: "$sort", Value: bson.D{{Key: "created_at", Value: -1}}}},
+		bson.D{{Key: "$skip", Value: skip}},
+		bson.D{{Key: "$limit", Value: limit}},
 		bson.D{{Key: "$project", Value: bson.D{
 			{Key: "_id", Value: 1},
 			{Key: "user_id", Value: 1},
 			{Key: "customer_name", Value: "$customer.name"},
 			{Key: "contact_no", Value: "$customer.phone"},
+			{Key: "agency_id", Value: "$customer.agency_id"},
 			{Key: "ticket_number", Value: 1},
 			{Key: "category", Value: 1},
 			{Key: "subject", Value: 1},

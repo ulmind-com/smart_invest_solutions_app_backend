@@ -34,12 +34,28 @@ func (s *supportTicketService) resolveTargetUserID(requesterRole, requesterID, d
 	return bson.ObjectIDFromHex(targetIDStr)
 }
 
-// checkOwnership enforces that a client requester may only touch their own tickets;
-// admin/super_admin bypass this check completely.
-func (s *supportTicketService) checkOwnership(requesterRole, requesterID string, ownerID bson.ObjectID) error {
-	if requesterRole == domain.RoleAdmin || requesterRole == domain.RoleSuperAdmin {
+// checkOwnership enforces that a client requester may only touch their own tickets, and that a
+// plain admin may only touch tickets raised by clients under their own Agency ID. super_admin
+// bypasses this check completely. A plain admin blocked by the agency check gets the same
+// "not found" wording as a genuinely missing ticket, so a ticket outside their agency never reveals
+// its existence.
+func (s *supportTicketService) checkOwnership(ctx context.Context, requesterRole, requesterID string, ownerID bson.ObjectID) error {
+	if requesterRole == domain.RoleSuperAdmin {
 		return nil
 	}
+
+	if requesterRole == domain.RoleAdmin {
+		agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
+		owner, err := s.userRepo.FindByID(ctx, ownerID)
+		if err != nil || owner == nil {
+			return fmt.Errorf("support ticket not found")
+		}
+		if !canAccessAgencyScopedRecord(requesterRole, agencyFilter, owner.AgencyID) {
+			return fmt.Errorf("support ticket not found")
+		}
+		return nil
+	}
+
 	requesterObjID, err := bson.ObjectIDFromHex(requesterID)
 	if err != nil {
 		return fmt.Errorf("invalid requester ID format: %w", err)
@@ -108,7 +124,7 @@ func (s *supportTicketService) GetTicketByID(ctx context.Context, requesterRole,
 		return nil, err
 	}
 
-	if err := s.checkOwnership(requesterRole, requesterID, ticket.UserID); err != nil {
+	if err := s.checkOwnership(ctx, requesterRole, requesterID, ticket.UserID); err != nil {
 		return nil, err
 	}
 
@@ -137,9 +153,10 @@ func (s *supportTicketService) GetMyTickets(ctx context.Context, requesterID, st
 	return &domain.SupportTicketListResponse{Total: total, Data: tickets}, nil
 }
 
-// GetAllTickets returns the paginated Admin master list across every client, optionally filtered
-// by status and/or category.
-func (s *supportTicketService) GetAllTickets(ctx context.Context, page, limit int64, status, category string) ([]*domain.SupportTicketWithCustomer, int64, error) {
+// GetAllTickets returns the paginated Admin master list, scoped to the caller: a super_admin sees
+// every ticket; a plain admin sees only tickets raised by clients under their own Agency ID.
+// Optionally filtered by status and/or category on top of that scope.
+func (s *supportTicketService) GetAllTickets(ctx context.Context, requesterRole, requesterID string, page, limit int64, status, category string) ([]*domain.SupportTicketWithCustomer, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -153,7 +170,14 @@ func (s *supportTicketService) GetAllTickets(ctx context.Context, page, limit in
 		return nil, 0, fmt.Errorf("invalid category: %s", category)
 	}
 
-	return s.repo.GetAll(ctx, page, limit, status, category)
+	agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
+	if requesterRole == domain.RoleAdmin && agencyFilter == "" {
+		// Fail closed, exactly like the other agency-scoped listings: an admin whose own agency
+		// can't be resolved must never fall through to the platform-wide (super_admin) view.
+		return []*domain.SupportTicketWithCustomer{}, 0, nil
+	}
+
+	return s.repo.GetAll(ctx, page, limit, status, category, agencyFilter)
 }
 
 // UpdateTicket modifies an existing ticket, enforcing ownership for client requesters.
@@ -175,7 +199,7 @@ func (s *supportTicketService) UpdateTicket(ctx context.Context, requesterRole, 
 		return nil, err
 	}
 
-	if err := s.checkOwnership(requesterRole, requesterID, existing.UserID); err != nil {
+	if err := s.checkOwnership(ctx, requesterRole, requesterID, existing.UserID); err != nil {
 		return nil, err
 	}
 
@@ -207,7 +231,7 @@ func (s *supportTicketService) DeleteTicket(ctx context.Context, requesterRole, 
 		return err
 	}
 
-	if err := s.checkOwnership(requesterRole, requesterID, existing.UserID); err != nil {
+	if err := s.checkOwnership(ctx, requesterRole, requesterID, existing.UserID); err != nil {
 		return err
 	}
 
