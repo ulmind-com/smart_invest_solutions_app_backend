@@ -9,16 +9,21 @@ import (
 
 // FamilyMember represents a family member record associated with a Head of Family (HOF) user.
 type FamilyMember struct {
-	ID             bson.ObjectID `bson:"_id,omitempty" json:"id"`
-	UserID         bson.ObjectID `bson:"user_id" json:"user_id"`
-	Name           string        `bson:"name" json:"name" binding:"required"`
-	RelationWithHOF string       `bson:"relation_with_hof" json:"relation_with_hof" binding:"required"`
-	Phone          string        `bson:"phone" json:"phone" binding:"required"`
-	Email          string        `bson:"email,omitempty" json:"email,omitempty"`
-	BloodGroup     string        `bson:"blood_group,omitempty" json:"blood_group,omitempty"`
-	DateOfBirth    string        `bson:"date_of_birth" json:"date_of_birth" binding:"required"` // Format: YYYY-MM-DD
-	CreatedAt      time.Time     `bson:"created_at" json:"created_at"`
-	UpdatedAt      time.Time     `bson:"updated_at" json:"updated_at"`
+	ID              bson.ObjectID `bson:"_id,omitempty" json:"id"`
+	UserID          bson.ObjectID `bson:"user_id" json:"user_id"`
+	Name            string        `bson:"name" json:"name" binding:"required"`
+	RelationWithHOF string        `bson:"relation_with_hof" json:"relation_with_hof" binding:"required"`
+	Phone           string        `bson:"phone" json:"phone" binding:"required"`
+	Email           string        `bson:"email,omitempty" json:"email,omitempty"`
+	BloodGroup      string        `bson:"blood_group,omitempty" json:"blood_group,omitempty"`
+	DateOfBirth     string        `bson:"date_of_birth" json:"date_of_birth" binding:"required"` // Format: YYYY-MM-DD
+	// LICCustomerID is the customer identifier LIC (or another insurer) issues to this person —
+	// stable across every policy they buy from that insurer, unlike the per-policy Policy Number.
+	// Optional; one person's many Life/Health policies all point at this same family member record,
+	// so this is the single place it's entered/edited (never duplicated onto individual policies).
+	LICCustomerID string    `bson:"lic_customer_id,omitempty" json:"lic_customer_id,omitempty"`
+	CreatedAt     time.Time `bson:"created_at" json:"created_at"`
+	UpdatedAt     time.Time `bson:"updated_at" json:"updated_at"`
 }
 
 // CreateFamilyMemberDTO represents the payload for creating a new family member.
@@ -29,6 +34,7 @@ type CreateFamilyMemberDTO struct {
 	Email           string `json:"email,omitempty"`
 	BloodGroup      string `json:"blood_group,omitempty"`
 	DateOfBirth     string `json:"date_of_birth" binding:"required"`
+	LICCustomerID   string `json:"lic_customer_id,omitempty" example:"1234567890"`
 }
 
 // UpdateFamilyMemberDTO represents the payload for updating an existing family member.
@@ -39,6 +45,7 @@ type UpdateFamilyMemberDTO struct {
 	Email           *string `json:"email,omitempty"`
 	BloodGroup      *string `json:"blood_group,omitempty"`
 	DateOfBirth     *string `json:"date_of_birth,omitempty"`
+	LICCustomerID   *string `json:"lic_customer_id,omitempty" example:"1234567890"`
 }
 
 // FamilyMemberListResponse represents the response containing array of family members and count N.

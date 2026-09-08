@@ -196,6 +196,9 @@ definitions:
         type: string
       email:
         type: string
+      lic_customer_id:
+        example: "1234567890"
+        type: string
       name:
         type: string
       phone:
@@ -504,6 +507,13 @@ definitions:
       email:
         type: string
       id:
+        type: string
+      lic_customer_id:
+        description: |-
+          LICCustomerID is the customer identifier LIC (or another insurer) issues to this person —
+          stable across every policy they buy from that insurer, unlike the per-policy Policy Number.
+          Optional; one person's many Life/Health policies all point at this same family member record,
+          so this is the single place it's entered/edited (never duplicated onto individual policies).
         type: string
       name:
         type: string
@@ -1009,6 +1019,9 @@ definitions:
       date_of_birth:
         type: string
       email:
+        type: string
+      lic_customer_id:
+        example: "1234567890"
         type: string
       name:
         type: string
@@ -3073,6 +3086,11 @@ paths:
         in: query
         name: is_mapped
         type: boolean
+      - description: Filter to policies whose insured family member carries this exact
+          LIC Customer ID — Admin only
+        in: query
+        name: lic_customer_id
+        type: string
       produces:
       - application/json
       responses:
@@ -3270,6 +3288,11 @@ paths:
         in: query
         name: is_mapped
         type: boolean
+      - description: Filter to policies whose insured family member carries this exact
+          LIC Customer ID — Admin only
+        in: query
+        name: lic_customer_id
+        type: string
       produces:
       - application/json
       responses:

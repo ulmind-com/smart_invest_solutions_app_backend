@@ -11,13 +11,15 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
+const familyMembersCollection = "family_members"
+
 type familyMemberRepository struct {
 	collection *mongo.Collection
 }
 
 // NewFamilyMemberRepository initializes a new FamilyMemberRepository.
 func NewFamilyMemberRepository(db *mongo.Database) domain.FamilyMemberRepository {
-	col := db.Collection("family_members")
+	col := db.Collection(familyMembersCollection)
 
 	// Ensure index on user_id for fast queries by HOF user
 	_, _ = col.Indexes().CreateOne(context.Background(), mongo.IndexModel{
@@ -104,6 +106,9 @@ func (r *familyMemberRepository) Update(ctx context.Context, id, userID bson.Obj
 	}
 	if dto.DateOfBirth != nil {
 		updateFields["date_of_birth"] = *dto.DateOfBirth
+	}
+	if dto.LICCustomerID != nil {
+		updateFields["lic_customer_id"] = *dto.LICCustomerID
 	}
 
 	filter := bson.M{"_id": id, "user_id": userID}

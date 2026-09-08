@@ -2888,6 +2888,12 @@ const docTemplate = `{
                         "description": "Filter by mapped status — Admin only",
                         "name": "is_mapped",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter to policies whose insured family member carries this exact LIC Customer ID — Admin only",
+                        "name": "lic_customer_id",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -3190,6 +3196,12 @@ const docTemplate = `{
                         "type": "boolean",
                         "description": "Filter by mapped status — Admin only",
                         "name": "is_mapped",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter to policies whose insured family member carries this exact LIC Customer ID — Admin only",
+                        "name": "lic_customer_id",
                         "in": "query"
                     }
                 ],
@@ -5490,6 +5502,10 @@ const docTemplate = `{
                 "email": {
                     "type": "string"
                 },
+                "lic_customer_id": {
+                    "type": "string",
+                    "example": "1234567890"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -5927,6 +5943,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "id": {
+                    "type": "string"
+                },
+                "lic_customer_id": {
+                    "description": "LICCustomerID is the customer identifier LIC (or another insurer) issues to this person —\nstable across every policy they buy from that insurer, unlike the per-policy Policy Number.\nOptional; one person's many Life/Health policies all point at this same family member record,\nso this is the single place it's entered/edited (never duplicated onto individual policies).",
                     "type": "string"
                 },
                 "name": {
@@ -6670,6 +6690,10 @@ const docTemplate = `{
                 },
                 "email": {
                     "type": "string"
+                },
+                "lic_customer_id": {
+                    "type": "string",
+                    "example": "1234567890"
                 },
                 "name": {
                     "type": "string"

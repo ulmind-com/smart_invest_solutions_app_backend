@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/rs/zerolog/log"
 	"github.com/smart-invest-solutions/backend/internal/domain"
@@ -142,9 +143,9 @@ func (s *lifeInsuranceService) GetMyPolicies(ctx context.Context, requesterID st
 	return &domain.LifeInsuranceListResponse{Total: total, Data: policies}, nil
 }
 
-// GetAllPolicies returns the paginated Admin master list across every client, optionally
-// filtered to unmapped/mapped policies.
-func (s *lifeInsuranceService) GetAllPolicies(ctx context.Context, page, limit int64, isMapped *bool) ([]*domain.LifeInsuranceWithCustomer, int64, error) {
+// GetAllPolicies returns the paginated Admin master list across every client, optionally filtered
+// to unmapped/mapped policies and/or a specific insured family member's LIC Customer ID.
+func (s *lifeInsuranceService) GetAllPolicies(ctx context.Context, page, limit int64, isMapped *bool, licCustomerID string) ([]*domain.LifeInsuranceWithCustomer, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -152,7 +153,7 @@ func (s *lifeInsuranceService) GetAllPolicies(ctx context.Context, page, limit i
 		limit = 10
 	}
 
-	return s.repo.GetAll(ctx, page, limit, isMapped)
+	return s.repo.GetAll(ctx, page, limit, isMapped, strings.TrimSpace(licCustomerID))
 }
 
 // UpdatePolicy modifies an existing policy, enforcing ownership for client requesters,

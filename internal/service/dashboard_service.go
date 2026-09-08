@@ -191,22 +191,22 @@ func (s *dashboardService) GetAdminDashboard(ctx context.Context, requesterRole,
 		return err
 	})
 	g.Go(func() error {
-		_, total, err := s.lifeInsuranceRepo.GetAll(gctx, 1, 1, &mappedFilter)
+		_, total, err := s.lifeInsuranceRepo.GetAll(gctx, 1, 1, &mappedFilter, "")
 		lifeMapped = total
 		return err
 	})
 	g.Go(func() error {
-		_, total, err := s.lifeInsuranceRepo.GetAll(gctx, 1, 1, &unmappedFilter)
+		_, total, err := s.lifeInsuranceRepo.GetAll(gctx, 1, 1, &unmappedFilter, "")
 		lifeUnmapped = total
 		return err
 	})
 	g.Go(func() error {
-		_, total, err := s.healthInsuranceRepo.GetAll(gctx, 1, 1, &mappedFilter)
+		_, total, err := s.healthInsuranceRepo.GetAll(gctx, 1, 1, &mappedFilter, "")
 		healthMapped = total
 		return err
 	})
 	g.Go(func() error {
-		_, total, err := s.healthInsuranceRepo.GetAll(gctx, 1, 1, &unmappedFilter)
+		_, total, err := s.healthInsuranceRepo.GetAll(gctx, 1, 1, &unmappedFilter, "")
 		healthUnmapped = total
 		return err
 	})

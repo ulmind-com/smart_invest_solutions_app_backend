@@ -93,25 +93,53 @@ func (r *healthInsuranceRepository) GetByUserID(ctx context.Context, userID bson
 }
 
 // GetAll retrieves a paginated master list of every health insurance policy across all clients,
-// optionally filtered by is_mapped, each row enriched (via $lookup on the users collection) with
-// the owning customer's name and contact number for the Admin dashboard view.
-func (r *healthInsuranceRepository) GetAll(ctx context.Context, page, limit int64, isMapped *bool) ([]*domain.HealthInsuranceWithCustomer, int64, error) {
+// optionally filtered by is_mapped and/or the insured family member's LIC Customer ID, each row
+// enriched (via $lookup) with the owning customer's name/contact and that Customer ID — the latter
+// is looked up live from family_members every call, never cached, so it can never go stale.
+func (r *healthInsuranceRepository) GetAll(ctx context.Context, page, limit int64, isMapped *bool, licCustomerID string) ([]*domain.HealthInsuranceWithCustomer, int64, error) {
 	skip := (page - 1) * limit
 
-	filter := bson.M{}
+	basePipeline := mongo.Pipeline{}
 	if isMapped != nil {
-		filter["is_mapped"] = *isMapped
+		basePipeline = append(basePipeline, bson.D{{Key: "$match", Value: bson.D{{Key: "is_mapped", Value: *isMapped}}}})
+	}
+	if licCustomerID != "" {
+		basePipeline = append(basePipeline,
+			bson.D{{Key: "$lookup", Value: bson.D{
+				{Key: "from", Value: familyMembersCollection},
+				{Key: "localField", Value: "family_member_id"},
+				{Key: "foreignField", Value: "_id"},
+				{Key: "as", Value: "family"},
+			}}},
+			bson.D{{Key: "$unwind", Value: bson.D{
+				{Key: "path", Value: "$family"},
+				{Key: "preserveNullAndEmptyArrays", Value: true},
+			}}},
+			bson.D{{Key: "$match", Value: bson.D{{Key: "family.lic_customer_id", Value: licCustomerID}}}},
+		)
 	}
 
-	total, err := r.collection.CountDocuments(ctx, filter)
+	countPipeline := append(mongo.Pipeline{}, basePipeline...)
+	countPipeline = append(countPipeline, bson.D{{Key: "$count", Value: "total"}})
+
+	countCursor, err := r.collection.Aggregate(ctx, countPipeline)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to count health insurance policies: %w", err)
 	}
+	defer countCursor.Close(ctx)
 
-	pipeline := mongo.Pipeline{}
-	if isMapped != nil {
-		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.D{{Key: "is_mapped", Value: *isMapped}}}})
+	var countResult []struct {
+		Total int64 `bson:"total"`
 	}
+	if err := countCursor.All(ctx, &countResult); err != nil {
+		return nil, 0, fmt.Errorf("failed to decode health insurance policy count: %w", err)
+	}
+	var total int64
+	if len(countResult) > 0 {
+		total = countResult[0].Total
+	}
+
+	pipeline := append(mongo.Pipeline{}, basePipeline...)
 	pipeline = append(pipeline,
 		bson.D{{Key: "$sort", Value: bson.D{{Key: "created_at", Value: -1}}}},
 		bson.D{{Key: "$skip", Value: skip}},
@@ -126,6 +154,22 @@ func (r *healthInsuranceRepository) GetAll(ctx context.Context, page, limit int6
 			{Key: "path", Value: "$customer"},
 			{Key: "preserveNullAndEmptyArrays", Value: true},
 		}}},
+	)
+	if licCustomerID == "" {
+		pipeline = append(pipeline,
+			bson.D{{Key: "$lookup", Value: bson.D{
+				{Key: "from", Value: familyMembersCollection},
+				{Key: "localField", Value: "family_member_id"},
+				{Key: "foreignField", Value: "_id"},
+				{Key: "as", Value: "family"},
+			}}},
+			bson.D{{Key: "$unwind", Value: bson.D{
+				{Key: "path", Value: "$family"},
+				{Key: "preserveNullAndEmptyArrays", Value: true},
+			}}},
+		)
+	}
+	pipeline = append(pipeline,
 		bson.D{{Key: "$project", Value: bson.D{
 			{Key: "_id", Value: 1},
 			{Key: "user_id", Value: 1},
@@ -133,6 +177,7 @@ func (r *healthInsuranceRepository) GetAll(ctx context.Context, page, limit int6
 			{Key: "company_name", Value: 1},
 			{Key: "customer_name", Value: "$customer.name"},
 			{Key: "contact_no", Value: "$customer.phone"},
+			{Key: "lic_customer_id", Value: "$family.lic_customer_id"},
 			{Key: "policy_details", Value: 1},
 			{Key: "premium_details", Value: 1},
 			{Key: "is_mapped", Value: 1},

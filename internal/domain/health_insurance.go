@@ -43,12 +43,15 @@ type HealthInsurance struct {
 // HealthInsuranceWithCustomer represents a health insurance policy enriched with the owning
 // customer's name and contact number — used for the Admin master list view.
 type HealthInsuranceWithCustomer struct {
-	ID             bson.ObjectID        `bson:"_id" json:"id"`
-	UserID         bson.ObjectID        `bson:"user_id" json:"user_id"`
-	FamilyMemberID bson.ObjectID        `bson:"family_member_id" json:"family_member_id"`
-	CompanyName    string               `bson:"company_name" json:"company_name"`
-	CustomerName   string               `bson:"customer_name" json:"customer_name"`
-	ContactNo      string               `bson:"contact_no" json:"contact_no"`
+	ID             bson.ObjectID `bson:"_id" json:"id"`
+	UserID         bson.ObjectID `bson:"user_id" json:"user_id"`
+	FamilyMemberID bson.ObjectID `bson:"family_member_id" json:"family_member_id"`
+	CompanyName    string        `bson:"company_name" json:"company_name"`
+	CustomerName   string        `bson:"customer_name" json:"customer_name"`
+	ContactNo      string        `bson:"contact_no" json:"contact_no"`
+	// LICCustomerID is looked up live from the insured family member's record (never cached on the
+	// policy itself), so editing it on the family member instantly reflects here with no staleness.
+	LICCustomerID  string               `bson:"lic_customer_id,omitempty" json:"lic_customer_id,omitempty"`
 	PolicyDetails  HealthPolicyDetails  `bson:"policy_details" json:"policy_details"`
 	PremiumDetails HealthPremiumDetails `bson:"premium_details" json:"premium_details"`
 	IsMapped       bool                 `bson:"is_mapped" json:"is_mapped"`
@@ -120,7 +123,9 @@ type HealthInsuranceRepository interface {
 	Create(ctx context.Context, policy *HealthInsurance) (*HealthInsurance, error)
 	GetByID(ctx context.Context, id bson.ObjectID) (*HealthInsurance, error)
 	GetByUserID(ctx context.Context, userID bson.ObjectID) ([]*HealthInsurance, int64, error)
-	GetAll(ctx context.Context, page, limit int64, isMapped *bool) ([]*HealthInsuranceWithCustomer, int64, error)
+	// licCustomerID, when non-empty, restricts results to policies whose insured family member
+	// carries that exact LIC Customer ID — the "one ID, many policies" lookup.
+	GetAll(ctx context.Context, page, limit int64, isMapped *bool, licCustomerID string) ([]*HealthInsuranceWithCustomer, int64, error)
 	Update(ctx context.Context, id bson.ObjectID, dto *UpdateHealthInsuranceDTO) (*HealthInsurance, error)
 	Delete(ctx context.Context, id bson.ObjectID) error
 	DeleteAllByUserID(ctx context.Context, userID bson.ObjectID) error
@@ -131,7 +136,7 @@ type HealthInsuranceService interface {
 	CreatePolicy(ctx context.Context, requesterRole, requesterID string, dto *CreateHealthInsuranceDTO) (*HealthInsurance, error)
 	GetPolicyByID(ctx context.Context, requesterRole, requesterID, idStr string) (*HealthInsurance, error)
 	GetMyPolicies(ctx context.Context, requesterID string) (*HealthInsuranceListResponse, error)
-	GetAllPolicies(ctx context.Context, page, limit int64, isMapped *bool) ([]*HealthInsuranceWithCustomer, int64, error)
+	GetAllPolicies(ctx context.Context, page, limit int64, isMapped *bool, licCustomerID string) ([]*HealthInsuranceWithCustomer, int64, error)
 	UpdatePolicy(ctx context.Context, requesterRole, requesterID, idStr string, dto *UpdateHealthInsuranceDTO) (*HealthInsurance, error)
 	DeletePolicy(ctx context.Context, requesterRole, requesterID, idStr string) error
 	DeleteAllByUserID(ctx context.Context, userIDStr string) error
