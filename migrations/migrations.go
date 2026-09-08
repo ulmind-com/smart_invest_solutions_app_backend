@@ -226,6 +226,23 @@ func GetMigrations(cfg *config.Config) []Migration {
 				return err
 			},
 		},
+		{
+			Version:     7,
+			Description: "Create sparse index on family_members.lic_customer_id",
+			Up: func(ctx context.Context, db *mongo.Database) error {
+				collection := db.Collection("family_members")
+
+				// Sparse because most family members never have this set — only relevant when
+				// they've bought a policy from an insurer (LIC or otherwise) that issued them one.
+				licIndex := mongo.IndexModel{
+					Keys:    bson.D{{Key: "lic_customer_id", Value: 1}},
+					Options: options.Index().SetSparse(true),
+				}
+
+				_, err := collection.Indexes().CreateOne(ctx, licIndex)
+				return err
+			},
+		},
 	}
 }
 

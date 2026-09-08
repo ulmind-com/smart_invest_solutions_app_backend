@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/smart-invest-solutions/backend/internal/domain"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -34,6 +35,7 @@ func (s *familyMemberService) AddMember(ctx context.Context, userIDStr string, d
 		Email:           dto.Email,
 		BloodGroup:      dto.BloodGroup,
 		DateOfBirth:     dto.DateOfBirth,
+		LICCustomerID:   strings.TrimSpace(dto.LICCustomerID),
 	}
 
 	return s.repo.Create(ctx, member)
@@ -91,6 +93,11 @@ func (s *familyMemberService) UpdateMember(ctx context.Context, idStr, userIDStr
 	userID, err := bson.ObjectIDFromHex(userIDStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid user ID format: %w", err)
+	}
+
+	if dto.LICCustomerID != nil {
+		trimmed := strings.TrimSpace(*dto.LICCustomerID)
+		dto.LICCustomerID = &trimmed
 	}
 
 	return s.repo.Update(ctx, id, userID, dto)

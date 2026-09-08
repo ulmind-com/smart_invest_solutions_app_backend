@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/rs/zerolog/log"
 	"github.com/smart-invest-solutions/backend/internal/domain"
@@ -140,7 +141,7 @@ func (s *healthInsuranceService) GetMyPolicies(ctx context.Context, requesterID 
 
 // GetAllPolicies returns the paginated Admin master list across every client, optionally
 // filtered to unmapped/mapped policies.
-func (s *healthInsuranceService) GetAllPolicies(ctx context.Context, page, limit int64, isMapped *bool) ([]*domain.HealthInsuranceWithCustomer, int64, error) {
+func (s *healthInsuranceService) GetAllPolicies(ctx context.Context, page, limit int64, isMapped *bool, licCustomerID string) ([]*domain.HealthInsuranceWithCustomer, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -148,7 +149,7 @@ func (s *healthInsuranceService) GetAllPolicies(ctx context.Context, page, limit
 		limit = 10
 	}
 
-	return s.repo.GetAll(ctx, page, limit, isMapped)
+	return s.repo.GetAll(ctx, page, limit, isMapped, strings.TrimSpace(licCustomerID))
 }
 
 // UpdatePolicy modifies an existing policy, enforcing ownership for client requesters,
