@@ -302,6 +302,18 @@ func (r *lifeInsuranceRepository) DeleteAllByUserID(ctx context.Context, userID 
 	return err
 }
 
+// ReassignOwner moves every policy owned by fromUserID to toUserID — used by MergeFamilyAccounts.
+func (r *lifeInsuranceRepository) ReassignOwner(ctx context.Context, fromUserID, toUserID bson.ObjectID) (int64, error) {
+	result, err := r.collection.UpdateMany(ctx,
+		bson.M{"user_id": fromUserID},
+		bson.M{"$set": bson.M{"user_id": toUserID, "updated_at": time.Now().UTC()}},
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to reassign life insurance policies: %w", err)
+	}
+	return result.ModifiedCount, nil
+}
+
 // BulkUpdateFromSync performs bulk updates of life insurance policies from parsed LIC sync records.
 // It performs an unordered bulk write, so a failure on one record does not block the rest: the
 // modified count and the count of individually failed records are both returned. err is only set

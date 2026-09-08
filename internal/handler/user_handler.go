@@ -672,3 +672,40 @@ func (h *UserHandler) SendAdminExpiryAlert(c *gin.Context) {
 
 	response.Success(c, "Expiry alert email sent successfully", nil)
 }
+
+// MergeFamilyAccounts handles folding a "secondary" client account's data into a "primary" client
+// account and permanently retiring the secondary's login. Super Admin only.
+// @Summary      Merge two client accounts into one family (Super Admin only)
+// @Description  Moves every family member, Life/Health/General policy, Fixed Deposit, E-Vault document, and support ticket owned by secondary_user_id onto primary_user_id, then deactivates the secondary account and marks it merged — it can never sign in again, but nothing is deleted. Both accounts must currently be role=client and neither may already be on either side of an earlier merge. Only accessible by super_admin.
+// @Tags         Admin Accounts
+// @Accept       json
+// @Produce      json
+// @Param        request  body      domain.MergeFamilyAccountsRequest  true  "Primary and secondary account IDs"
+// @Success      200      {object}  response.APIResponse{data=domain.MergeFamilyAccountsResult}  "Accounts merged successfully"
+// @Failure      400      {object}  response.APIResponse  "Bad request (e.g. same account twice, non-client role, or an account already merged)"
+// @Failure      401      {object}  response.APIResponse  "Unauthorized"
+// @Failure      403      {object}  response.APIResponse  "Forbidden — super_admin role required"
+// @Failure      422      {object}  response.APIResponse  "Validation error"
+// @Security     BearerAuth
+// @Router       /admins/merge-family [post]
+func (h *UserHandler) MergeFamilyAccounts(c *gin.Context) {
+	requesterID, ok := middleware.GetUserID(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var req domain.MergeFamilyAccountsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ValidationError(c, err.Error())
+		return
+	}
+
+	result, err := h.userService.MergeFamilyAccounts(c.Request.Context(), requesterID, &req)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	response.Success(c, "Accounts merged successfully", result)
+}

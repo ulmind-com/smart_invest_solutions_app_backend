@@ -259,3 +259,15 @@ func (r *fixedDepositRepository) DeleteAllByUserID(ctx context.Context, userID b
 	_, err := r.collection.DeleteMany(ctx, bson.M{"user_id": userID})
 	return err
 }
+
+// ReassignOwner moves every FD owned by fromUserID to toUserID — used by MergeFamilyAccounts.
+func (r *fixedDepositRepository) ReassignOwner(ctx context.Context, fromUserID, toUserID bson.ObjectID) (int64, error) {
+	result, err := r.collection.UpdateMany(ctx,
+		bson.M{"user_id": fromUserID},
+		bson.M{"$set": bson.M{"user_id": toUserID, "updated_at": time.Now().UTC()}},
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to reassign fixed deposits: %w", err)
+	}
+	return result.ModifiedCount, nil
+}

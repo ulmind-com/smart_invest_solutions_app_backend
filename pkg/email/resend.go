@@ -25,6 +25,7 @@ type EmailService interface {
 	SendAdminCredentialsEmail(ctx context.Context, toEmail, name, adminID, password, pin string) error
 	SendAdminExpiryAlertEmail(ctx context.Context, toEmail, name string, expiryDate time.Time) error
 	SendAdminExpiryRenewedEmail(ctx context.Context, toEmail, name string, newExpiryDate time.Time) error
+	SendAccountMergedEmail(ctx context.Context, toEmail, name, primaryName string) error
 }
 
 // ResendService implements EmailService using the Resend HTTP API.
@@ -458,6 +459,50 @@ func (s *ResendService) SendAdminExpiryRenewedEmail(ctx context.Context, toEmail
 </body>
 </html>
 `, name, newExpiryDate.Format("02 Jan 2006"))
+
+	return s.sendResendRequest(ctx, subject, toEmail, htmlBody)
+}
+
+// SendAccountMergedEmail notifies a client whose account was folded into another (via a Super
+// Admin's Family Merge) that their login is now retired and their records live under the other
+// account going forward.
+func (s *ResendService) SendAccountMergedEmail(ctx context.Context, toEmail, name, primaryName string) error {
+	subject := "Your Smart Invest Solutions account has been merged"
+
+	htmlBody := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0f172a; margin: 0; padding: 20px; color: #f8fafc; }
+        .container { max-width: 550px; margin: 0 auto; background: #1e293b; border-radius: 16px; padding: 30px; border: 1px solid #334155; }
+        .header { text-align: center; margin-bottom: 24px; }
+        .header h1 { color: #38bdf8; font-size: 24px; margin: 0; }
+        .info-box { background: #0f172a; border-left: 4px solid #6366f1; border-radius: 8px; padding: 20px; margin: 20px 0; }
+        .footer { text-align: center; margin-top: 24px; font-size: 12px; color: #64748b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Smart Invest Solutions</h1>
+            <p style="color: #94a3b8; font-size: 14px; margin-top: 4px;">Account Update</p>
+        </div>
+
+        <h2>Hello %s,</h2>
+        <div class="info-box">
+            <p style="font-size: 14px; color: #f8fafc; margin: 0;">
+                Your agency has combined your account with <strong>%s</strong>'s account into a single family account, at your advisor's request. Your family members, policies, deposits, documents, and support history have all been moved over — nothing has been deleted.
+            </p>
+        </div>
+        <p style="font-size: 14px; color: #cbd5e1;">This login is now retired. Please use the <strong>%s</strong> account to access everything going forward. If this doesn't sound right, contact your advisor immediately.</p>
+
+        <div class="footer">&copy; Smart Invest Solutions. All rights reserved.</div>
+    </div>
+</body>
+</html>
+`, name, primaryName, primaryName)
 
 	return s.sendResendRequest(ctx, subject, toEmail, htmlBody)
 }

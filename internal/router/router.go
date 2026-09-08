@@ -167,6 +167,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 				protectedAdmins.GET("/expiring", userHandler.ListExpiringAdmins)
 				protectedAdmins.PUT("/:id/expiry", userHandler.RenewAdminExpiry)
 				protectedAdmins.POST("/:id/send-expiry-alert", userHandler.SendAdminExpiryAlert)
+				protectedAdmins.POST("/merge-family", userHandler.MergeFamilyAccounts)
 			}
 		}
 

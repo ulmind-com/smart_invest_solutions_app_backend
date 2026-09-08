@@ -129,6 +129,9 @@ type HealthInsuranceRepository interface {
 	Update(ctx context.Context, id bson.ObjectID, dto *UpdateHealthInsuranceDTO) (*HealthInsurance, error)
 	Delete(ctx context.Context, id bson.ObjectID) error
 	DeleteAllByUserID(ctx context.Context, userID bson.ObjectID) error
+	// ReassignOwner moves every policy owned by fromUserID to toUserID — used by
+	// MergeFamilyAccounts — and returns how many records were moved.
+	ReassignOwner(ctx context.Context, fromUserID, toUserID bson.ObjectID) (int64, error)
 }
 
 // HealthInsuranceService defines business logic operations for health insurance policies.

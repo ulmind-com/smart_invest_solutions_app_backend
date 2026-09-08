@@ -83,6 +83,16 @@ func checkAdminExpiry(user *domain.User) error {
 	return nil
 }
 
+// checkMergedAccount rejects login for an account that has been folded into another via
+// MergeFamilyAccounts. This is checked independently of IsActive — a merged account is retired for
+// good, even if its is_active flag were somehow flipped back to true by mistake.
+func checkMergedAccount(user *domain.User) error {
+	if user.MergedIntoUserID != nil {
+		return fmt.Errorf("this account has been merged into another family account. Please sign in with that account instead")
+	}
+	return nil
+}
+
 // userService implements domain.UserService.
 type userService struct {
 	userRepo             domain.UserRepository
@@ -272,6 +282,13 @@ func (s *userService) Login(ctx context.Context, req *domain.UserLoginRequest) (
 	if user.LockedUntil != nil && user.LockedUntil.After(time.Now().UTC()) {
 		remaining := time.Until(*user.LockedUntil).Round(time.Minute)
 		return nil, fmt.Errorf("account temporarily locked due to multiple failed login attempts. Try again in %s", remaining)
+	}
+
+	// Checked before every other state check: a merged account is a terminal state — nothing else
+	// about it (email verification, active flag) is worth surfacing once it's been folded into
+	// another account.
+	if err := checkMergedAccount(user); err != nil {
+		return nil, err
 	}
 
 	// Check if email has been verified via OTP
@@ -964,4 +981,130 @@ func (s *userService) SendAdminExpiryAlert(ctx context.Context, targetID string)
 	}
 
 	return s.userRepo.RecordExpiryAlertSent(ctx, objectID)
+}
+
+// MergeFamilyAccounts folds a "secondary" client account's entire data — family members, Life/
+// Health/General policies, Fixed Deposits, E-Vault documents, and support tickets — into a
+// "primary" client account, then permanently retires the secondary account's login. Nothing is
+// deleted: every record is reassigned (never removed), and the secondary account is deactivated and
+// stamped with MergedIntoUserID rather than wiped, so the operation stays inspectable and, in
+// principle, reversible by hand if a Super Admin ever needs to.
+//
+// Each reassignment step is independently idempotent (it only ever matches records still owned by
+// the secondary account), so if this call fails partway through — e.g. after moving family members
+// but before moving policies — it is always safe to call it again with the same two accounts: the
+// already-moved records simply won't match a second time.
+func (s *userService) MergeFamilyAccounts(ctx context.Context, requesterID string, req *domain.MergeFamilyAccountsRequest) (*domain.MergeFamilyAccountsResult, error) {
+	primaryID, err := bson.ObjectIDFromHex(req.PrimaryUserID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid primary account ID format: %w", err)
+	}
+	secondaryID, err := bson.ObjectIDFromHex(req.SecondaryUserID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid secondary account ID format: %w", err)
+	}
+	if primaryID == secondaryID {
+		return nil, fmt.Errorf("cannot merge an account with itself")
+	}
+
+	primary, err := s.userRepo.FindByID(ctx, primaryID)
+	if err != nil || primary == nil {
+		return nil, fmt.Errorf("primary account not found")
+	}
+	secondary, err := s.userRepo.FindByID(ctx, secondaryID)
+	if err != nil || secondary == nil {
+		return nil, fmt.Errorf("secondary account not found")
+	}
+
+	if primary.Role != domain.RoleClient || secondary.Role != domain.RoleClient {
+		return nil, fmt.Errorf("only client accounts can be merged, not admin or super_admin accounts")
+	}
+	if primary.MergedIntoUserID != nil {
+		return nil, fmt.Errorf("the primary account has itself already been merged into another account — pick the account it was merged into instead")
+	}
+	if secondary.MergedIntoUserID != nil {
+		return nil, fmt.Errorf("the secondary account has already been merged into another account")
+	}
+
+	result := &domain.MergeFamilyAccountsResult{}
+
+	if s.familyMemberRepo != nil {
+		n, err := s.familyMemberRepo.ReassignOwner(ctx, secondaryID, primaryID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to move family members: %w", err)
+		}
+		result.FamilyMembersMoved = n
+	}
+	if s.lifeInsuranceRepo != nil {
+		n, err := s.lifeInsuranceRepo.ReassignOwner(ctx, secondaryID, primaryID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to move life insurance policies: %w", err)
+		}
+		result.LifePoliciesMoved = n
+	}
+	if s.healthInsuranceRepo != nil {
+		n, err := s.healthInsuranceRepo.ReassignOwner(ctx, secondaryID, primaryID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to move health insurance policies: %w", err)
+		}
+		result.HealthPoliciesMoved = n
+	}
+	if s.generalInsuranceRepo != nil {
+		n, err := s.generalInsuranceRepo.ReassignOwner(ctx, secondaryID, primaryID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to move general (motor) insurance policies: %w", err)
+		}
+		result.GeneralPoliciesMoved = n
+	}
+	if s.fixedDepositRepo != nil {
+		n, err := s.fixedDepositRepo.ReassignOwner(ctx, secondaryID, primaryID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to move fixed deposits: %w", err)
+		}
+		result.FixedDepositsMoved = n
+	}
+	if s.documentRepo != nil {
+		n, err := s.documentRepo.ReassignOwner(ctx, secondaryID, primaryID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to move E-Vault documents: %w", err)
+		}
+		result.DocumentsMoved = n
+	}
+	if s.supportTicketRepo != nil {
+		n, err := s.supportTicketRepo.ReassignOwner(ctx, secondaryID, primaryID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to move support tickets: %w", err)
+		}
+		result.TicketsMoved = n
+	}
+
+	// Retire the secondary login last, only once every record has actually moved — see the
+	// idempotency note above for why this ordering is safe to retry.
+	if err := s.userRepo.MarkMerged(ctx, secondaryID, primaryID); err != nil {
+		return nil, fmt.Errorf("failed to deactivate the secondary account: %w", err)
+	}
+
+	if updatedPrimary, err := s.userRepo.FindByID(ctx, primaryID); err == nil && updatedPrimary != nil {
+		result.Primary = updatedPrimary.ToResponse()
+	} else {
+		result.Primary = primary.ToResponse()
+	}
+
+	log.Info().
+		Str("requester_id", requesterID).
+		Str("primary_user_id", primaryID.Hex()).
+		Str("secondary_user_id", secondaryID.Hex()).
+		Str("secondary_email", secondary.Email).
+		Msg("[SECURITY AUDIT] Super Admin merged two client accounts")
+
+	if s.emailSvc != nil {
+		toEmail, toName, primaryName := secondary.Email, secondary.Name, primary.Name
+		go func() {
+			if err := s.emailSvc.SendAccountMergedEmail(context.Background(), toEmail, toName, primaryName); err != nil {
+				log.Error().Err(err).Str("email", toEmail).Msg("failed to send account-merged notification email")
+			}
+		}()
+	}
+
+	return result, nil
 }

@@ -144,6 +144,18 @@ func (r *generalInsuranceRepository) DeleteAllByUserID(ctx context.Context, user
 	return err
 }
 
+// ReassignOwner moves every policy owned by fromUserID to toUserID — used by MergeFamilyAccounts.
+func (r *generalInsuranceRepository) ReassignOwner(ctx context.Context, fromUserID, toUserID bson.ObjectID) (int64, error) {
+	result, err := r.collection.UpdateMany(ctx,
+		bson.M{"user_id": fromUserID},
+		bson.M{"$set": bson.M{"user_id": toUserID, "updated_at": time.Now().UTC()}},
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to reassign general insurance policies: %w", err)
+	}
+	return result.ModifiedCount, nil
+}
+
 // FindAllAdmin retrieves a paginated master list of every general insurance policy across all
 // clients, each row enriched (via $lookup on the users collection) with the owning customer's
 // name and contact number — this is what powers the Admin "who has which policy" dashboard view.

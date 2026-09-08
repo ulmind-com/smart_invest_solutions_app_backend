@@ -42,8 +42,12 @@ type User struct {
 	// LastExpiryAlertSentAt throttles the Super Admin's manual "send expiry alert" action to at
 	// most once per cooldown window, so repeated taps don't flood the admin's inbox.
 	LastExpiryAlertSentAt *time.Time `bson:"last_expiry_alert_sent_at,omitempty" json:"-"`
-	CreatedAt             time.Time  `bson:"created_at" json:"created_at"`
-	UpdatedAt             time.Time  `bson:"updated_at" json:"updated_at"`
+	// MergedIntoUserID is set only on the "secondary" side of a Family Merge (see
+	// MergeFamilyAccounts): once set, this account is retired for good — its data has been moved to
+	// the referenced account and it can never log in again, regardless of IsActive.
+	MergedIntoUserID *bson.ObjectID `bson:"merged_into_user_id,omitempty" json:"merged_into_user_id,omitempty"`
+	CreatedAt        time.Time      `bson:"created_at" json:"created_at"`
+	UpdatedAt        time.Time      `bson:"updated_at" json:"updated_at"`
 }
 
 // CreateUserRequest represents the request payload for creating a new user.
@@ -114,20 +118,21 @@ type LoginResponse struct {
 
 // UserResponse represents the response payload for a user (without sensitive data).
 type UserResponse struct {
-	ID                 bson.ObjectID `json:"id"`
-	Name               string        `json:"name"`
-	Email              string        `json:"email"`
-	Phone              string        `json:"phone,omitempty"`
-	Role               string        `json:"role"`
-	IsActive           bool          `json:"is_active"`
-	IsEmailVerified    bool          `json:"is_email_verified"`
-	AdminID            string        `json:"admin_id,omitempty"`
-	ReferralCode       string        `json:"referral_code,omitempty"`
-	AgencyID           string        `json:"agency_id,omitempty"`
-	AppValidityEndDate time.Time     `json:"app_validity_end_date,omitempty"`
-	AdminExpiryDate    *time.Time    `json:"admin_expiry_date,omitempty"`
-	CreatedAt          time.Time     `json:"created_at"`
-	UpdatedAt          time.Time     `json:"updated_at"`
+	ID                 bson.ObjectID  `json:"id"`
+	Name               string         `json:"name"`
+	Email              string         `json:"email"`
+	Phone              string         `json:"phone,omitempty"`
+	Role               string         `json:"role"`
+	IsActive           bool           `json:"is_active"`
+	IsEmailVerified    bool           `json:"is_email_verified"`
+	AdminID            string         `json:"admin_id,omitempty"`
+	ReferralCode       string         `json:"referral_code,omitempty"`
+	AgencyID           string         `json:"agency_id,omitempty"`
+	AppValidityEndDate time.Time      `json:"app_validity_end_date,omitempty"`
+	AdminExpiryDate    *time.Time     `json:"admin_expiry_date,omitempty"`
+	MergedIntoUserID   *bson.ObjectID `json:"merged_into_user_id,omitempty"`
+	CreatedAt          time.Time      `json:"created_at"`
+	UpdatedAt          time.Time      `json:"updated_at"`
 }
 
 // ToResponse converts a User entity to a UserResponse.
@@ -145,6 +150,7 @@ func (u *User) ToResponse() *UserResponse {
 		AgencyID:           u.AgencyID,
 		AppValidityEndDate: u.AppValidityEndDate,
 		AdminExpiryDate:    u.AdminExpiryDate,
+		MergedIntoUserID:   u.MergedIntoUserID,
 		CreatedAt:          u.CreatedAt,
 		UpdatedAt:          u.UpdatedAt,
 	}
@@ -164,6 +170,29 @@ type CreateAdminRequest struct {
 // expiry date forward (or otherwise change it). The new date must be in the future.
 type RenewAdminExpiryRequest struct {
 	ExpiryDate time.Time `json:"expiry_date" binding:"required" example:"2026-12-31T00:00:00Z"`
+}
+
+// MergeFamilyAccountsRequest represents the payload a Super Admin submits to fold two separately
+// registered client accounts (the same real family, two logins) into one. PrimaryUserID survives
+// and keeps its login; every record owned by SecondaryUserID (family members, policies, deposits,
+// documents, tickets) is reassigned to PrimaryUserID, after which SecondaryUserID is permanently
+// retired — deactivated and marked so it can never sign in again, but never deleted.
+type MergeFamilyAccountsRequest struct {
+	PrimaryUserID   string `json:"primary_user_id" binding:"required" example:"64f1a2b3c4d5e6f7a8b9c0d1"`
+	SecondaryUserID string `json:"secondary_user_id" binding:"required" example:"64f1a2b3c4d5e6f7a8b9c0d2"`
+}
+
+// MergeFamilyAccountsResult summarizes what moved during a family merge, returned to the Super
+// Admin as on-screen confirmation of the outcome.
+type MergeFamilyAccountsResult struct {
+	Primary              *UserResponse `json:"primary"`
+	FamilyMembersMoved   int64         `json:"family_members_moved"`
+	LifePoliciesMoved    int64         `json:"life_policies_moved"`
+	HealthPoliciesMoved  int64         `json:"health_policies_moved"`
+	GeneralPoliciesMoved int64         `json:"general_policies_moved"`
+	FixedDepositsMoved   int64         `json:"fixed_deposits_moved"`
+	DocumentsMoved       int64         `json:"documents_moved"`
+	TicketsMoved         int64         `json:"tickets_moved"`
 }
 
 // CreateAdminResponse represents the response returned after successfully creating an Admin account.
@@ -199,6 +228,9 @@ type UserRepository interface {
 	Update(ctx context.Context, id bson.ObjectID, update *UpdateUserRequest) (*User, error)
 	UpdatePassword(ctx context.Context, id bson.ObjectID, hashedPassword string) error
 	UpdatePIN(ctx context.Context, id bson.ObjectID, hashedPIN string) error
+	// MarkMerged deactivates the given account and stamps it as merged into mergedIntoID — used
+	// only by MergeFamilyAccounts, on the "secondary" side of a merge.
+	MarkMerged(ctx context.Context, id, mergedIntoID bson.ObjectID) error
 	MarkEmailVerified(ctx context.Context, id bson.ObjectID) error
 	ExtendValidity(ctx context.Context, userID bson.ObjectID, extraDays int) error
 	Delete(ctx context.Context, id bson.ObjectID) error
@@ -236,6 +268,11 @@ type UserService interface {
 	CreateAdmin(ctx context.Context, req *CreateAdminRequest) (*CreateAdminResponse, error)
 	GetAllAdmins(ctx context.Context, page, limit int64) ([]*UserResponse, int64, error)
 	DeleteAdmin(ctx context.Context, requesterID, targetID string) error
+	// MergeFamilyAccounts folds SecondaryUserID's entire data (family members, policies, deposits,
+	// documents, tickets) into PrimaryUserID and permanently retires SecondaryUserID's login. Super
+	// Admin only, enforced at the router level. Both accounts must be role=client and neither may
+	// already be on either side of a previous merge.
+	MergeFamilyAccounts(ctx context.Context, requesterID string, req *MergeFamilyAccountsRequest) (*MergeFamilyAccountsResult, error)
 	// ListExpiringAdmins returns admin accounts expiring within withinDays (or already expired),
 	// soonest-first.
 	ListExpiringAdmins(ctx context.Context, withinDays int) ([]*UserResponse, error)

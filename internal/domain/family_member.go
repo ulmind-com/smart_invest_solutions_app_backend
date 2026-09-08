@@ -62,6 +62,9 @@ type FamilyMemberRepository interface {
 	Update(ctx context.Context, id, userID bson.ObjectID, update *UpdateFamilyMemberDTO) (*FamilyMember, error)
 	Delete(ctx context.Context, id, userID bson.ObjectID) error
 	DeleteAllByUserID(ctx context.Context, userID bson.ObjectID) error
+	// ReassignOwner moves every family member owned by fromUserID to toUserID — used by
+	// MergeFamilyAccounts — and returns how many records were moved.
+	ReassignOwner(ctx context.Context, fromUserID, toUserID bson.ObjectID) (int64, error)
 }
 
 // FamilyMemberService defines business logic operations for family members.

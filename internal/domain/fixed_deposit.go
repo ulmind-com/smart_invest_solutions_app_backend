@@ -113,6 +113,9 @@ type FixedDepositRepository interface {
 	Update(ctx context.Context, id bson.ObjectID, dto *UpdateFixedDepositDTO) (*FixedDeposit, error)
 	Delete(ctx context.Context, id bson.ObjectID) error
 	DeleteAllByUserID(ctx context.Context, userID bson.ObjectID) error
+	// ReassignOwner moves every FD owned by fromUserID to toUserID — used by
+	// MergeFamilyAccounts — and returns how many records were moved.
+	ReassignOwner(ctx context.Context, fromUserID, toUserID bson.ObjectID) (int64, error)
 }
 
 // FixedDepositService defines business logic operations for Fixed Deposits.
