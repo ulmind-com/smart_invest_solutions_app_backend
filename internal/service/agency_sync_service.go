@@ -15,20 +15,31 @@ import (
 
 type agencySyncService struct {
 	lifeInsuranceRepo domain.LifeInsuranceRepository
+	userRepo          domain.UserRepository
 }
 
 // NewAgencySyncService initializes a new AgencySyncService.
-func NewAgencySyncService(lifeInsuranceRepo domain.LifeInsuranceRepository) domain.AgencySyncService {
+func NewAgencySyncService(lifeInsuranceRepo domain.LifeInsuranceRepository, userRepo domain.UserRepository) domain.AgencySyncService {
 	return &agencySyncService{
 		lifeInsuranceRepo: lifeInsuranceRepo,
+		userRepo:          userRepo,
 	}
 }
 
 // ProcessLICDueList parses an uploaded LIC Premium Due List PDF, extracts policy records,
-// calculates next due dates, reconciles with the database, and performs bulk updates.
-func (s *agencySyncService) ProcessLICDueList(ctx context.Context, fileBytes []byte) (*domain.SyncResultDTO, error) {
+// calculates next due dates, reconciles with the database, and performs bulk updates — restricted
+// to the calling admin's own agency (same resolveCallerAgencyID pattern used everywhere else), so
+// a policy number that happens to coincide with another agency's client is never touched. This
+// endpoint is admin-only (never super_admin, enforced in the handler), so an unresolved agency
+// fails closed rather than silently falling through to an unrestricted sync.
+func (s *agencySyncService) ProcessLICDueList(ctx context.Context, requesterRole, requesterID string, fileBytes []byte) (*domain.SyncResultDTO, error) {
 	if len(fileBytes) == 0 {
 		return nil, fmt.Errorf("uploaded file is empty")
+	}
+
+	agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
+	if requesterRole == domain.RoleAdmin && agencyFilter == "" {
+		return nil, fmt.Errorf("unable to resolve your agency — contact support")
 	}
 
 	// Step 1: Extract raw text from PDF bytes
@@ -42,12 +53,14 @@ func (s *agencySyncService) ProcessLICDueList(ctx context.Context, fileBytes []b
 	}
 
 	// Step 2: Extract policy records from raw text
-	parsedRecords := parseLICRecordsFromText(rawText)
+	parsedRecords, unparsedPolicyNos := parseLICRecordsFromText(rawText)
 	if len(parsedRecords) == 0 {
 		return &domain.SyncResultDTO{
 			TotalPoliciesFoundInPDF: 0,
 			SuccessfullyUpdatedInDB: 0,
+			UnparsedPolicyNumbers:   unparsedPolicyNos,
 			UnmappedPolicies:        []domain.UnmappedPolicy{},
+			FailedPolicies:          []domain.FailedSyncPolicy{},
 		}, nil
 	}
 
@@ -58,7 +71,7 @@ func (s *agencySyncService) ProcessLICDueList(ctx context.Context, fileBytes []b
 	}
 
 	// Step 4: Reconcile policy numbers against MongoDB database
-	existingMap, err := s.lifeInsuranceRepo.GetExistingPolicyNumbers(ctx, policyNos)
+	existingMap, err := s.lifeInsuranceRepo.GetExistingPolicyNumbers(ctx, policyNos, agencyFilter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query existing policies from database: %w", err)
 	}
@@ -84,18 +97,23 @@ func (s *agencySyncService) ProcessLICDueList(ctx context.Context, fileBytes []b
 
 	// Step 5: Perform bulk database updates for matched records
 	var updatedCount int64
-	var failedCount int
+	var failedPolicies []domain.FailedSyncPolicy
 	if len(matchedRecords) > 0 {
-		updatedCount, failedCount, err = s.lifeInsuranceRepo.BulkUpdateFromSync(ctx, matchedRecords)
+		updatedCount, failedPolicies, err = s.lifeInsuranceRepo.BulkUpdateFromSync(ctx, matchedRecords, agencyFilter)
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute bulk update: %w", err)
 		}
+	}
+	if failedPolicies == nil {
+		failedPolicies = []domain.FailedSyncPolicy{}
 	}
 
 	return &domain.SyncResultDTO{
 		TotalPoliciesFoundInPDF: len(parsedRecords),
 		SuccessfullyUpdatedInDB: int(updatedCount),
-		FailedToUpdateInDB:      failedCount,
+		FailedToUpdateInDB:      len(failedPolicies),
+		FailedPolicies:          failedPolicies,
+		UnparsedPolicyNumbers:   unparsedPolicyNos,
 		UnmappedPolicies:        unmappedPolicies,
 	}, nil
 }
@@ -134,8 +152,12 @@ func extractTextFromPDF(fileBytes []byte) (string, error) {
 	return buf.String(), nil
 }
 
-// parseLICRecordsFromText extracts structured LIC records using regex strategy & Date Math.
-func parseLICRecordsFromText(rawText string) []domain.LICParsedRecord {
+// parseLICRecordsFromText extracts structured LIC records using regex strategy & Date Math. The
+// second return value lists every 9-digit policy number the fallback pass located in the text but
+// could not fully parse (missing a DOC or FUP date nearby) — these used to be dropped with zero
+// trace; now the admin can see that something was found in the PDF for that policy number, even
+// though it couldn't be reconciled automatically.
+func parseLICRecordsFromText(rawText string) ([]domain.LICParsedRecord, []string) {
 	// Normalize text: replace newlines, tabs, and vertical bars with spaces
 	normalized := strings.ReplaceAll(rawText, "\r\n", " ")
 	normalized = strings.ReplaceAll(normalized, "\n", " ")
@@ -187,6 +209,8 @@ func parseLICRecordsFromText(rawText string) []domain.LICParsedRecord {
 	fupRegex := regexp.MustCompile(`\b(\d{1,2}/\d{4})\b`)
 	numRegex := regexp.MustCompile(`\b(\d{3,7}(?:\.\d{1,2})?)\b`)
 
+	var unparsedPolicyNos []string
+
 	for _, loc := range policyLocs {
 		policyNo := normalized[loc[0]:loc[1]]
 		if _, exists := recordMap[policyNo]; exists {
@@ -204,7 +228,12 @@ func parseLICRecordsFromText(rawText string) []domain.LICParsedRecord {
 		modeMatch := modeRegex.FindString(window)
 		fupMatch := fupRegex.FindString(window)
 
-		if docMatch != "" && fupMatch != "" {
+		if docMatch == "" || fupMatch == "" {
+			unparsedPolicyNos = append(unparsedPolicyNos, policyNo)
+			continue
+		}
+
+		{
 			numMatches := numRegex.FindAllString(window, -1)
 			var premium float64
 			for _, n := range numMatches {
@@ -245,7 +274,7 @@ func parseLICRecordsFromText(rawText string) []domain.LICParsedRecord {
 		records = append(records, rec)
 	}
 
-	return records
+	return records, unparsedPolicyNos
 }
 
 // calculateNextDueDate implements the required Date Math logic:

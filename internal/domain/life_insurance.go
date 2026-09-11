@@ -114,13 +114,13 @@ type UpdateLifeInsuranceDTO struct {
 	PolicyNo     *string    `json:"policy_no,omitempty"`
 	PlanName     *string    `json:"plan_name,omitempty"`
 	NomineeName  *string    `json:"nominee_name,omitempty"`
-	SumAssured   *float64   `json:"sum_assured,omitempty"`
-	Term         *int       `json:"term,omitempty"`
-	PPT          *int       `json:"ppt,omitempty"`
+	SumAssured   *float64   `json:"sum_assured,omitempty" binding:"omitempty,gt=0"`
+	Term         *int       `json:"term,omitempty" binding:"omitempty,gt=0"`
+	PPT          *int       `json:"ppt,omitempty" binding:"omitempty,gt=0"`
 	DOC          *time.Time `json:"doc,omitempty"`
 	MaturityDate *time.Time `json:"maturity_date,omitempty"`
 
-	InstallmentPremium *float64   `json:"installment_premium,omitempty"`
+	InstallmentPremium *float64   `json:"installment_premium,omitempty" binding:"omitempty,gt=0"`
 	NextDueDate        *time.Time `json:"next_due_date,omitempty"`
 	PaymentMode        *string    `json:"payment_mode,omitempty" binding:"omitempty,oneof=Yearly Half-Yearly Quarterly Monthly"`
 
@@ -150,10 +150,13 @@ type LifeInsuranceRepository interface {
 	Delete(ctx context.Context, id bson.ObjectID) error
 	DeleteAllByUserID(ctx context.Context, userID bson.ObjectID) error
 	// BulkUpdateFromSync performs an unordered bulk update and returns the number of policies
-	// successfully modified along with the number that failed individually. A non-nil error is
-	// only returned for failures affecting the whole operation (e.g. connectivity issues).
-	BulkUpdateFromSync(ctx context.Context, records []LICParsedRecord) (modifiedCount int64, failedCount int, err error)
-	GetExistingPolicyNumbers(ctx context.Context, policyNos []string) (map[string]bool, error)
+	// successfully modified along with exactly which policy numbers failed individually and why. A
+	// non-nil error is only returned for failures affecting the whole operation (e.g. connectivity
+	// issues). agencyID, when non-empty, restricts every write to that agency's own clients'
+	// policies.
+	BulkUpdateFromSync(ctx context.Context, records []LICParsedRecord, agencyID string) (modifiedCount int64, failedPolicies []FailedSyncPolicy, err error)
+	// agencyID, when non-empty, restricts the check to that agency's own clients' policies.
+	GetExistingPolicyNumbers(ctx context.Context, policyNos []string, agencyID string) (map[string]bool, error)
 	// ReassignOwner moves every policy owned by fromUserID to toUserID — used by
 	// MergeFamilyAccounts — and returns how many records were moved.
 	ReassignOwner(ctx context.Context, fromUserID, toUserID bson.ObjectID) (int64, error)
@@ -164,6 +167,10 @@ type LifeInsuranceService interface {
 	CreatePolicy(ctx context.Context, requesterRole, requesterID string, dto *CreateLifeInsuranceDTO) (*LifeInsurance, error)
 	GetPolicyByID(ctx context.Context, requesterRole, requesterID, idStr string) (*LifeInsurance, error)
 	GetMyPolicies(ctx context.Context, requesterID string) (*LifeInsuranceListResponse, error)
+	// GetPoliciesByUserIDAdmin lets admin/super_admin view a specific client's full, unpaginated
+	// policy list (used by the client-detail "Holdings" view) — a plain admin may only target a
+	// client under their own agency.
+	GetPoliciesByUserIDAdmin(ctx context.Context, requesterRole, requesterID, targetUserIDStr string) (*LifeInsuranceListResponse, error)
 	GetAllPolicies(ctx context.Context, requesterRole, requesterID string, page, limit int64, isMapped *bool, licCustomerID string) ([]*LifeInsuranceWithCustomer, int64, error)
 	UpdatePolicy(ctx context.Context, requesterRole, requesterID, idStr string, dto *UpdateLifeInsuranceDTO) (*LifeInsurance, error)
 	DeletePolicy(ctx context.Context, requesterRole, requesterID, idStr string) error

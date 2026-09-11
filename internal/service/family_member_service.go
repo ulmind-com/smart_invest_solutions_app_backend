@@ -10,13 +10,15 @@ import (
 )
 
 type familyMemberService struct {
-	repo domain.FamilyMemberRepository
+	repo     domain.FamilyMemberRepository
+	userRepo domain.UserRepository
 }
 
 // NewFamilyMemberService creates a new instance of FamilyMemberService.
-func NewFamilyMemberService(repo domain.FamilyMemberRepository) domain.FamilyMemberService {
+func NewFamilyMemberService(repo domain.FamilyMemberRepository, userRepo domain.UserRepository) domain.FamilyMemberService {
 	return &familyMemberService{
-		repo: repo,
+		repo:     repo,
+		userRepo: userRepo,
 	}
 }
 
@@ -118,11 +120,24 @@ func (s *familyMemberService) DeleteMember(ctx context.Context, idStr, userIDStr
 	return s.repo.Delete(ctx, id, userID)
 }
 
-// GetMembersByUserIDAdmin allows admins to view family members of any user.
-func (s *familyMemberService) GetMembersByUserIDAdmin(ctx context.Context, targetUserIDStr string) (*domain.FamilyMemberListResponse, error) {
+// GetMembersByUserIDAdmin allows admin/super_admin to view family members of any user. A plain
+// admin may only look up a client belonging to their own agency (same resolveCallerAgencyID/
+// canAccessAgencyScopedRecord pattern used everywhere else).
+func (s *familyMemberService) GetMembersByUserIDAdmin(ctx context.Context, requesterRole, requesterID, targetUserIDStr string) (*domain.FamilyMemberListResponse, error) {
 	targetUserID, err := bson.ObjectIDFromHex(targetUserIDStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid target user ID format: %w", err)
+	}
+
+	if requesterRole == domain.RoleAdmin {
+		targetUser, err := s.userRepo.FindByID(ctx, targetUserID)
+		if err != nil || targetUser == nil {
+			return nil, fmt.Errorf("user not found")
+		}
+		agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
+		if !canAccessAgencyScopedRecord(requesterRole, agencyFilter, targetUser.AgencyID) {
+			return nil, fmt.Errorf("user not found")
+		}
 	}
 
 	members, total, err := s.repo.FindAllByUserID(ctx, targetUserID)

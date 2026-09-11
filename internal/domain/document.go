@@ -69,6 +69,6 @@ type DocumentService interface {
 	GetDocumentByID(ctx context.Context, idStr, userIDStr string) (*Document, error)
 	UpdateDocument(ctx context.Context, idStr, userIDStr string, dto *UpdateDocumentDTO, newFile io.Reader, filename string) (*Document, error)
 	DeleteDocument(ctx context.Context, idStr, userIDStr string) error
-	GetDocumentsByUserIDAdmin(ctx context.Context, targetUserIDStr, searchQuery string) (*DocumentListResponse, error)
+	GetDocumentsByUserIDAdmin(ctx context.Context, requesterRole, requesterID, targetUserIDStr, searchQuery string) (*DocumentListResponse, error)
 	DeleteAllByUserID(ctx context.Context, userIDStr string) error
 }

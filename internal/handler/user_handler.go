@@ -107,20 +107,27 @@ func (h *UserHandler) AdminLogin(c *gin.Context) {
 }
 
 // GetByID handles fetching a user by ID.
-// @Summary      Get user by ID
-// @Description  Retrieves a user's details by their MongoDB ObjectID. Requires authentication.
+// @Summary      Get user by ID (Admin only)
+// @Description  Retrieves a user's details by their MongoDB ObjectID. A super_admin may look up anyone; a plain admin only a client under their own Agency ID.
 // @Tags         Users
 // @Accept       json
 // @Produce      json
 // @Param        id   path      string  true  "User ID (MongoDB ObjectID)"
 // @Success      200  {object}  response.APIResponse{data=domain.UserResponse}  "User retrieved successfully"
+// @Failure      401  {object}  response.APIResponse  "Unauthorized"
 // @Failure      404  {object}  response.APIResponse  "User not found"
 // @Security     BearerAuth
 // @Router       /users/{id} [get]
 func (h *UserHandler) GetByID(c *gin.Context) {
 	id := c.Param("id")
 
-	user, err := h.userService.GetByID(c.Request.Context(), id)
+	claims, ok := middleware.GetClaims(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	user, err := h.userService.GetByID(c.Request.Context(), claims.Role, claims.UserID.Hex(), id)
 	if err != nil {
 		response.Error(c, http.StatusNotFound, err.Error())
 		return
@@ -192,7 +199,7 @@ func (h *UserHandler) Update(c *gin.Context) {
 		return
 	}
 
-	user, err := h.userService.Update(c.Request.Context(), claims.Role, id, &req)
+	user, err := h.userService.Update(c.Request.Context(), claims.Role, claims.UserID.Hex(), id, &req)
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, err.Error())
 		return
@@ -248,7 +255,7 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 		return
 	}
 
-	user, err := h.userService.GetByID(c.Request.Context(), userID)
+	user, err := h.userService.GetSelf(c.Request.Context(), userID)
 	if err != nil {
 		response.Error(c, http.StatusNotFound, err.Error())
 		return

@@ -192,9 +192,15 @@ func (h *FamilyMemberHandler) DeleteMember(c *gin.Context) {
 // @Security     BearerAuth
 // @Router       /family-members/user/{userId} [get]
 func (h *FamilyMemberHandler) GetMembersByUserIDAdmin(c *gin.Context) {
+	claims, ok := middleware.GetClaims(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
 	targetUserIDStr := c.Param("userId")
 
-	respData, err := h.service.GetMembersByUserIDAdmin(c.Request.Context(), targetUserIDStr)
+	respData, err := h.service.GetMembersByUserIDAdmin(c.Request.Context(), claims.Role, claims.UserID.Hex(), targetUserIDStr)
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, err.Error())
 		return

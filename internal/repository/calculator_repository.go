@@ -15,6 +15,13 @@ type calculatorSettingsRepository struct {
 	collection *mongo.Collection
 }
 
+// singletonSettingsID is a fixed, well-known ObjectID (the zero value) used as the _id of the one
+// and only calculator settings document. Querying/upserting by this fixed _id — rather than by an
+// empty filter bson.M{} — makes MongoDB's own unique index on _id the concurrency guard: two
+// simultaneous "no settings yet" upserts can no longer both succeed and create two documents,
+// which previously could leave GetSettings non-deterministically returning either one.
+var singletonSettingsID = bson.ObjectID{}
+
 // NewCalculatorSettingsRepository initializes a new CalculatorSettingsRepository.
 func NewCalculatorSettingsRepository(db *mongo.Database) domain.CalculatorSettingsRepository {
 	return &calculatorSettingsRepository{
@@ -26,7 +33,7 @@ func NewCalculatorSettingsRepository(db *mongo.Database) domain.CalculatorSettin
 // If no settings exist yet, it automatically seeds default rates (SIP: 12%, Lumpsum: 12%, FD: 7%).
 func (r *calculatorSettingsRepository) GetSettings(ctx context.Context) (*domain.CalculatorSettings, error) {
 	var settings domain.CalculatorSettings
-	err := r.collection.FindOne(ctx, bson.M{}).Decode(&settings)
+	err := r.collection.FindOne(ctx, bson.M{"_id": singletonSettingsID}).Decode(&settings)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			// Seed default settings on initial access
@@ -53,13 +60,13 @@ func (r *calculatorSettingsRepository) UpsertSettings(ctx context.Context, setti
 			"default_sip_rate":     settings.DefaultSIPRate,
 			"default_lumpsum_rate": settings.DefaultLumpsumRate,
 			"default_fd_rate":      settings.DefaultFDRate,
-			"updated_at":          now,
+			"updated_at":           now,
 		},
 	}
 
 	opts := options.FindOneAndUpdate().SetUpsert(true).SetReturnDocument(options.After)
 	var updated domain.CalculatorSettings
-	err := r.collection.FindOneAndUpdate(ctx, bson.M{}, update, opts).Decode(&updated)
+	err := r.collection.FindOneAndUpdate(ctx, bson.M{"_id": singletonSettingsID}, update, opts).Decode(&updated)
 	if err != nil {
 		return nil, fmt.Errorf("failed to upsert calculator settings: %w", err)
 	}

@@ -100,11 +100,11 @@ type UpdateHealthInsuranceDTO struct {
 
 	PolicyNo   *string    `json:"policy_no,omitempty"`
 	PlanName   *string    `json:"plan_name,omitempty"`
-	SumInsured *float64   `json:"sum_insured,omitempty"`
+	SumInsured *float64   `json:"sum_insured,omitempty" binding:"omitempty,gt=0"`
 	DOC        *time.Time `json:"doc,omitempty"`
 	ExpiryDate *time.Time `json:"expiry_date,omitempty"`
 
-	InstallmentPremium *float64   `json:"installment_premium,omitempty"`
+	InstallmentPremium *float64   `json:"installment_premium,omitempty" binding:"omitempty,gt=0"`
 	NextDueDate        *time.Time `json:"next_due_date,omitempty"`
 	PaymentMode        *string    `json:"payment_mode,omitempty" binding:"omitempty,oneof=Yearly Half-Yearly Quarterly Monthly"`
 
@@ -143,6 +143,10 @@ type HealthInsuranceService interface {
 	CreatePolicy(ctx context.Context, requesterRole, requesterID string, dto *CreateHealthInsuranceDTO) (*HealthInsurance, error)
 	GetPolicyByID(ctx context.Context, requesterRole, requesterID, idStr string) (*HealthInsurance, error)
 	GetMyPolicies(ctx context.Context, requesterID string) (*HealthInsuranceListResponse, error)
+	// GetPoliciesByUserIDAdmin lets admin/super_admin view a specific client's full, unpaginated
+	// policy list (used by the client-detail "Holdings" view) — a plain admin may only target a
+	// client under their own agency.
+	GetPoliciesByUserIDAdmin(ctx context.Context, requesterRole, requesterID, targetUserIDStr string) (*HealthInsuranceListResponse, error)
 	GetAllPolicies(ctx context.Context, requesterRole, requesterID string, page, limit int64, isMapped *bool, licCustomerID string) ([]*HealthInsuranceWithCustomer, int64, error)
 	UpdatePolicy(ctx context.Context, requesterRole, requesterID, idStr string, dto *UpdateHealthInsuranceDTO) (*HealthInsurance, error)
 	DeletePolicy(ctx context.Context, requesterRole, requesterID, idStr string) error

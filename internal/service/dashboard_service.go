@@ -54,8 +54,10 @@ func NewDashboardService(
 }
 
 // GetClientDashboard aggregates a single client's totals across every financial module plus a
-// chronologically-sorted list of Life/Health premiums due within the next 30 days. Each count
-// query runs concurrently via errgroup since they are independent and touch different collections.
+// chronologically-sorted list of every Life/Health premium, Fixed Deposit maturity, and Motor
+// policy expiry due within the next 30 days — matching the "Premiums and maturities" label the
+// client-facing Home screen actually shows. Each fetch runs concurrently via errgroup since they
+// are independent and touch different collections.
 func (s *dashboardService) GetClientDashboard(ctx context.Context, userIDStr string) (*domain.ClientDashboardDTO, error) {
 	userID, err := bson.ObjectIDFromHex(userIDStr)
 	if err != nil {
@@ -66,6 +68,8 @@ func (s *dashboardService) GetClientDashboard(ctx context.Context, userIDStr str
 		familyTotal, lifeTotal, healthTotal, generalTotal, fdTotal int64
 		lifePolicies                                               []*domain.LifeInsurance
 		healthPolicies                                             []*domain.HealthInsurance
+		generalPolicies                                            []*domain.GeneralInsurance
+		fdPolicies                                                 []*domain.FixedDeposit
 	)
 
 	g, gctx := errgroup.WithContext(ctx)
@@ -86,13 +90,13 @@ func (s *dashboardService) GetClientDashboard(ctx context.Context, userIDStr str
 		return err
 	})
 	g.Go(func() error {
-		_, total, err := s.generalInsuranceRepo.FindAllByUserID(gctx, userID)
-		generalTotal = total
+		policies, total, err := s.generalInsuranceRepo.FindAllByUserID(gctx, userID)
+		generalPolicies, generalTotal = policies, total
 		return err
 	})
 	g.Go(func() error {
-		_, total, err := s.fixedDepositRepo.GetByUserID(gctx, userID)
-		fdTotal = total
+		fds, total, err := s.fixedDepositRepo.GetByUserID(gctx, userID)
+		fdPolicies, fdTotal = fds, total
 		return err
 	})
 
@@ -126,6 +130,34 @@ func (s *dashboardService) GetClientDashboard(ctx context.Context, userIDStr str
 			})
 		}
 	}
+	for _, fd := range fdPolicies {
+		due := fd.MaturityDate
+		if !due.Before(now) && due.Before(windowEnd) {
+			upcoming = append(upcoming, domain.UpcomingPayment{
+				Type:       "Fixed Deposit",
+				EntityName: fd.FDName,
+				Amount:     fd.MaturityAmount,
+				DueDate:    due,
+			})
+		}
+	}
+	for _, p := range generalPolicies {
+		// DateOfExpiry is stored as a free-typed "YYYY-MM-DD" string, not a time.Time (unlike every
+		// other module's date fields) — skip silently on a malformed/empty value rather than erroring
+		// the whole dashboard for one bad record.
+		due, err := time.Parse("2006-01-02", p.DateOfExpiry)
+		if err != nil {
+			continue
+		}
+		if !due.Before(now) && due.Before(windowEnd) {
+			upcoming = append(upcoming, domain.UpcomingPayment{
+				Type:       "Motor Insurance",
+				EntityName: p.VehicleNo,
+				Amount:     0,
+				DueDate:    due,
+			})
+		}
+	}
 
 	sort.Slice(upcoming, func(i, j int) bool {
 		return upcoming[i].DueDate.Before(upcoming[j].DueDate)
@@ -141,11 +173,11 @@ func (s *dashboardService) GetClientDashboard(ctx context.Context, userIDStr str
 	}, nil
 }
 
-// GetAdminDashboard aggregates dashboard totals. TotalActiveClients and PendingAccessRequests are
-// scoped to the caller: a super_admin gets platform-wide numbers; a plain admin gets counts limited
-// to their own agency (clients whose AgencyID matches their AdminID, and requests whose
-// AppliedAgencyID matches it). PolicyStats stays platform-wide for every caller — see PolicyMaster
-// for the deliberate scope boundary here.
+// GetAdminDashboard aggregates dashboard totals. TotalActiveClients, PendingAccessRequests, and
+// PolicyStats are all scoped to the caller: a super_admin gets platform-wide numbers; a plain admin
+// gets counts limited to their own agency (clients/requests whose AgencyID/AppliedAgencyID matches
+// their own AdminID, and policy counts restricted to those clients' policies), via the same
+// resolveCallerAgencyID/canAccessAgencyScopedRecord fail-closed pattern used everywhere else.
 //
 // Note: General Insurance has no is_mapped field in its data model (unlike Life/Health/FD), so its
 // policies can't be individually classified as mapped or unmapped. They are conservatively counted

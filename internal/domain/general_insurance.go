@@ -88,10 +88,10 @@ type GeneralInsuranceRepository interface {
 type GeneralInsuranceService interface {
 	AddInsurance(ctx context.Context, userIDStr string, dto *CreateGeneralInsuranceDTO) (*GeneralInsurance, error)
 	GetMyInsurances(ctx context.Context, userIDStr string) (*GeneralInsuranceListResponse, error)
-	GetInsuranceByID(ctx context.Context, idStr, userIDStr string) (*GeneralInsurance, error)
-	UpdateInsurance(ctx context.Context, idStr, userIDStr string, dto *UpdateGeneralInsuranceDTO) (*GeneralInsurance, error)
-	DeleteInsurance(ctx context.Context, idStr, userIDStr string) error
-	GetInsurancesByUserIDAdmin(ctx context.Context, targetUserIDStr string) (*GeneralInsuranceListResponse, error)
+	GetInsuranceByID(ctx context.Context, requesterRole, requesterID, idStr string) (*GeneralInsurance, error)
+	UpdateInsurance(ctx context.Context, requesterRole, requesterID, idStr string, dto *UpdateGeneralInsuranceDTO) (*GeneralInsurance, error)
+	DeleteInsurance(ctx context.Context, requesterRole, requesterID, idStr string) error
+	GetInsurancesByUserIDAdmin(ctx context.Context, requesterRole, requesterID, targetUserIDStr string) (*GeneralInsuranceListResponse, error)
 	DeleteAllByUserID(ctx context.Context, userIDStr string) error
 	GetAllInsurancesAdmin(ctx context.Context, requesterRole, requesterID string, page, limit int64) ([]*GeneralInsuranceWithCustomer, int64, error)
 }

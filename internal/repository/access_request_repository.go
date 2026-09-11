@@ -129,6 +129,33 @@ func (r *accessRequestRepository) UpdateStatus(ctx context.Context, id bson.Obje
 	return &req, nil
 }
 
+// ClaimApproval atomically transitions a request to Approved only if its status is not already
+// Approved — the filter's status check and the $set happen as one atomic MongoDB operation, so two
+// concurrent calls for the same ID can never both succeed (the second sees ErrNoDocuments because
+// by the time its filter is evaluated, the first has already flipped the status).
+func (r *accessRequestRepository) ClaimApproval(ctx context.Context, id bson.ObjectID, adminNotes string) (*domain.AccessRequest, error) {
+	filter := bson.M{"_id": id, "status": bson.M{"$ne": domain.AccessStatusApproved}}
+	update := bson.M{
+		"$set": bson.M{
+			"status":      domain.AccessStatusApproved,
+			"admin_notes": adminNotes,
+			"updated_at":  time.Now().UTC(),
+		},
+	}
+
+	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
+	var req domain.AccessRequest
+	err := r.collection.FindOneAndUpdate(ctx, filter, update, opts).Decode(&req)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, fmt.Errorf("this access request has already been approved")
+		}
+		return nil, fmt.Errorf("failed to approve access request: %w", err)
+	}
+
+	return &req, nil
+}
+
 // UpdateDetailsAndStatus updates the details and resets status of an existing AccessRequest.
 func (r *accessRequestRepository) UpdateDetailsAndStatus(ctx context.Context, id bson.ObjectID, name, phone, notes, appliedReferralCode, appliedAgencyID, status string) (*domain.AccessRequest, error) {
 	update := bson.M{

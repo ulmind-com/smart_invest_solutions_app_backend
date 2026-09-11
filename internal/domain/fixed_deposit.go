@@ -89,9 +89,9 @@ type UpdateFixedDepositDTO struct {
 	FDNumber         *string    `json:"fd_number,omitempty"`
 	FDName           *string    `json:"fd_name,omitempty"`
 	CompanyName      *string    `json:"company_name,omitempty"`
-	PrincipalAmount  *float64   `json:"principal_amount,omitempty"`
-	MaturityAmount   *float64   `json:"maturity_amount,omitempty"`
-	Term             *int       `json:"term_months,omitempty"`
+	PrincipalAmount  *float64   `json:"principal_amount,omitempty" binding:"omitempty,gt=0"`
+	MaturityAmount   *float64   `json:"maturity_amount,omitempty" binding:"omitempty,gt=0"`
+	Term             *int       `json:"term_months,omitempty" binding:"omitempty,gt=0"`
 	OpeningDate      *time.Time `json:"opening_date,omitempty"`
 	MaturityDate     *time.Time `json:"maturity_date,omitempty"`
 	NomineeName      *string    `json:"nominee_name,omitempty"`
@@ -128,6 +128,10 @@ type FixedDepositService interface {
 	CreateFD(ctx context.Context, requesterRole, requesterID string, dto *CreateFixedDepositDTO) (*FixedDeposit, error)
 	GetFDByID(ctx context.Context, requesterRole, requesterID, idStr string) (*FixedDeposit, error)
 	GetMyFDs(ctx context.Context, requesterID string) (*FixedDepositListResponse, error)
+	// GetFDsByUserIDAdmin lets admin/super_admin view a specific client's full, unpaginated Fixed
+	// Deposit list (used by the client-detail "Holdings" view) — a plain admin may only target a
+	// client under their own agency.
+	GetFDsByUserIDAdmin(ctx context.Context, requesterRole, requesterID, targetUserIDStr string) (*FixedDepositListResponse, error)
 	GetAllFDs(ctx context.Context, requesterRole, requesterID string, page, limit int64, isMapped *bool) ([]*FixedDepositWithCustomer, int64, error)
 	UpdateFD(ctx context.Context, requesterRole, requesterID, idStr string, dto *UpdateFixedDepositDTO) (*FixedDeposit, error)
 	DeleteFD(ctx context.Context, requesterRole, requesterID, idStr string) error

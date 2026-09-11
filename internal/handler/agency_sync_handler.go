@@ -43,7 +43,12 @@ func (h *AgencySyncHandler) ProcessLICDueList(c *gin.Context) {
 	// a super_admin is NOT allowed here (RequireRole's usual "super_admin can do anything admin
 	// can" bypass has to be overridden explicitly, since it can't be turned off in the shared
 	// middleware without affecting every other admin-only route).
-	if claims, ok := middleware.GetClaims(c); ok && claims.Role == domain.RoleSuperAdmin {
+	claims, ok := middleware.GetClaims(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	if claims.Role == domain.RoleSuperAdmin {
 		response.Error(c, http.StatusForbidden, "Agency Sync is only available to admin accounts")
 		return
 	}
@@ -80,7 +85,7 @@ func (h *AgencySyncHandler) ProcessLICDueList(c *gin.Context) {
 		return
 	}
 
-	result, err := h.agencySyncService.ProcessLICDueList(c.Request.Context(), fileBytes)
+	result, err := h.agencySyncService.ProcessLICDueList(c.Request.Context(), claims.Role, claims.UserID.Hex(), fileBytes)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err.Error())
 		return

@@ -205,3 +205,35 @@ func (h *FixedDepositHandler) DeleteFD(c *gin.Context) {
 
 	response.Success(c, "Fixed Deposit deleted successfully", nil)
 }
+
+// GetFDsByUserIDAdmin handles fetching a specific client's full Fixed Deposit list for the Admin
+// client-detail "Holdings" view — unpaginated, since the /all master list is capped for display
+// purposes and would otherwise silently truncate a client with many deposits.
+// @Summary      Get user's Fixed Deposits (Admin Only)
+// @Description  Retrieves every Fixed Deposit belonging to a specific client. A super_admin may target any client; a plain admin only one under their own Agency ID.
+// @Tags         Fixed Deposit (Admin)
+// @Accept       json
+// @Produce      json
+// @Param        userId  path      string  true  "Target Client User ID"
+// @Success      200     {object}  response.APIResponse{data=domain.FixedDepositListResponse}  "Fixed Deposits retrieved successfully"
+// @Failure      401     {object}  response.APIResponse  "Unauthorized"
+// @Failure      403     {object}  response.APIResponse  "Forbidden — Admin role required"
+// @Security     BearerAuth
+// @Router       /fixed-deposits/user/{userId} [get]
+func (h *FixedDepositHandler) GetFDsByUserIDAdmin(c *gin.Context) {
+	claims, ok := middleware.GetClaims(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	targetUserIDStr := c.Param("userId")
+
+	respData, err := h.service.GetFDsByUserIDAdmin(c.Request.Context(), claims.Role, claims.UserID.Hex(), targetUserIDStr)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	response.Success(c, "Fixed Deposits retrieved successfully", respData)
+}

@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/smart-invest-solutions/backend/internal/domain"
+	"github.com/smart-invest-solutions/backend/internal/middleware"
 	"github.com/smart-invest-solutions/backend/pkg/response"
 )
 
@@ -32,8 +33,8 @@ func NewReferralHandler(referralService domain.ReferralService) *ReferralHandler
 // @Security     BearerAuth
 // @Router       /referrals/my-stats [get]
 func (h *ReferralHandler) GetMyStats(c *gin.Context) {
-	userID := c.GetString("user_id")
-	if userID == "" {
+	userID, ok := middleware.GetUserID(c)
+	if !ok {
 		response.Error(c, http.StatusUnauthorized, "Unauthorized")
 		return
 	}

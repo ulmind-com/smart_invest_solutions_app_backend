@@ -186,8 +186,16 @@ func (s *accessRequestService) ApproveRequest(ctx context.Context, requesterRole
 		return nil, fmt.Errorf("access request not found")
 	}
 
-	if accessReq.Status == domain.AccessStatusApproved {
-		return nil, fmt.Errorf("this access request has already been approved")
+	adminNotes := "Approved by Admin"
+	if dto != nil && dto.AdminNotes != "" {
+		adminNotes = dto.AdminNotes
+	}
+
+	// Atomically claim the approval slot before doing anything else: if this request was already
+	// approved (including by a concurrent call that raced us here), this fails immediately and
+	// nothing below — account creation, PIN issuance, referral reward — ever runs a second time.
+	if _, err := s.repo.ClaimApproval(ctx, objectID, adminNotes); err != nil {
+		return nil, err
 	}
 
 	var userResp *domain.UserResponse
@@ -261,13 +269,6 @@ func (s *accessRequestService) ApproveRequest(ctx context.Context, requesterRole
 			}
 		}()
 	}
-
-	// Update status to APPROVED
-	adminNotes := "Approved by Admin"
-	if dto != nil && dto.AdminNotes != "" {
-		adminNotes = dto.AdminNotes
-	}
-	_, _ = s.repo.UpdateStatus(ctx, objectID, domain.AccessStatusApproved, adminNotes)
 
 	// Referral Reward Hook: Check if a pending referral exists for this email, complete it, and add 30 days validity
 	if s.referralRepo != nil {

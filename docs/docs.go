@@ -2320,6 +2320,67 @@ const docTemplate = `{
                 }
             }
         },
+        "/fixed-deposits/user/{userId}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves every Fixed Deposit belonging to a specific client. A super_admin may target any client; a plain admin only one under their own Agency ID.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Fixed Deposit (Admin)"
+                ],
+                "summary": "Get user's Fixed Deposits (Admin Only)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Target Client User ID",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Fixed Deposits retrieved successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.FixedDepositListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden — Admin role required",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/fixed-deposits/{id}": {
             "get": {
                 "security": [
@@ -3054,6 +3115,67 @@ const docTemplate = `{
                 }
             }
         },
+        "/health-insurances/user/{userId}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves every health insurance policy belonging to a specific client. A super_admin may target any client; a plain admin only one under their own Agency ID.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Health Insurance (Admin)"
+                ],
+                "summary": "Get user's Health Insurance policies (Admin Only)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Target Client User ID",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Policies retrieved successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.HealthInsuranceListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden — Admin role required",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/health-insurances/{id}": {
             "get": {
                 "security": [
@@ -3356,6 +3478,67 @@ const docTemplate = `{
                     },
                     "422": {
                         "description": "Validation error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/life-insurances/user/{userId}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves every life insurance policy belonging to a specific client. A super_admin may target any client; a plain admin only one under their own Agency ID.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Life Insurance (Admin)"
+                ],
+                "summary": "Get user's Life Insurance policies (Admin Only)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Target Client User ID",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Policies retrieved successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.LifeInsuranceListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden — Admin role required",
                         "schema": {
                             "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
                         }
@@ -5108,7 +5291,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Retrieves a user's details by their MongoDB ObjectID. Requires authentication.",
+                "description": "Retrieves a user's details by their MongoDB ObjectID. A super_admin may look up anyone; a plain admin only a client under their own Agency ID.",
                 "consumes": [
                     "application/json"
                 ],
@@ -5118,7 +5301,7 @@ const docTemplate = `{
                 "tags": [
                     "Users"
                 ],
-                "summary": "Get user by ID",
+                "summary": "Get user by ID (Admin only)",
                 "parameters": [
                     {
                         "type": "string",
@@ -5145,6 +5328,12 @@ const docTemplate = `{
                                     }
                                 }
                             ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
                         }
                     },
                     "404": {
@@ -5451,7 +5640,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "new_password": {
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 6
                 }
             }
         },
@@ -5906,7 +6096,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "password": {
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 6
                 },
                 "phone": {
                     "type": "string"
@@ -5992,6 +6183,17 @@ const docTemplate = `{
                 },
                 "tenure_months": {
                     "type": "integer"
+                }
+            }
+        },
+        "github_com_smart-invest-solutions_backend_internal_domain.FailedSyncPolicy": {
+            "type": "object",
+            "properties": {
+                "policy_no": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
                 }
             }
         },
@@ -6116,6 +6318,20 @@ const docTemplate = `{
                 },
                 "user_id": {
                     "type": "string"
+                }
+            }
+        },
+        "github_com_smart-invest-solutions_backend_internal_domain.FixedDepositListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.FixedDeposit"
+                    }
+                },
+                "total": {
+                    "type": "integer"
                 }
             }
         },
@@ -6265,6 +6481,20 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_smart-invest-solutions_backend_internal_domain.HealthInsuranceListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.HealthInsurance"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "github_com_smart-invest-solutions_backend_internal_domain.HealthPolicyDetails": {
             "type": "object",
             "properties": {
@@ -6352,6 +6582,20 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_smart-invest-solutions_backend_internal_domain.LifeInsuranceListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.LifeInsurance"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "github_com_smart-invest-solutions_backend_internal_domain.LoginResponse": {
             "type": "object",
             "properties": {
@@ -6389,6 +6633,10 @@ const docTemplate = `{
                 "secondary_user_id"
             ],
             "properties": {
+                "confirm_cross_agency": {
+                    "description": "ConfirmCrossAgency must be explicitly set true to merge two accounts registered under\ndifferent Agency IDs — without it, the merge is refused with an error naming both agencies,\nso a super_admin can't accidentally transplant one agency's client data onto an account\nanother admin manages just by picking the wrong client in the merge picker.",
+                    "type": "boolean"
+                },
                 "primary_user_id": {
                     "type": "string",
                     "example": "64f1a2b3c4d5e6f7a8b9c0d1"
@@ -6656,7 +6904,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "new_password": {
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 6
                 },
                 "otp": {
                     "type": "string"
@@ -6722,6 +6971,13 @@ const docTemplate = `{
         "github_com_smart-invest-solutions_backend_internal_domain.SyncResultDTO": {
             "type": "object",
             "properties": {
+                "failed_policies": {
+                    "description": "FailedPolicies names exactly which policy numbers failed to update and why, so an admin\nisn't left with just a bare failure count and no way to diagnose or target a re-run.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.FailedSyncPolicy"
+                    }
+                },
                 "failed_to_update_in_db": {
                     "type": "integer"
                 },
@@ -6735,6 +6991,13 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.UnmappedPolicy"
+                    }
+                },
+                "unparsed_policy_numbers": {
+                    "description": "UnparsedPolicyNumbers lists 9-digit numbers the parser located in the PDF but could not fully\nread (missing a DOC or FUP date nearby) — previously dropped with zero trace, so a row could\nsilently vanish from the sync with no signal to the admin that anything was even there.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
                     }
                 }
             }
@@ -6770,18 +7033,19 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "amount": {
+                    "description": "0 for Motor Insurance (no premium/maturity amount on that model)",
                     "type": "number"
                 },
                 "due_date": {
-                    "description": "Maps to next_due_date (premiums) or maturity_date (FDs)",
+                    "description": "next_due_date (premiums), maturity_date (FDs), or date_of_expiry (Motor)",
                     "type": "string"
                 },
                 "entity_name": {
-                    "description": "Plan Name or FD Name",
+                    "description": "Plan Name, FD Name, or Vehicle No",
                     "type": "string"
                 },
                 "type": {
-                    "description": "\"Life Insurance\", \"Health Insurance\", \"Fixed Deposit\"",
+                    "description": "\"Life Insurance\", \"Health Insurance\", \"Fixed Deposit\", \"Motor Insurance\"",
                     "type": "string",
                     "example": "Life Insurance"
                 }

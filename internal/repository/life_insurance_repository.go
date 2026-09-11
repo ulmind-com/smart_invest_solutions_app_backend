@@ -341,13 +341,59 @@ func (r *lifeInsuranceRepository) ReassignOwner(ctx context.Context, fromUserID,
 	return result.ModifiedCount, nil
 }
 
+// agencyUserIDs looks up every user belonging to agencyID and returns their ObjectIDs — used to
+// scope a bulk sync write/lookup to only the calling admin's own clients. Returns (nil, true) when
+// agencyID is empty, meaning "no restriction" (the caller must handle that case itself).
+func (r *lifeInsuranceRepository) agencyUserIDs(ctx context.Context, agencyID string) ([]bson.ObjectID, bool, error) {
+	if agencyID == "" {
+		return nil, true, nil
+	}
+	cursor, err := r.collection.Database().Collection(usersCollection).Find(ctx,
+		bson.M{"agency_id": agencyID},
+		options.Find().SetProjection(bson.M{"_id": 1}),
+	)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to resolve agency clients: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var ids []bson.ObjectID
+	for cursor.Next(ctx) {
+		var doc struct {
+			ID bson.ObjectID `bson:"_id"`
+		}
+		if err := cursor.Decode(&doc); err == nil {
+			ids = append(ids, doc.ID)
+		}
+	}
+	return ids, false, nil
+}
+
 // BulkUpdateFromSync performs bulk updates of life insurance policies from parsed LIC sync records.
 // It performs an unordered bulk write, so a failure on one record does not block the rest: the
-// modified count and the count of individually failed records are both returned. err is only set
-// for failures affecting the whole operation (e.g. the write itself couldn't be attempted at all).
-func (r *lifeInsuranceRepository) BulkUpdateFromSync(ctx context.Context, records []domain.LICParsedRecord) (int64, int, error) {
+// modified count and exactly which policy numbers failed (with MongoDB's reason for each) are both
+// returned, so an admin can see and diagnose individual failures instead of just a bare count. err
+// is only set for failures affecting the whole operation (e.g. the write itself couldn't be
+// attempted at all). agencyID, when non-empty, restricts every write to policies owned by that
+// agency's clients — a plain admin's sync run can never touch another agency's policies even if a
+// policy number in their uploaded PDF happens to coincide with one belonging to a different agency.
+func (r *lifeInsuranceRepository) BulkUpdateFromSync(ctx context.Context, records []domain.LICParsedRecord, agencyID string) (int64, []domain.FailedSyncPolicy, error) {
 	if len(records) == 0 {
-		return 0, 0, nil
+		return 0, nil, nil
+	}
+
+	agencyUserIDs, unrestricted, err := r.agencyUserIDs(ctx, agencyID)
+	if err != nil {
+		return 0, nil, err
+	}
+	if !unrestricted && len(agencyUserIDs) == 0 {
+		// The calling admin's agency has no clients at all — nothing in this PDF can possibly
+		// belong to them, so every record is a no-op failure rather than a silent global match.
+		failed := make([]domain.FailedSyncPolicy, len(records))
+		for i, rec := range records {
+			failed[i] = domain.FailedSyncPolicy{PolicyNo: rec.PolicyNo, Reason: "no client found under your agency"}
+		}
+		return 0, failed, nil
 	}
 
 	var models []mongo.WriteModel
@@ -365,8 +411,13 @@ func (r *lifeInsuranceRepository) BulkUpdateFromSync(ctx context.Context, record
 			updateFields["policy_details.doc"] = docTime.UTC()
 		}
 
+		filter := bson.M{"policy_details.policy_no": rec.PolicyNo}
+		if !unrestricted {
+			filter["user_id"] = bson.M{"$in": agencyUserIDs}
+		}
+
 		model := mongo.NewUpdateOneModel().
-			SetFilter(bson.M{"policy_details.policy_no": rec.PolicyNo}).
+			SetFilter(filter).
 			SetUpdate(bson.M{"$set": updateFields})
 
 		models = append(models, model)
@@ -378,23 +429,47 @@ func (r *lifeInsuranceRepository) BulkUpdateFromSync(ctx context.Context, record
 		var bulkErr mongo.BulkWriteException
 		if errors.As(err, &bulkErr) {
 			// Unordered bulk write: some records failed individually but the operation as a
-			// whole succeeded. result is still populated for the records that did succeed.
-			return result.ModifiedCount, len(bulkErr.WriteErrors), nil
+			// whole succeeded. result is still populated for the records that did succeed. Each
+			// WriteError.Index is the position in `models` (and therefore `records`) that failed,
+			// which the driver remaps back to the original request index even across batches.
+			failed := make([]domain.FailedSyncPolicy, 0, len(bulkErr.WriteErrors))
+			for _, we := range bulkErr.WriteErrors {
+				policyNo := "unknown"
+				if we.Index >= 0 && we.Index < len(records) {
+					policyNo = records[we.Index].PolicyNo
+				}
+				failed = append(failed, domain.FailedSyncPolicy{PolicyNo: policyNo, Reason: we.Message})
+			}
+			return result.ModifiedCount, failed, nil
 		}
-		return 0, 0, fmt.Errorf("failed to bulk update life insurance policies: %w", err)
+		return 0, nil, fmt.Errorf("failed to bulk update life insurance policies: %w", err)
 	}
 
-	return result.ModifiedCount, 0, nil
+	return result.ModifiedCount, nil, nil
 }
 
-// GetExistingPolicyNumbers checks MongoDB for existing policy numbers and returns a map of policy_no -> true.
-func (r *lifeInsuranceRepository) GetExistingPolicyNumbers(ctx context.Context, policyNos []string) (map[string]bool, error) {
+// GetExistingPolicyNumbers checks MongoDB for existing policy numbers and returns a map of
+// policy_no -> true. agencyID, when non-empty, restricts the check to policies owned by that
+// agency's clients, so a policy number belonging to another agency is correctly reported as
+// "not found" rather than leaking its existence across the agency boundary.
+func (r *lifeInsuranceRepository) GetExistingPolicyNumbers(ctx context.Context, policyNos []string, agencyID string) (map[string]bool, error) {
 	existingMap := make(map[string]bool)
 	if len(policyNos) == 0 {
 		return existingMap, nil
 	}
 
+	agencyUserIDs, unrestricted, err := r.agencyUserIDs(ctx, agencyID)
+	if err != nil {
+		return nil, err
+	}
+	if !unrestricted && len(agencyUserIDs) == 0 {
+		return existingMap, nil
+	}
+
 	filter := bson.M{"policy_details.policy_no": bson.M{"$in": policyNos}}
+	if !unrestricted {
+		filter["user_id"] = bson.M{"$in": agencyUserIDs}
+	}
 	opts := options.Find().SetProjection(bson.M{"policy_details.policy_no": 1})
 
 	cursor, err := r.collection.Find(ctx, filter, opts)
