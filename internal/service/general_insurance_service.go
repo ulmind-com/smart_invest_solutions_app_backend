@@ -74,16 +74,41 @@ func (s *generalInsuranceService) GetMyInsurances(ctx context.Context, userIDStr
 	}, nil
 }
 
-// GetInsuranceByID retrieves a single policy by ID with ownership verification.
-func (s *generalInsuranceService) GetInsuranceByID(ctx context.Context, idStr, userIDStr string) (*domain.GeneralInsurance, error) {
+// checkOwnership enforces that a client requester may only touch their own policies; super_admin
+// bypasses this check completely, and a plain admin may only touch a policy whose owning client
+// belongs to their own agency (same resolveCallerAgencyID/canAccessAgencyScopedRecord pattern used
+// by Life/Health/FD) — a cross-agency policy reports "not found" rather than "forbidden".
+func (s *generalInsuranceService) checkOwnership(ctx context.Context, requesterRole, requesterID string, ownerID bson.ObjectID) error {
+	if requesterRole == domain.RoleSuperAdmin {
+		return nil
+	}
+	if requesterRole == domain.RoleAdmin {
+		owner, err := s.userRepo.FindByID(ctx, ownerID)
+		if err != nil || owner == nil {
+			return fmt.Errorf("policy not found")
+		}
+		agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
+		if !canAccessAgencyScopedRecord(requesterRole, agencyFilter, owner.AgencyID) {
+			return fmt.Errorf("policy not found")
+		}
+		return nil
+	}
+	requesterObjID, err := bson.ObjectIDFromHex(requesterID)
+	if err != nil {
+		return fmt.Errorf("invalid requester ID format: %w", err)
+	}
+	if ownerID != requesterObjID {
+		return fmt.Errorf("access denied: policy does not belong to you")
+	}
+	return nil
+}
+
+// GetInsuranceByID retrieves a single policy by ID, enforcing ownership for client requesters and
+// agency-scoping for a plain admin (super_admin may view any policy).
+func (s *generalInsuranceService) GetInsuranceByID(ctx context.Context, requesterRole, requesterID, idStr string) (*domain.GeneralInsurance, error) {
 	id, err := bson.ObjectIDFromHex(idStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid policy ID format: %w", err)
-	}
-
-	userID, err := bson.ObjectIDFromHex(userIDStr)
-	if err != nil {
-		return nil, fmt.Errorf("invalid user ID format: %w", err)
 	}
 
 	policy, err := s.repo.FindByID(ctx, id)
@@ -91,48 +116,71 @@ func (s *generalInsuranceService) GetInsuranceByID(ctx context.Context, idStr, u
 		return nil, err
 	}
 
-	if policy.UserID != userID {
-		return nil, fmt.Errorf("access denied: policy does not belong to you")
+	if err := s.checkOwnership(ctx, requesterRole, requesterID, policy.UserID); err != nil {
+		return nil, err
 	}
 
 	return policy, nil
 }
 
-// UpdateInsurance modifies an existing general insurance policy.
-func (s *generalInsuranceService) UpdateInsurance(ctx context.Context, idStr, userIDStr string, dto *domain.UpdateGeneralInsuranceDTO) (*domain.GeneralInsurance, error) {
+// UpdateInsurance modifies an existing general insurance policy, enforcing ownership for client
+// requesters and agency-scoping for a plain admin (super_admin may update any policy).
+func (s *generalInsuranceService) UpdateInsurance(ctx context.Context, requesterRole, requesterID, idStr string, dto *domain.UpdateGeneralInsuranceDTO) (*domain.GeneralInsurance, error) {
 	id, err := bson.ObjectIDFromHex(idStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid policy ID format: %w", err)
 	}
 
-	userID, err := bson.ObjectIDFromHex(userIDStr)
+	existing, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		return nil, fmt.Errorf("invalid user ID format: %w", err)
+		return nil, err
 	}
 
-	return s.repo.Update(ctx, id, userID, dto)
+	if err := s.checkOwnership(ctx, requesterRole, requesterID, existing.UserID); err != nil {
+		return nil, err
+	}
+
+	return s.repo.Update(ctx, id, existing.UserID, dto)
 }
 
-// DeleteInsurance removes a general insurance policy.
-func (s *generalInsuranceService) DeleteInsurance(ctx context.Context, idStr, userIDStr string) error {
+// DeleteInsurance removes a general insurance policy, enforcing ownership for client requesters
+// and agency-scoping for a plain admin (super_admin may delete any policy).
+func (s *generalInsuranceService) DeleteInsurance(ctx context.Context, requesterRole, requesterID, idStr string) error {
 	id, err := bson.ObjectIDFromHex(idStr)
 	if err != nil {
 		return fmt.Errorf("invalid policy ID format: %w", err)
 	}
 
-	userID, err := bson.ObjectIDFromHex(userIDStr)
+	existing, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		return fmt.Errorf("invalid user ID format: %w", err)
+		return err
 	}
 
-	return s.repo.Delete(ctx, id, userID)
+	if err := s.checkOwnership(ctx, requesterRole, requesterID, existing.UserID); err != nil {
+		return err
+	}
+
+	return s.repo.Delete(ctx, id, existing.UserID)
 }
 
-// GetInsurancesByUserIDAdmin allows admins to view general insurance policies of any user.
-func (s *generalInsuranceService) GetInsurancesByUserIDAdmin(ctx context.Context, targetUserIDStr string) (*domain.GeneralInsuranceListResponse, error) {
+// GetInsurancesByUserIDAdmin allows admin/super_admin to view general insurance policies of any
+// user. A plain admin may only look up a client belonging to their own agency (same
+// resolveCallerAgencyID/canAccessAgencyScopedRecord pattern used everywhere else).
+func (s *generalInsuranceService) GetInsurancesByUserIDAdmin(ctx context.Context, requesterRole, requesterID, targetUserIDStr string) (*domain.GeneralInsuranceListResponse, error) {
 	targetUserID, err := bson.ObjectIDFromHex(targetUserIDStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid target user ID format: %w", err)
+	}
+
+	if requesterRole == domain.RoleAdmin {
+		targetUser, err := s.userRepo.FindByID(ctx, targetUserID)
+		if err != nil || targetUser == nil {
+			return nil, fmt.Errorf("user not found")
+		}
+		agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
+		if !canAccessAgencyScopedRecord(requesterRole, agencyFilter, targetUser.AgencyID) {
+			return nil, fmt.Errorf("user not found")
+		}
 	}
 
 	policies, total, err := s.repo.FindAllByUserID(ctx, targetUserID)

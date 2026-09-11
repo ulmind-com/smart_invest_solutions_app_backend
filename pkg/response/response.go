@@ -63,8 +63,17 @@ func ValidationError(c *gin.Context, message string) {
 
 // SuccessWithPagination sends a paginated success response.
 func SuccessWithPagination(c *gin.Context, message string, data interface{}, page, limit, total int64) {
-	totalPages := total / limit
-	if total%limit != 0 {
+	// Handlers parse `limit` straight from the query string and pass it here for display purposes
+	// even though the service layer clamps its own copy before querying — so an out-of-range value
+	// (0, negative, or absurdly large) must never reach the division below, or every paginated
+	// endpoint becomes a one-request crash (?limit=0) via a straightforward integer divide-by-zero.
+	safeLimit := limit
+	if safeLimit < 1 {
+		safeLimit = 1
+	}
+
+	totalPages := total / safeLimit
+	if total%safeLimit != 0 {
 		totalPages++
 	}
 

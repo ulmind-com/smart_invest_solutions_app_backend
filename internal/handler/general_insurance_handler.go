@@ -96,7 +96,7 @@ func (h *GeneralInsuranceHandler) GetMyInsurances(c *gin.Context) {
 // @Security     BearerAuth
 // @Router       /general-insurances/{id} [get]
 func (h *GeneralInsuranceHandler) GetByID(c *gin.Context) {
-	userIDStr, ok := middleware.GetUserID(c)
+	claims, ok := middleware.GetClaims(c)
 	if !ok {
 		response.Error(c, http.StatusUnauthorized, "unauthorized")
 		return
@@ -104,7 +104,7 @@ func (h *GeneralInsuranceHandler) GetByID(c *gin.Context) {
 
 	idStr := c.Param("id")
 
-	policy, err := h.service.GetInsuranceByID(c.Request.Context(), idStr, userIDStr)
+	policy, err := h.service.GetInsuranceByID(c.Request.Context(), claims.Role, claims.UserID.Hex(), idStr)
 	if err != nil {
 		response.Error(c, http.StatusNotFound, err.Error())
 		return
@@ -128,7 +128,7 @@ func (h *GeneralInsuranceHandler) GetByID(c *gin.Context) {
 // @Security     BearerAuth
 // @Router       /general-insurances/{id} [put]
 func (h *GeneralInsuranceHandler) UpdateInsurance(c *gin.Context) {
-	userIDStr, ok := middleware.GetUserID(c)
+	claims, ok := middleware.GetClaims(c)
 	if !ok {
 		response.Error(c, http.StatusUnauthorized, "unauthorized")
 		return
@@ -142,7 +142,7 @@ func (h *GeneralInsuranceHandler) UpdateInsurance(c *gin.Context) {
 		return
 	}
 
-	policy, err := h.service.UpdateInsurance(c.Request.Context(), idStr, userIDStr, &dto)
+	policy, err := h.service.UpdateInsurance(c.Request.Context(), claims.Role, claims.UserID.Hex(), idStr, &dto)
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, err.Error())
 		return
@@ -164,7 +164,7 @@ func (h *GeneralInsuranceHandler) UpdateInsurance(c *gin.Context) {
 // @Security     BearerAuth
 // @Router       /general-insurances/{id} [delete]
 func (h *GeneralInsuranceHandler) DeleteInsurance(c *gin.Context) {
-	userIDStr, ok := middleware.GetUserID(c)
+	claims, ok := middleware.GetClaims(c)
 	if !ok {
 		response.Error(c, http.StatusUnauthorized, "unauthorized")
 		return
@@ -172,7 +172,7 @@ func (h *GeneralInsuranceHandler) DeleteInsurance(c *gin.Context) {
 
 	idStr := c.Param("id")
 
-	if err := h.service.DeleteInsurance(c.Request.Context(), idStr, userIDStr); err != nil {
+	if err := h.service.DeleteInsurance(c.Request.Context(), claims.Role, claims.UserID.Hex(), idStr); err != nil {
 		response.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -193,9 +193,15 @@ func (h *GeneralInsuranceHandler) DeleteInsurance(c *gin.Context) {
 // @Security     BearerAuth
 // @Router       /general-insurances/user/{userId} [get]
 func (h *GeneralInsuranceHandler) GetInsurancesByUserIDAdmin(c *gin.Context) {
+	claims, ok := middleware.GetClaims(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
 	targetUserIDStr := c.Param("userId")
 
-	respData, err := h.service.GetInsurancesByUserIDAdmin(c.Request.Context(), targetUserIDStr)
+	respData, err := h.service.GetInsurancesByUserIDAdmin(c.Request.Context(), claims.Role, claims.UserID.Hex(), targetUserIDStr)
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, err.Error())
 		return

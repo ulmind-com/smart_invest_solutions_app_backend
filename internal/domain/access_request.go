@@ -63,6 +63,13 @@ type AccessRequestRepository interface {
 	// AppliedAgencyID — pass empty to skip that filter, i.e. the platform-wide view).
 	FindAll(ctx context.Context, status, agencyID string, page, limit int64) ([]*AccessRequest, int64, error)
 	UpdateStatus(ctx context.Context, id bson.ObjectID, status string, adminNotes string) (*AccessRequest, error)
+	// ClaimApproval atomically transitions a request to Approved only if it is not already
+	// Approved, in one conditional update — this is what makes ApproveRequest safe against two
+	// concurrent approve calls for the same request (e.g. an admin double-tapping "Approve"): only
+	// one caller's update can ever match, so only one caller ever proceeds to create the account
+	// and credit any referral reward. Returns an error if the request was already approved (or
+	// doesn't exist).
+	ClaimApproval(ctx context.Context, id bson.ObjectID, adminNotes string) (*AccessRequest, error)
 	UpdateDetailsAndStatus(ctx context.Context, id bson.ObjectID, name, phone, notes, appliedReferralCode, appliedAgencyID, status string) (*AccessRequest, error)
 }
 

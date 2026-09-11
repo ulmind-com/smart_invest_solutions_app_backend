@@ -74,6 +74,6 @@ type FamilyMemberService interface {
 	GetMemberByID(ctx context.Context, idStr, userIDStr string) (*FamilyMember, error)
 	UpdateMember(ctx context.Context, idStr, userIDStr string, dto *UpdateFamilyMemberDTO) (*FamilyMember, error)
 	DeleteMember(ctx context.Context, idStr, userIDStr string) error
-	GetMembersByUserIDAdmin(ctx context.Context, targetUserIDStr string) (*FamilyMemberListResponse, error)
+	GetMembersByUserIDAdmin(ctx context.Context, requesterRole, requesterID, targetUserIDStr string) (*FamilyMemberListResponse, error)
 	DeleteAllByUserID(ctx context.Context, userIDStr string) error
 }

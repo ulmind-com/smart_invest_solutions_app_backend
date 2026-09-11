@@ -35,10 +35,23 @@ func (s *healthInsuranceService) resolveTargetUserID(requesterRole, requesterID,
 	return bson.ObjectIDFromHex(targetIDStr)
 }
 
-// checkOwnership enforces that a client requester may only touch their own policies;
-// admin/super_admin bypass this check completely.
-func (s *healthInsuranceService) checkOwnership(requesterRole, requesterID string, ownerID bson.ObjectID) error {
-	if requesterRole == domain.RoleAdmin || requesterRole == domain.RoleSuperAdmin {
+// checkOwnership enforces that a client requester may only touch their own policies; super_admin
+// bypasses this check completely, and a plain admin may only touch a policy whose owning client
+// belongs to their own agency (same resolveCallerAgencyID/canAccessAgencyScopedRecord pattern used
+// for the admin master list) — a cross-agency policy reports "not found" rather than "forbidden".
+func (s *healthInsuranceService) checkOwnership(ctx context.Context, requesterRole, requesterID string, ownerID bson.ObjectID) error {
+	if requesterRole == domain.RoleSuperAdmin {
+		return nil
+	}
+	if requesterRole == domain.RoleAdmin {
+		owner, err := s.userRepo.FindByID(ctx, ownerID)
+		if err != nil || owner == nil {
+			return fmt.Errorf("policy not found")
+		}
+		agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
+		if !canAccessAgencyScopedRecord(requesterRole, agencyFilter, owner.AgencyID) {
+			return fmt.Errorf("policy not found")
+		}
 		return nil
 	}
 	requesterObjID, err := bson.ObjectIDFromHex(requesterID)
@@ -63,6 +76,14 @@ func (s *healthInsuranceService) CreatePolicy(ctx context.Context, requesterRole
 	targetUser, err := s.userRepo.FindByID(ctx, userID)
 	if err != nil || targetUser == nil {
 		return nil, fmt.Errorf("target user not found")
+	}
+
+	// A plain admin may only create a policy on behalf of a client under their own agency.
+	if requesterRole == domain.RoleAdmin {
+		agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
+		if !canAccessAgencyScopedRecord(requesterRole, agencyFilter, targetUser.AgencyID) {
+			return nil, fmt.Errorf("target user not found")
+		}
 	}
 
 	familyMemberID, err := bson.ObjectIDFromHex(dto.FamilyMemberID)
@@ -117,7 +138,7 @@ func (s *healthInsuranceService) GetPolicyByID(ctx context.Context, requesterRol
 		return nil, err
 	}
 
-	if err := s.checkOwnership(requesterRole, requesterID, policy.UserID); err != nil {
+	if err := s.checkOwnership(ctx, requesterRole, requesterID, policy.UserID); err != nil {
 		return nil, err
 	}
 
@@ -132,6 +153,34 @@ func (s *healthInsuranceService) GetMyPolicies(ctx context.Context, requesterID 
 	}
 
 	policies, total, err := s.repo.GetByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &domain.HealthInsuranceListResponse{Total: total, Data: policies}, nil
+}
+
+// GetPoliciesByUserIDAdmin lets admin/super_admin view a specific client's full, unpaginated
+// policy list. A plain admin may only look up a client belonging to their own agency (same
+// resolveCallerAgencyID/canAccessAgencyScopedRecord pattern used everywhere else).
+func (s *healthInsuranceService) GetPoliciesByUserIDAdmin(ctx context.Context, requesterRole, requesterID, targetUserIDStr string) (*domain.HealthInsuranceListResponse, error) {
+	targetUserID, err := bson.ObjectIDFromHex(targetUserIDStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid target user ID format: %w", err)
+	}
+
+	if requesterRole == domain.RoleAdmin {
+		targetUser, err := s.userRepo.FindByID(ctx, targetUserID)
+		if err != nil || targetUser == nil {
+			return nil, fmt.Errorf("user not found")
+		}
+		agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
+		if !canAccessAgencyScopedRecord(requesterRole, agencyFilter, targetUser.AgencyID) {
+			return nil, fmt.Errorf("user not found")
+		}
+	}
+
+	policies, total, err := s.repo.GetByUserID(ctx, targetUserID)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +229,7 @@ func (s *healthInsuranceService) UpdatePolicy(ctx context.Context, requesterRole
 		return nil, err
 	}
 
-	if err := s.checkOwnership(requesterRole, requesterID, existing.UserID); err != nil {
+	if err := s.checkOwnership(ctx, requesterRole, requesterID, existing.UserID); err != nil {
 		return nil, err
 	}
 
@@ -230,7 +279,7 @@ func (s *healthInsuranceService) DeletePolicy(ctx context.Context, requesterRole
 		return err
 	}
 
-	if err := s.checkOwnership(requesterRole, requesterID, existing.UserID); err != nil {
+	if err := s.checkOwnership(ctx, requesterRole, requesterID, existing.UserID); err != nil {
 		return err
 	}
 

@@ -54,7 +54,7 @@ type User struct {
 type CreateUserRequest struct {
 	Name     string `json:"name" binding:"required"`
 	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
+	Password string `json:"password" binding:"required,min=6"`
 	Phone    string `json:"phone,omitempty"`
 }
 
@@ -79,7 +79,7 @@ type UpdateProfileRequest struct {
 // ChangePasswordRequest represents the payload for changing a user's password.
 type ChangePasswordRequest struct {
 	CurrentPassword string `json:"current_password" binding:"required"`
-	NewPassword     string `json:"new_password" binding:"required"`
+	NewPassword     string `json:"new_password" binding:"required,min=6"`
 	ConfirmPassword string `json:"confirm_password" binding:"required"`
 }
 
@@ -180,6 +180,11 @@ type RenewAdminExpiryRequest struct {
 type MergeFamilyAccountsRequest struct {
 	PrimaryUserID   string `json:"primary_user_id" binding:"required" example:"64f1a2b3c4d5e6f7a8b9c0d1"`
 	SecondaryUserID string `json:"secondary_user_id" binding:"required" example:"64f1a2b3c4d5e6f7a8b9c0d2"`
+	// ConfirmCrossAgency must be explicitly set true to merge two accounts registered under
+	// different Agency IDs — without it, the merge is refused with an error naming both agencies,
+	// so a super_admin can't accidentally transplant one agency's client data onto an account
+	// another admin manages just by picking the wrong client in the merge picker.
+	ConfirmCrossAgency bool `json:"confirm_cross_agency,omitempty"`
 }
 
 // MergeFamilyAccountsResult summarizes what moved during a family merge, returned to the Super
@@ -255,11 +260,14 @@ type UserService interface {
 	Login(ctx context.Context, req *UserLoginRequest) (*LoginResponse, error)
 	AdminLogin(ctx context.Context, req *AdminLoginRequest) (*LoginResponse, error)
 	ImpersonateUser(ctx context.Context, superAdminID, targetUserID, reason string) (*LoginResponse, error)
-	GetByID(ctx context.Context, id string) (*UserResponse, error)
+	GetByID(ctx context.Context, requesterRole, requesterID, id string) (*UserResponse, error)
+	// GetSelf returns the caller's own profile — every role may always read their own record, so
+	// this intentionally bypasses the agency-scoping GetByID applies to admin lookups of others.
+	GetSelf(ctx context.Context, id string) (*UserResponse, error)
 	// GetAll returns a paginated user list, scoped by the caller: a super_admin sees everyone; a
 	// plain admin sees only clients whose AgencyID matches their own AdminID.
 	GetAll(ctx context.Context, requesterRole, requesterID string, page, limit int64) ([]*UserResponse, int64, error)
-	Update(ctx context.Context, requesterRole, id string, req *UpdateUserRequest) (*UserResponse, error)
+	Update(ctx context.Context, requesterRole, requesterID, id string, req *UpdateUserRequest) (*UserResponse, error)
 	UpdateProfile(ctx context.Context, id string, req *UpdateProfileRequest) (*UserResponse, error)
 	ChangePassword(ctx context.Context, id string, req *ChangePasswordRequest) error
 	ChangePIN(ctx context.Context, id string, req *ChangePINRequest) error

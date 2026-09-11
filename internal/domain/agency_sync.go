@@ -7,10 +7,24 @@ import (
 
 // SyncResultDTO represents the summary result returned after processing an LIC Premium Due List PDF.
 type SyncResultDTO struct {
-	TotalPoliciesFoundInPDF int              `json:"total_policies_found_in_pdf"`
-	SuccessfullyUpdatedInDB int              `json:"successfully_updated_in_db"`
-	FailedToUpdateInDB      int              `json:"failed_to_update_in_db"`
-	UnmappedPolicies        []UnmappedPolicy `json:"unmapped_policies"`
+	TotalPoliciesFoundInPDF int `json:"total_policies_found_in_pdf"`
+	SuccessfullyUpdatedInDB int `json:"successfully_updated_in_db"`
+	FailedToUpdateInDB      int `json:"failed_to_update_in_db"`
+	// FailedPolicies names exactly which policy numbers failed to update and why, so an admin
+	// isn't left with just a bare failure count and no way to diagnose or target a re-run.
+	FailedPolicies []FailedSyncPolicy `json:"failed_policies"`
+	// UnparsedPolicyNumbers lists 9-digit numbers the parser located in the PDF but could not fully
+	// read (missing a DOC or FUP date nearby) — previously dropped with zero trace, so a row could
+	// silently vanish from the sync with no signal to the admin that anything was even there.
+	UnparsedPolicyNumbers []string         `json:"unparsed_policy_numbers"`
+	UnmappedPolicies      []UnmappedPolicy `json:"unmapped_policies"`
+}
+
+// FailedSyncPolicy identifies one policy number whose bulk-update write failed, and the reason
+// MongoDB reported for that specific record.
+type FailedSyncPolicy struct {
+	PolicyNo string `json:"policy_no"`
+	Reason   string `json:"reason"`
 }
 
 // UnmappedPolicy represents a policy record extracted from the PDF that does not exist in the database.
@@ -40,5 +54,5 @@ type LICParsedRecord struct {
 
 // AgencySyncService defines business logic operations for agency PDF sync engines.
 type AgencySyncService interface {
-	ProcessLICDueList(ctx context.Context, fileBytes []byte) (*SyncResultDTO, error)
+	ProcessLICDueList(ctx context.Context, requesterRole, requesterID string, fileBytes []byte) (*SyncResultDTO, error)
 }

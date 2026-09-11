@@ -208,3 +208,35 @@ func (h *LifeInsuranceHandler) DeletePolicy(c *gin.Context) {
 
 	response.Success(c, "Policy deleted successfully", nil)
 }
+
+// GetPoliciesByUserIDAdmin handles fetching a specific client's full Life Insurance list for the
+// Admin client-detail "Holdings" view — unpaginated, since the /all master list is capped for
+// display purposes and would otherwise silently truncate a client with many policies.
+// @Summary      Get user's Life Insurance policies (Admin Only)
+// @Description  Retrieves every life insurance policy belonging to a specific client. A super_admin may target any client; a plain admin only one under their own Agency ID.
+// @Tags         Life Insurance (Admin)
+// @Accept       json
+// @Produce      json
+// @Param        userId  path      string  true  "Target Client User ID"
+// @Success      200     {object}  response.APIResponse{data=domain.LifeInsuranceListResponse}  "Policies retrieved successfully"
+// @Failure      401     {object}  response.APIResponse  "Unauthorized"
+// @Failure      403     {object}  response.APIResponse  "Forbidden — Admin role required"
+// @Security     BearerAuth
+// @Router       /life-insurances/user/{userId} [get]
+func (h *LifeInsuranceHandler) GetPoliciesByUserIDAdmin(c *gin.Context) {
+	claims, ok := middleware.GetClaims(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	targetUserIDStr := c.Param("userId")
+
+	respData, err := h.service.GetPoliciesByUserIDAdmin(c.Request.Context(), claims.Role, claims.UserID.Hex(), targetUserIDStr)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	response.Success(c, "Policies retrieved successfully", respData)
+}

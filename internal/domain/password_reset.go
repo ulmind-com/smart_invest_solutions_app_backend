@@ -14,7 +14,11 @@ type PasswordReset struct {
 	OTP       string        `bson:"otp" json:"otp"`
 	ExpiresAt time.Time     `bson:"expires_at" json:"expires_at"`
 	IsUsed    bool          `bson:"is_used" json:"is_used"`
-	CreatedAt time.Time     `bson:"created_at" json:"created_at"`
+	// Attempts counts wrong-OTP guesses against this record — capped at 5 (see VerifyOTP/
+	// ResetPassword), the same lockout used for signup email verification, so a 6-digit reset code
+	// can't be brute-forced within its 10-minute validity window.
+	Attempts  int       `bson:"attempts" json:"attempts"`
+	CreatedAt time.Time `bson:"created_at" json:"created_at"`
 }
 
 // ForgotPasswordRequest represents the payload for requesting a password reset OTP.
@@ -32,14 +36,19 @@ type VerifyOTPRequest struct {
 type ResetPasswordRequest struct {
 	Email           string `json:"email" binding:"required,email"`
 	OTP             string `json:"otp" binding:"required,len=6"`
-	NewPassword     string `json:"new_password" binding:"required"`
+	NewPassword     string `json:"new_password" binding:"required,min=6"`
 	ConfirmPassword string `json:"confirm_password" binding:"required"`
 }
 
 // PasswordResetRepository defines data access methods for OTP records.
 type PasswordResetRepository interface {
 	Create(ctx context.Context, reset *PasswordReset) (*PasswordReset, error)
-	FindLatestActiveOTP(ctx context.Context, email, otp string) (*PasswordReset, error)
+	// FindLatestActiveOTP returns the most recent unexpired, unused OTP record for an email —
+	// matched by email alone (not by OTP value), so the caller can compare the submitted code
+	// itself and track wrong-guess attempts against one identified record, the same pattern
+	// EmailVerificationRepository uses.
+	FindLatestActiveOTP(ctx context.Context, email string) (*PasswordReset, error)
+	IncrementAttempts(ctx context.Context, id bson.ObjectID) error
 	MarkAsUsed(ctx context.Context, id bson.ObjectID) error
 	DeleteAllByEmail(ctx context.Context, email string) error
 	DeleteByID(ctx context.Context, id bson.ObjectID) error

@@ -35,9 +35,23 @@ func (s *fixedDepositService) resolveTargetUserID(requesterRole, requesterID, dt
 }
 
 // checkOwnership enforces that a client requester may only touch their own Fixed Deposits;
-// admin/super_admin bypass this check completely.
-func (s *fixedDepositService) checkOwnership(requesterRole, requesterID string, ownerID bson.ObjectID) error {
-	if requesterRole == domain.RoleAdmin || requesterRole == domain.RoleSuperAdmin {
+// super_admin bypasses this check completely, and a plain admin may only touch a Fixed Deposit
+// whose owning client belongs to their own agency (same resolveCallerAgencyID/
+// canAccessAgencyScopedRecord pattern used for the admin master list) — a cross-agency FD reports
+// "not found" rather than "forbidden".
+func (s *fixedDepositService) checkOwnership(ctx context.Context, requesterRole, requesterID string, ownerID bson.ObjectID) error {
+	if requesterRole == domain.RoleSuperAdmin {
+		return nil
+	}
+	if requesterRole == domain.RoleAdmin {
+		owner, err := s.userRepo.FindByID(ctx, ownerID)
+		if err != nil || owner == nil {
+			return fmt.Errorf("fixed deposit not found")
+		}
+		agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
+		if !canAccessAgencyScopedRecord(requesterRole, agencyFilter, owner.AgencyID) {
+			return fmt.Errorf("fixed deposit not found")
+		}
 		return nil
 	}
 	requesterObjID, err := bson.ObjectIDFromHex(requesterID)
@@ -62,6 +76,14 @@ func (s *fixedDepositService) CreateFD(ctx context.Context, requesterRole, reque
 	targetUser, err := s.userRepo.FindByID(ctx, userID)
 	if err != nil || targetUser == nil {
 		return nil, fmt.Errorf("target user not found")
+	}
+
+	// A plain admin may only create a Fixed Deposit on behalf of a client under their own agency.
+	if requesterRole == domain.RoleAdmin {
+		agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
+		if !canAccessAgencyScopedRecord(requesterRole, agencyFilter, targetUser.AgencyID) {
+			return nil, fmt.Errorf("target user not found")
+		}
 	}
 
 	familyMemberID, err := bson.ObjectIDFromHex(dto.FamilyMemberID)
@@ -114,7 +136,7 @@ func (s *fixedDepositService) GetFDByID(ctx context.Context, requesterRole, requ
 		return nil, err
 	}
 
-	if err := s.checkOwnership(requesterRole, requesterID, fd.UserID); err != nil {
+	if err := s.checkOwnership(ctx, requesterRole, requesterID, fd.UserID); err != nil {
 		return nil, err
 	}
 
@@ -129,6 +151,34 @@ func (s *fixedDepositService) GetMyFDs(ctx context.Context, requesterID string) 
 	}
 
 	fds, total, err := s.repo.GetByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &domain.FixedDepositListResponse{Total: total, Data: fds}, nil
+}
+
+// GetFDsByUserIDAdmin lets admin/super_admin view a specific client's full, unpaginated Fixed
+// Deposit list. A plain admin may only look up a client belonging to their own agency (same
+// resolveCallerAgencyID/canAccessAgencyScopedRecord pattern used everywhere else).
+func (s *fixedDepositService) GetFDsByUserIDAdmin(ctx context.Context, requesterRole, requesterID, targetUserIDStr string) (*domain.FixedDepositListResponse, error) {
+	targetUserID, err := bson.ObjectIDFromHex(targetUserIDStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid target user ID format: %w", err)
+	}
+
+	if requesterRole == domain.RoleAdmin {
+		targetUser, err := s.userRepo.FindByID(ctx, targetUserID)
+		if err != nil || targetUser == nil {
+			return nil, fmt.Errorf("user not found")
+		}
+		agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
+		if !canAccessAgencyScopedRecord(requesterRole, agencyFilter, targetUser.AgencyID) {
+			return nil, fmt.Errorf("user not found")
+		}
+	}
+
+	fds, total, err := s.repo.GetByUserID(ctx, targetUserID)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +227,7 @@ func (s *fixedDepositService) UpdateFD(ctx context.Context, requesterRole, reque
 		return nil, err
 	}
 
-	if err := s.checkOwnership(requesterRole, requesterID, existing.UserID); err != nil {
+	if err := s.checkOwnership(ctx, requesterRole, requesterID, existing.UserID); err != nil {
 		return nil, err
 	}
 
@@ -226,7 +276,7 @@ func (s *fixedDepositService) DeleteFD(ctx context.Context, requesterRole, reque
 		return err
 	}
 
-	if err := s.checkOwnership(requesterRole, requesterID, existing.UserID); err != nil {
+	if err := s.checkOwnership(ctx, requesterRole, requesterID, existing.UserID); err != nil {
 		return err
 	}
 

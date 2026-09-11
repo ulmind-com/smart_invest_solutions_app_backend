@@ -454,8 +454,32 @@ func (s *userService) ImpersonateUser(ctx context.Context, superAdminIDStr, targ
 	}, nil
 }
 
-// GetByID retrieves a user by their ID string.
-func (s *userService) GetByID(ctx context.Context, id string) (*domain.UserResponse, error) {
+// GetByID retrieves a user by their ID string. A super_admin may look up anyone; a plain admin
+// only a user belonging to their own agency — enforced the same way as every other agency-scoped
+// lookup in this file (resolveCallerAgencyID/canAccessAgencyScopedRecord), and a cross-agency
+// lookup reports "not found" rather than "forbidden" so it can't be used to probe which IDs exist.
+func (s *userService) GetByID(ctx context.Context, requesterRole, requesterID, id string) (*domain.UserResponse, error) {
+	objectID, err := bson.ObjectIDFromHex(id)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user ID format: %w", err)
+	}
+
+	user, err := s.userRepo.FindByID(ctx, objectID)
+	if err != nil {
+		return nil, err
+	}
+
+	agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
+	if !canAccessAgencyScopedRecord(requesterRole, agencyFilter, user.AgencyID) {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	return user.ToResponse(), nil
+}
+
+// GetSelf returns the caller's own profile by ID, with no agency-scoping check — every account may
+// always read its own record, regardless of role or AgencyID.
+func (s *userService) GetSelf(ctx context.Context, id string) (*domain.UserResponse, error) {
 	objectID, err := bson.ObjectIDFromHex(id)
 	if err != nil {
 		return nil, fmt.Errorf("invalid user ID format: %w", err)
@@ -507,14 +531,23 @@ func (s *userService) GetAll(ctx context.Context, requesterRole, requesterID str
 // Update modifies an existing user and triggers Approval / Rejection email if IsActive status changes.
 // Only a super_admin may modify an existing admin/super_admin account, or promote any user to
 // admin/super_admin — this closes a privilege-escalation hole where a plain admin could otherwise
-// tamper with other admin accounts or self-promote via this generic endpoint.
-func (s *userService) Update(ctx context.Context, requesterRole, id string, req *domain.UpdateUserRequest) (*domain.UserResponse, error) {
+// tamper with other admin accounts or self-promote via this generic endpoint. A plain admin may
+// also only modify a user belonging to their own agency (same resolveCallerAgencyID/
+// canAccessAgencyScopedRecord pattern used everywhere else in this file).
+func (s *userService) Update(ctx context.Context, requesterRole, requesterID, id string, req *domain.UpdateUserRequest) (*domain.UserResponse, error) {
 	objectID, err := bson.ObjectIDFromHex(id)
 	if err != nil {
 		return nil, fmt.Errorf("invalid user ID format: %w", err)
 	}
 
 	existingUser, _ := s.userRepo.FindByID(ctx, objectID)
+
+	if existingUser != nil {
+		agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
+		if !canAccessAgencyScopedRecord(requesterRole, agencyFilter, existingUser.AgencyID) {
+			return nil, fmt.Errorf("user not found")
+		}
+	}
 
 	if requesterRole != domain.RoleSuperAdmin {
 		if existingUser != nil && (existingUser.Role == domain.RoleAdmin || existingUser.Role == domain.RoleSuperAdmin) {
@@ -573,7 +606,11 @@ func (s *userService) UpdateProfile(ctx context.Context, id string, req *domain.
 	return user.ToResponse(), nil
 }
 
-// ChangePassword allows a logged-in user to change their password after verifying their current password.
+// ChangePassword allows a logged-in user to change their password after verifying their current
+// credential. The check accepts either the account's current Password OR its current PIN (via
+// matchesSecret, the same interchangeable-credential check ChangePIN uses) — a client approved
+// through the Access-Request flow is issued only a PIN and never a Password, so requiring a
+// Password match specifically would leave that population permanently unable to set one here.
 func (s *userService) ChangePassword(ctx context.Context, id string, req *domain.ChangePasswordRequest) error {
 	if req.NewPassword != req.ConfirmPassword {
 		return fmt.Errorf("new password and confirmation password do not match")
@@ -589,9 +626,7 @@ func (s *userService) ChangePassword(ctx context.Context, id string, req *domain
 		return fmt.Errorf("user not found")
 	}
 
-	// Verify current password
-	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.CurrentPassword))
-	if err != nil {
+	if !matchesSecret(user, req.CurrentPassword) {
 		return fmt.Errorf("current password is incorrect")
 	}
 
@@ -1024,6 +1059,9 @@ func (s *userService) MergeFamilyAccounts(ctx context.Context, requesterID strin
 	}
 	if secondary.MergedIntoUserID != nil {
 		return nil, fmt.Errorf("the secondary account has already been merged into another account")
+	}
+	if primary.AgencyID != secondary.AgencyID && !req.ConfirmCrossAgency {
+		return nil, fmt.Errorf("these two accounts belong to different agencies (%q and %q) — resubmit with confirm_cross_agency=true if this is intentional", primary.AgencyID, secondary.AgencyID)
 	}
 
 	result := &domain.MergeFamilyAccountsResult{}

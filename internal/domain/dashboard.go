@@ -8,10 +8,10 @@ import (
 // UpcomingPayment represents a single upcoming premium/maturity due date surfaced on the client
 // dashboard, merged and sorted chronologically across policy types.
 type UpcomingPayment struct {
-	Type       string    `json:"type" example:"Life Insurance"` // "Life Insurance", "Health Insurance", "Fixed Deposit"
-	EntityName string    `json:"entity_name"`                   // Plan Name or FD Name
-	Amount     float64   `json:"amount"`
-	DueDate    time.Time `json:"due_date"` // Maps to next_due_date (premiums) or maturity_date (FDs)
+	Type       string    `json:"type" example:"Life Insurance"` // "Life Insurance", "Health Insurance", "Fixed Deposit", "Motor Insurance"
+	EntityName string    `json:"entity_name"`                   // Plan Name, FD Name, or Vehicle No
+	Amount     float64   `json:"amount"`                        // 0 for Motor Insurance (no premium/maturity amount on that model)
+	DueDate    time.Time `json:"due_date"`                      // next_due_date (premiums), maturity_date (FDs), or date_of_expiry (Motor)
 }
 
 // ClientDashboardDTO represents the aggregated summary view shown on a client's dashboard.

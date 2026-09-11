@@ -47,11 +47,25 @@ const dateLayout = "02-Jan-2006"
 
 // GenerateClientPortfolio fetches a client's profile, family members, and every policy/FD they
 // hold (concurrently, since each read hits a different collection), then renders it all into a
-// single in-memory PDF.
-func (s *reportService) GenerateClientPortfolio(ctx context.Context, targetUserID string) ([]byte, error) {
+// single in-memory PDF. A plain admin may only generate this for a client belonging to their own
+// agency (same resolveCallerAgencyID/canAccessAgencyScopedRecord pattern used everywhere else) —
+// this is checked up front, before any of the concurrent reads fire, so a cross-agency request
+// never touches the target's financial data at all.
+func (s *reportService) GenerateClientPortfolio(ctx context.Context, requesterRole, requesterID, targetUserID string) ([]byte, error) {
 	userID, err := bson.ObjectIDFromHex(targetUserID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid user ID format: %w", err)
+	}
+
+	if requesterRole == domain.RoleAdmin {
+		targetUser, err := s.userRepo.FindByID(ctx, userID)
+		if err != nil || targetUser == nil {
+			return nil, fmt.Errorf("user not found")
+		}
+		agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
+		if !canAccessAgencyScopedRecord(requesterRole, agencyFilter, targetUser.AgencyID) {
+			return nil, fmt.Errorf("user not found")
+		}
 	}
 
 	var (

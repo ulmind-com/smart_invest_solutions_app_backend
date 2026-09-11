@@ -84,6 +84,16 @@ func (s *supportTicketService) CreateTicket(ctx context.Context, requesterRole, 
 		return nil, fmt.Errorf("target user not found")
 	}
 
+	// A plain admin may only raise a ticket on behalf of a client under their own agency — mirrors
+	// checkOwnership's agency check so "create on behalf of" can't reach across agency boundaries
+	// even though it's a different code path from the read/update/delete checks below.
+	if requesterRole == domain.RoleAdmin {
+		agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
+		if !canAccessAgencyScopedRecord(requesterRole, agencyFilter, targetUser.AgencyID) {
+			return nil, fmt.Errorf("target user not found")
+		}
+	}
+
 	var created *domain.SupportTicket
 	for attempt := 0; attempt < maxTicketNumberGenerationAttempts; attempt++ {
 		ticketNumber, genErr := utils.GenerateTicketNumber()

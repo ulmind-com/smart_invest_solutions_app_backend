@@ -45,7 +45,7 @@ func (h *ReportHandler) GetClientPortfolio(c *gin.Context) {
 		}
 	}
 
-	pdfBytes, err := h.service.GenerateClientPortfolio(c.Request.Context(), targetUserID)
+	pdfBytes, err := h.service.GenerateClientPortfolio(c.Request.Context(), claims.Role, claims.UserID.Hex(), targetUserID)
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, err.Error())
 		return

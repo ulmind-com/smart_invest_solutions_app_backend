@@ -14,13 +14,15 @@ import (
 type documentService struct {
 	repo       domain.DocumentRepository
 	storageSvc StorageService
+	userRepo   domain.UserRepository
 }
 
 // NewDocumentService initializes a new instance of DocumentService.
-func NewDocumentService(repo domain.DocumentRepository, storageSvc StorageService) domain.DocumentService {
+func NewDocumentService(repo domain.DocumentRepository, storageSvc StorageService, userRepo domain.UserRepository) domain.DocumentService {
 	return &documentService{
 		repo:       repo,
 		storageSvc: storageSvc,
+		userRepo:   userRepo,
 	}
 }
 
@@ -103,8 +105,11 @@ func (s *documentService) GetDocumentByID(ctx context.Context, idStr, userIDStr 
 	return doc, nil
 }
 
-// UpdateDocument modifies an existing document record.
-// If newFile is provided, the OLD file is purged from Cloudinary first, and the new compressed file is uploaded.
+// UpdateDocument modifies an existing document record. If newFile is provided, the new file is
+// uploaded and the DB record is switched over to it FIRST; only once that has fully succeeded is
+// the OLD Cloudinary asset purged. This ordering is deliberate: if the upload or the DB update
+// fails partway through, the user's existing document is left completely intact rather than
+// destroyed — the old asset is only ever deleted once nothing can still fail.
 func (s *documentService) UpdateDocument(ctx context.Context, idStr, userIDStr string, dto *domain.UpdateDocumentDTO, newFile io.Reader, filename string) (*domain.Document, error) {
 	id, err := bson.ObjectIDFromHex(idStr)
 	if err != nil {
@@ -126,12 +131,8 @@ func (s *documentService) UpdateDocument(ctx context.Context, idStr, userIDStr s
 		return nil, fmt.Errorf("access denied: document does not belong to you")
 	}
 
-	// If a new file is uploaded, purge the old file from Cloudinary first!
+	oldPublicID := ""
 	if newFile != nil {
-		if existingDoc.PublicID != "" {
-			_ = s.storageSvc.DeleteImage(ctx, existingDoc.PublicID)
-		}
-
 		folder := fmt.Sprintf("smart_invest_documents/%s", userIDStr)
 		uploadRes, err := s.storageSvc.UploadDocumentWithCompression(ctx, newFile, folder)
 		if err != nil {
@@ -147,12 +148,32 @@ func (s *documentService) UpdateDocument(ctx context.Context, idStr, userIDStr s
 		dto.PublicID = &uploadRes.PublicID
 		dto.FileType = &ext
 		dto.FileSize = &uploadRes.Bytes
+		oldPublicID = existingDoc.PublicID
 	}
 
-	return s.repo.Update(ctx, id, userID, dto)
+	updated, err := s.repo.Update(ctx, id, userID, dto)
+	if err != nil {
+		if newFile != nil {
+			// The DB switch-over failed after a successful upload — clean up the now-orphaned new
+			// asset (best-effort) rather than leaving it stranded; the old asset is untouched, so
+			// the user's document is still exactly as it was before this request.
+			_ = s.storageSvc.DeleteImage(ctx, *dto.PublicID)
+		}
+		return nil, err
+	}
+
+	// Only now, after the DB record is confirmed pointing at the new file, is the old one purged.
+	if oldPublicID != "" {
+		_ = s.storageSvc.DeleteImage(ctx, oldPublicID)
+	}
+
+	return updated, nil
 }
 
-// DeleteDocument removes a document from MongoDB AND purges the file from Cloudinary!
+// DeleteDocument removes a document from MongoDB AND purges the file from Cloudinary. The DB
+// record is removed first: if that fails, nothing has changed yet and the request can simply be
+// retried; if it succeeds but the Cloudinary purge then fails, the result is only a harmless
+// orphaned asset (no data loss), which is a far safer failure mode than the reverse order.
 func (s *documentService) DeleteDocument(ctx context.Context, idStr, userIDStr string) error {
 	id, err := bson.ObjectIDFromHex(idStr)
 	if err != nil {
@@ -164,7 +185,7 @@ func (s *documentService) DeleteDocument(ctx context.Context, idStr, userIDStr s
 		return fmt.Errorf("invalid user ID format: %w", err)
 	}
 
-	// Fetch existing document to get PublicID for Cloudinary purging
+	// Fetch existing document to check ownership & get PublicID for Cloudinary purging
 	existingDoc, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return err
@@ -174,20 +195,35 @@ func (s *documentService) DeleteDocument(ctx context.Context, idStr, userIDStr s
 		return fmt.Errorf("access denied: document does not belong to you")
 	}
 
-	// Purge asset from Cloudinary
+	if err := s.repo.Delete(ctx, id, userID); err != nil {
+		return err
+	}
+
 	if existingDoc.PublicID != "" {
 		_ = s.storageSvc.DeleteImage(ctx, existingDoc.PublicID)
 	}
 
-	// Remove record from MongoDB
-	return s.repo.Delete(ctx, id, userID)
+	return nil
 }
 
-// GetDocumentsByUserIDAdmin allows admins to view documents of any client.
-func (s *documentService) GetDocumentsByUserIDAdmin(ctx context.Context, targetUserIDStr, searchQuery string) (*domain.DocumentListResponse, error) {
+// GetDocumentsByUserIDAdmin allows admin/super_admin to view documents of any client. A plain
+// admin may only look up a client belonging to their own agency (same resolveCallerAgencyID/
+// canAccessAgencyScopedRecord pattern used everywhere else).
+func (s *documentService) GetDocumentsByUserIDAdmin(ctx context.Context, requesterRole, requesterID, targetUserIDStr, searchQuery string) (*domain.DocumentListResponse, error) {
 	targetUserID, err := bson.ObjectIDFromHex(targetUserIDStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid target user ID format: %w", err)
+	}
+
+	if requesterRole == domain.RoleAdmin {
+		targetUser, err := s.userRepo.FindByID(ctx, targetUserID)
+		if err != nil || targetUser == nil {
+			return nil, fmt.Errorf("user not found")
+		}
+		agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
+		if !canAccessAgencyScopedRecord(requesterRole, agencyFilter, targetUser.AgencyID) {
+			return nil, fmt.Errorf("user not found")
+		}
 	}
 
 	docs, total, err := s.repo.FindAllByUserID(ctx, targetUserID, searchQuery)

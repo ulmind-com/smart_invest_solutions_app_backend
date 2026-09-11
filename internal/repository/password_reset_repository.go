@@ -52,11 +52,12 @@ func (r *passwordResetRepository) Create(ctx context.Context, reset *domain.Pass
 	return reset, nil
 }
 
-// FindLatestActiveOTP finds the most recent unexpired, unused OTP for a given email and code.
-func (r *passwordResetRepository) FindLatestActiveOTP(ctx context.Context, email, otp string) (*domain.PasswordReset, error) {
+// FindLatestActiveOTP finds the most recent unexpired, unused OTP record for a given email,
+// regardless of its value — the caller compares the submitted code itself so wrong guesses can be
+// counted against this one record.
+func (r *passwordResetRepository) FindLatestActiveOTP(ctx context.Context, email string) (*domain.PasswordReset, error) {
 	filter := bson.M{
 		"email":      email,
-		"otp":        otp,
 		"is_used":    false,
 		"expires_at": bson.M{"$gt": time.Now().UTC()},
 	}
@@ -67,12 +68,21 @@ func (r *passwordResetRepository) FindLatestActiveOTP(ctx context.Context, email
 	err := r.collection.FindOne(ctx, filter, opts).Decode(&reset)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			return nil, fmt.Errorf("invalid or expired OTP code")
+			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to query OTP: %w", err)
 	}
 
 	return &reset, nil
+}
+
+// IncrementAttempts bumps the wrong-guess counter on an OTP record by one.
+func (r *passwordResetRepository) IncrementAttempts(ctx context.Context, id bson.ObjectID) error {
+	_, err := r.collection.UpdateOne(ctx, bson.M{"_id": id}, bson.M{"$inc": bson.M{"attempts": 1}})
+	if err != nil {
+		return fmt.Errorf("failed to record OTP attempt: %w", err)
+	}
+	return nil
 }
 
 // MarkAsUsed sets is_used = true for an OTP record.

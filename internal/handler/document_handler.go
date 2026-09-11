@@ -1,8 +1,12 @@
 package handler
 
 import (
+	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"path/filepath"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/smart-invest-solutions/backend/internal/domain"
@@ -13,6 +17,34 @@ import (
 // DocumentHandler handles HTTP requests for E-Vault document management.
 type DocumentHandler struct {
 	service domain.DocumentService
+}
+
+// maxDocumentUploadSize caps a single E-Vault file — generous for a scanned ID/policy PDF or
+// photo, but bounded, so an authenticated client can't force the server to buffer an arbitrarily
+// large file in memory during Cloudinary compression (storage_service.go reads the whole stream).
+const maxDocumentUploadSize = 10 << 20 // 10 MiB
+
+// allowedDocumentExtensions mirrors what this endpoint has always documented (Swagger: "PDF, PNG,
+// JPG, JPEG") but, until now, never actually enforced server-side — the client's document picker
+// filter was the only thing stopping an arbitrary file type from being accepted.
+var allowedDocumentExtensions = map[string]bool{
+	".pdf": true, ".png": true, ".jpg": true, ".jpeg": true,
+}
+
+// validateDocumentUpload rejects an empty file, an oversized file, or a disallowed extension
+// before the handler ever opens the stream — shared by UploadDocument and UpdateDocument.
+func validateDocumentUpload(fileHeader *multipart.FileHeader) error {
+	if fileHeader.Size <= 0 {
+		return fmt.Errorf("uploaded file is empty")
+	}
+	if fileHeader.Size > maxDocumentUploadSize {
+		return fmt.Errorf("file exceeds the maximum allowed size of %d MB", maxDocumentUploadSize>>20)
+	}
+	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
+	if !allowedDocumentExtensions[ext] {
+		return fmt.Errorf("unsupported file type — only PDF, PNG, JPG, and JPEG are allowed")
+	}
+	return nil
 }
 
 // NewDocumentHandler creates a new instance of DocumentHandler.
@@ -57,6 +89,11 @@ func (h *DocumentHandler) UploadDocument(c *gin.Context) {
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, "file is required")
+		return
+	}
+
+	if err := validateDocumentUpload(fileHeader); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -177,6 +214,10 @@ func (h *DocumentHandler) UpdateDocument(c *gin.Context) {
 
 	fileHeader, err := c.FormFile("file")
 	if err == nil && fileHeader != nil {
+		if err := validateDocumentUpload(fileHeader); err != nil {
+			response.Error(c, http.StatusBadRequest, err.Error())
+			return
+		}
 		stream, errStream := fileHeader.Open()
 		if errStream == nil {
 			defer stream.Close()
@@ -237,10 +278,16 @@ func (h *DocumentHandler) DeleteDocument(c *gin.Context) {
 // @Security     BearerAuth
 // @Router       /documents/user/{userId} [get]
 func (h *DocumentHandler) GetDocumentsByUserIDAdmin(c *gin.Context) {
+	claims, ok := middleware.GetClaims(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
 	targetUserIDStr := c.Param("userId")
 	searchQuery := c.Query("q")
 
-	respData, err := h.service.GetDocumentsByUserIDAdmin(c.Request.Context(), targetUserIDStr, searchQuery)
+	respData, err := h.service.GetDocumentsByUserIDAdmin(c.Request.Context(), claims.Role, claims.UserID.Hex(), targetUserIDStr, searchQuery)
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, err.Error())
 		return

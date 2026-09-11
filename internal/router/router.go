@@ -22,6 +22,12 @@ import (
 func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	router := gin.New()
 
+	// Caps the total size Gin will buffer for a multipart/form-data request (document/brochure
+	// uploads) — without this, an authenticated client can send an arbitrarily large file and force
+	// the server to read the whole thing into memory (io.ReadAll in the storage service has no
+	// bound of its own), a straightforward memory-exhaustion DoS vector.
+	router.MaxMultipartMemory = 10 << 20 // 10 MiB
+
 	// Global middleware
 	router.Use(middleware.Recovery())
 	router.Use(middleware.RequestLogger())
@@ -81,9 +87,9 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	accessReqService := service.NewAccessRequestService(accessReqRepo, userRepo, userService, emailSvc, referralRepo)
 	passResetService := service.NewPasswordResetService(passResetRepo, userRepo, emailSvc)
 	emailVerifService := service.NewEmailVerificationService(emailVerifRepo, userRepo, accessReqRepo, emailSvc)
-	familyMemberService := service.NewFamilyMemberService(familyMemberRepo)
+	familyMemberService := service.NewFamilyMemberService(familyMemberRepo, userRepo)
 	generalInsuranceService := service.NewGeneralInsuranceService(generalInsuranceRepo, userRepo)
-	documentService := service.NewDocumentService(documentRepo, storageSvc)
+	documentService := service.NewDocumentService(documentRepo, storageSvc, userRepo)
 	lifeInsuranceService := service.NewLifeInsuranceService(lifeInsuranceRepo, userRepo, familyMemberRepo)
 	fixedDepositService := service.NewFixedDepositService(fixedDepositRepo, userRepo, familyMemberRepo)
 	healthInsuranceService := service.NewHealthInsuranceService(healthInsuranceRepo, userRepo, familyMemberRepo)
@@ -91,7 +97,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	productService := service.NewProductService(productRepo, storageSvc)
 	dashboardService := service.NewDashboardService(userRepo, familyMemberRepo, lifeInsuranceRepo, healthInsuranceRepo, generalInsuranceRepo, fixedDepositRepo, accessReqRepo)
 	reportService := service.NewReportService(userRepo, familyMemberRepo, lifeInsuranceRepo, healthInsuranceRepo, generalInsuranceRepo, fixedDepositRepo)
-	agencySyncService := service.NewAgencySyncService(lifeInsuranceRepo)
+	agencySyncService := service.NewAgencySyncService(lifeInsuranceRepo, userRepo)
 	calculatorService := service.NewCalculatorService(calculatorRepo)
 	referralService := service.NewReferralService(referralRepo, userRepo)
 
@@ -137,14 +143,14 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			users.PUT("/change-password", userHandler.ChangePassword)
 			users.PUT("/change-pin", userHandler.ChangePIN)
 
-			users.GET("/:id", userHandler.GetByID)
-			users.PUT("/:id", userHandler.Update)
-
-			// Admin only routes
+			// Admin only routes — GetByID/Update let staff look up or edit another account
+			// (e.g. ClientDetailScreen), so they must never be reachable by a plain client.
 			adminOnly := users.Group("")
 			adminOnly.Use(middleware.RequireRole("admin"))
 			{
 				adminOnly.GET("", userHandler.GetAll)
+				adminOnly.GET("/:id", userHandler.GetByID)
+				adminOnly.PUT("/:id", userHandler.Update)
 				adminOnly.DELETE("/:id", userHandler.Delete)
 			}
 		}
@@ -259,6 +265,13 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			lifeInsurances.GET("/:id", lifeInsuranceHandler.GetByID)
 			lifeInsurances.PUT("/:id", lifeInsuranceHandler.UpdatePolicy)
 			lifeInsurances.DELETE("/:id", lifeInsuranceHandler.DeletePolicy)
+
+			// Admin route
+			adminLifeInsurance := lifeInsurances.Group("")
+			adminLifeInsurance.Use(middleware.RequireRole("admin"))
+			{
+				adminLifeInsurance.GET("/user/:userId", lifeInsuranceHandler.GetPoliciesByUserIDAdmin)
+			}
 		}
 
 		// Fixed Deposit / Postal routes — RBAC (client-owns-only vs admin-bypass, plus the
@@ -273,6 +286,13 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			fixedDeposits.GET("/:id", fixedDepositHandler.GetByID)
 			fixedDeposits.PUT("/:id", fixedDepositHandler.UpdateFD)
 			fixedDeposits.DELETE("/:id", fixedDepositHandler.DeleteFD)
+
+			// Admin route
+			adminFixedDeposits := fixedDeposits.Group("")
+			adminFixedDeposits.Use(middleware.RequireRole("admin"))
+			{
+				adminFixedDeposits.GET("/user/:userId", fixedDepositHandler.GetFDsByUserIDAdmin)
+			}
 		}
 
 		// Health Insurance routes — RBAC (client-owns-only vs admin-bypass, plus the admin-only
@@ -287,6 +307,13 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			healthInsurances.GET("/:id", healthInsuranceHandler.GetByID)
 			healthInsurances.PUT("/:id", healthInsuranceHandler.UpdatePolicy)
 			healthInsurances.DELETE("/:id", healthInsuranceHandler.DeletePolicy)
+
+			// Admin route
+			adminHealthInsurance := healthInsurances.Group("")
+			adminHealthInsurance.Use(middleware.RequireRole("admin"))
+			{
+				adminHealthInsurance.GET("/user/:userId", healthInsuranceHandler.GetPoliciesByUserIDAdmin)
+			}
 		}
 
 		// Support Ticket routes — RBAC (client-owns-only vs admin-bypass, plus the
