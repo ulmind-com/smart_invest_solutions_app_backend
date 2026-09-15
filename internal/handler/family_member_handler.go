@@ -21,9 +21,10 @@ func NewFamilyMemberHandler(service domain.FamilyMemberService) *FamilyMemberHan
 	}
 }
 
-// AddMember handles adding a new family member under the authenticated user (HOF).
+// AddMember handles adding a new family member under the authenticated user (HOF), or — for an
+// admin/super_admin — under a client they manage, via the optional user_id field.
 // @Summary      Add a new family member
-// @Description  Creates a new family member record linked to the authenticated user.
+// @Description  Creates a new family member record linked to the authenticated user. An admin/super_admin may instead create it under a client account by sending user_id (a plain admin only for clients inside their own agency); user_id is ignored for client callers, who always create under their own account.
 // @Tags         Family Members
 // @Accept       json
 // @Produce      json
@@ -35,7 +36,7 @@ func NewFamilyMemberHandler(service domain.FamilyMemberService) *FamilyMemberHan
 // @Security     BearerAuth
 // @Router       /family-members [post]
 func (h *FamilyMemberHandler) AddMember(c *gin.Context) {
-	userIDStr, ok := middleware.GetUserID(c)
+	claims, ok := middleware.GetClaims(c)
 	if !ok {
 		response.Error(c, http.StatusUnauthorized, "unauthorized")
 		return
@@ -47,7 +48,7 @@ func (h *FamilyMemberHandler) AddMember(c *gin.Context) {
 		return
 	}
 
-	member, err := h.service.AddMember(c.Request.Context(), userIDStr, &dto)
+	member, err := h.service.AddMember(c.Request.Context(), claims.Role, claims.UserID.Hex(), &dto)
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, err.Error())
 		return

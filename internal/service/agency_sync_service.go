@@ -11,111 +11,333 @@ import (
 
 	"github.com/ledongthuc/pdf"
 	"github.com/smart-invest-solutions/backend/internal/domain"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
+// licCompanyName is stamped on every policy created from an LIC due list — the file format is
+// LIC's own, so the insurer is never in question.
+const licCompanyName = "Life Insurance Corporation of India"
+
 type agencySyncService struct {
-	lifeInsuranceRepo domain.LifeInsuranceRepository
-	userRepo          domain.UserRepository
+	lifeInsuranceRepo  domain.LifeInsuranceRepository
+	importedPolicyRepo domain.ImportedPolicyRepository
+	familyMemberRepo   domain.FamilyMemberRepository
+	userRepo           domain.UserRepository
 }
 
 // NewAgencySyncService initializes a new AgencySyncService.
-func NewAgencySyncService(lifeInsuranceRepo domain.LifeInsuranceRepository, userRepo domain.UserRepository) domain.AgencySyncService {
+func NewAgencySyncService(
+	lifeInsuranceRepo domain.LifeInsuranceRepository,
+	importedPolicyRepo domain.ImportedPolicyRepository,
+	familyMemberRepo domain.FamilyMemberRepository,
+	userRepo domain.UserRepository,
+) domain.AgencySyncService {
 	return &agencySyncService{
-		lifeInsuranceRepo: lifeInsuranceRepo,
-		userRepo:          userRepo,
+		lifeInsuranceRepo:  lifeInsuranceRepo,
+		importedPolicyRepo: importedPolicyRepo,
+		familyMemberRepo:   familyMemberRepo,
+		userRepo:           userRepo,
 	}
 }
 
-// ProcessLICDueList parses an uploaded LIC Premium Due List PDF, extracts policy records,
-// calculates next due dates, reconciles with the database, and performs bulk updates — restricted
-// to the calling admin's own agency (same resolveCallerAgencyID pattern used everywhere else), so
-// a policy number that happens to coincide with another agency's client is never touched. This
-// endpoint is admin-only (never super_admin, enforced in the handler), so an unresolved agency
-// fails closed rather than silently falling through to an unrestricted sync.
+// resolveSyncAgency returns the calling admin's agency, failing closed. Agency Sync is admin-only
+// (super_admin is rejected in the handler), so an admin whose agency can't be resolved must never
+// fall through to an unscoped sync that could touch another agency's policies.
+func (s *agencySyncService) resolveSyncAgency(ctx context.Context, requesterRole, requesterID string) (string, error) {
+	agencyID := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
+	if agencyID == "" {
+		return "", fmt.Errorf("unable to resolve your agency — contact support")
+	}
+	return agencyID, nil
+}
+
+// ProcessLICDueList parses an uploaded LIC Premium Due List PDF and reconciles it with the app:
+//
+//  1. every row is stored in the agency's policy inbox (imported_policies), so the agency's whole
+//     book lives in the app — including policies whose owner has no app account yet;
+//  2. rows whose policy number already belongs to a client of this agency have their premium,
+//     payment mode, next due date and DOC refreshed from the PDF.
+//
+// Everything is scoped to the calling admin's own agency, so a policy number that happens to
+// coincide with another agency's client is never read or written.
 func (s *agencySyncService) ProcessLICDueList(ctx context.Context, requesterRole, requesterID string, fileBytes []byte) (*domain.SyncResultDTO, error) {
 	if len(fileBytes) == 0 {
 		return nil, fmt.Errorf("uploaded file is empty")
 	}
 
-	agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
-	if requesterRole == domain.RoleAdmin && agencyFilter == "" {
-		return nil, fmt.Errorf("unable to resolve your agency — contact support")
+	agencyID, err := s.resolveSyncAgency(ctx, requesterRole, requesterID)
+	if err != nil {
+		return nil, err
 	}
 
-	// Step 1: Extract raw text from PDF bytes
 	rawText, err := extractTextFromPDF(fileBytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract text from PDF: %w", err)
 	}
-
 	if strings.TrimSpace(rawText) == "" {
 		return nil, fmt.Errorf("unable to read text from PDF file or file is empty")
 	}
 
-	// Step 2: Extract policy records from raw text
-	parsedRecords, unparsedPolicyNos := parseLICRecordsFromText(rawText)
-	if len(parsedRecords) == 0 {
-		return &domain.SyncResultDTO{
-			TotalPoliciesFoundInPDF: 0,
-			SuccessfullyUpdatedInDB: 0,
-			UnparsedPolicyNumbers:   unparsedPolicyNos,
-			UnmappedPolicies:        []domain.UnmappedPolicy{},
-			FailedPolicies:          []domain.FailedSyncPolicy{},
-		}, nil
+	header, parsedRecords, unparsedPolicyNos := parseLICDueList(rawText)
+	if unparsedPolicyNos == nil {
+		unparsedPolicyNos = []string{}
 	}
 
-	// Step 3: Collect policy numbers for DB lookup
+	result := &domain.SyncResultDTO{
+		DueMonth:                header.DueMonth,
+		AgentCode:               header.AgentCode,
+		AgentName:               header.AgentName,
+		TotalPoliciesFoundInPDF: len(parsedRecords),
+		UnparsedPolicyNumbers:   unparsedPolicyNos,
+		UnmappedPolicies:        []domain.UnmappedPolicy{},
+		FailedPolicies:          []domain.FailedSyncPolicy{},
+	}
+
+	if len(parsedRecords) == 0 {
+		// Nothing readable in the file. Still report the running inbox size so the screen isn't blank.
+		if unclaimed, _, err := s.importedPolicyRepo.CountByStatus(ctx, agencyID); err == nil {
+			result.UnclaimedTotal = int(unclaimed)
+		}
+		return result, nil
+	}
+
+	// Step 1: persist every row into the agency's policy inbox (idempotent on agency+policy number).
+	inbox := make([]*domain.ImportedPolicy, 0, len(parsedRecords))
+	for _, rec := range parsedRecords {
+		inbox = append(inbox, &domain.ImportedPolicy{
+			AgencyID:            agencyID,
+			PolicyNo:            rec.PolicyNo,
+			AssuredName:         rec.AssuredName,
+			DOC:                 parseDueListDate(rec.DOC),
+			PlanCode:            rec.PlanCode,
+			Term:                rec.Term,
+			Mode:                rec.Mode,
+			FUP:                 rec.FUP,
+			Flag:                rec.Flag,
+			InstallmentPremium:  rec.Premium,
+			DueCount:            rec.DueCount,
+			TotalPremium:        rec.TotalPremium,
+			EstimatedCommission: rec.EstimatedCommission,
+			NextDueDate:         rec.CalculatedNextDueDate,
+			AgentCode:           header.AgentCode,
+			DueMonth:            header.DueMonth,
+		})
+	}
+
+	newlyImported, err := s.importedPolicyRepo.BulkUpsertFromSync(ctx, inbox)
+	if err != nil {
+		return nil, fmt.Errorf("failed to store imported policies: %w", err)
+	}
+	result.NewlyImported = int(newlyImported)
+
+	// Step 2: refresh the policies that already belong to a client of this agency.
 	policyNos := make([]string, 0, len(parsedRecords))
 	for _, rec := range parsedRecords {
 		policyNos = append(policyNos, rec.PolicyNo)
 	}
 
-	// Step 4: Reconcile policy numbers against MongoDB database
-	existingMap, err := s.lifeInsuranceRepo.GetExistingPolicyNumbers(ctx, policyNos, agencyFilter)
+	existingMap, err := s.lifeInsuranceRepo.GetExistingPolicyNumbers(ctx, policyNos, agencyID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query existing policies from database: %w", err)
 	}
 
 	var matchedRecords []domain.LICParsedRecord
-	var unmappedPolicies []domain.UnmappedPolicy
-
 	for _, rec := range parsedRecords {
 		if existingMap[rec.PolicyNo] {
 			matchedRecords = append(matchedRecords, rec)
-		} else {
-			unmappedPolicies = append(unmappedPolicies, domain.UnmappedPolicy{
-				PolicyNo:              rec.PolicyNo,
-				AssuredName:           rec.AssuredName,
-				DOC:                   rec.DOC,
-				FUP:                   rec.FUP,
-				Mode:                  rec.Mode,
-				Premium:               rec.Premium,
-				CalculatedNextDueDate: rec.CalculatedNextDueDate,
-			})
+			continue
 		}
+		result.UnmappedPolicies = append(result.UnmappedPolicies, domain.UnmappedPolicy{
+			PolicyNo:              rec.PolicyNo,
+			AssuredName:           rec.AssuredName,
+			DOC:                   rec.DOC,
+			FUP:                   rec.FUP,
+			Mode:                  rec.Mode,
+			Premium:               rec.Premium,
+			CalculatedNextDueDate: rec.CalculatedNextDueDate,
+		})
 	}
 
-	// Step 5: Perform bulk database updates for matched records
-	var updatedCount int64
-	var failedPolicies []domain.FailedSyncPolicy
 	if len(matchedRecords) > 0 {
-		updatedCount, failedPolicies, err = s.lifeInsuranceRepo.BulkUpdateFromSync(ctx, matchedRecords, agencyFilter)
+		updatedCount, failedPolicies, err := s.lifeInsuranceRepo.BulkUpdateFromSync(ctx, matchedRecords, agencyID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute bulk update: %w", err)
 		}
-	}
-	if failedPolicies == nil {
-		failedPolicies = []domain.FailedSyncPolicy{}
+		result.SuccessfullyUpdatedInDB = int(updatedCount)
+		if failedPolicies != nil {
+			result.FailedPolicies = failedPolicies
+		}
+		result.FailedToUpdateInDB = len(result.FailedPolicies)
 	}
 
-	return &domain.SyncResultDTO{
-		TotalPoliciesFoundInPDF: len(parsedRecords),
-		SuccessfullyUpdatedInDB: int(updatedCount),
-		FailedToUpdateInDB:      len(failedPolicies),
-		FailedPolicies:          failedPolicies,
-		UnparsedPolicyNumbers:   unparsedPolicyNos,
-		UnmappedPolicies:        unmappedPolicies,
-	}, nil
+	// Step 3: the running follow-up figure — how much of the book still has no client account.
+	if unclaimed, _, err := s.importedPolicyRepo.CountByStatus(ctx, agencyID); err == nil {
+		result.UnclaimedTotal = int(unclaimed)
+	}
+
+	return result, nil
+}
+
+// ListImportedPolicies returns the calling admin's policy inbox with live link status.
+func (s *agencySyncService) ListImportedPolicies(ctx context.Context, requesterRole, requesterID, status, search string, page, limit int64) ([]*domain.ImportedPolicyView, int64, error) {
+	agencyID, err := s.resolveSyncAgency(ctx, requesterRole, requesterID)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+	switch status {
+	case domain.ImportedPolicyStatusUnclaimed, domain.ImportedPolicyStatusLinked, domain.ImportedPolicyStatusAll:
+	default:
+		status = domain.ImportedPolicyStatusAll
+	}
+
+	return s.importedPolicyRepo.FindAll(ctx, agencyID, status, strings.TrimSpace(search), page, limit)
+}
+
+// LinkImportedPolicy attaches an unclaimed inbox row to a real client account by creating the Life
+// Insurance record for it. The policy number carries over untouched — it is the identity that lets
+// every later due-list upload keep this policy's premium and due date current automatically.
+//
+// Field ownership after linking: the sync owns the money and the dates (premium, payment mode,
+// next due date, DOC) and refreshes them monthly; the admin owns sum assured, nominee, plan name,
+// term and PPT, and the sync never overwrites those.
+func (s *agencySyncService) LinkImportedPolicy(ctx context.Context, requesterRole, requesterID, idStr string, dto *domain.LinkImportedPolicyDTO) (*domain.LifeInsurance, error) {
+	agencyID, err := s.resolveSyncAgency(ctx, requesterRole, requesterID)
+	if err != nil {
+		return nil, err
+	}
+
+	id, err := bson.ObjectIDFromHex(idStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid imported policy ID format: %w", err)
+	}
+
+	imported, err := s.importedPolicyRepo.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	// Same "not found" wording as a genuinely missing row, so another agency's inbox can't be probed.
+	if imported.AgencyID != agencyID {
+		return nil, fmt.Errorf("imported policy not found")
+	}
+
+	userID, err := bson.ObjectIDFromHex(dto.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid client ID format: %w", err)
+	}
+
+	targetUser, err := s.userRepo.FindByID(ctx, userID)
+	if err != nil || targetUser == nil {
+		return nil, fmt.Errorf("client account not found")
+	}
+	if !canAccessAgencyScopedRecord(requesterRole, agencyID, targetUser.AgencyID) {
+		return nil, fmt.Errorf("client account not found")
+	}
+
+	familyMemberID, err := bson.ObjectIDFromHex(dto.FamilyMemberID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid family member ID format: %w", err)
+	}
+
+	familyMember, err := s.familyMemberRepo.FindByID(ctx, familyMemberID)
+	if err != nil || familyMember == nil {
+		return nil, fmt.Errorf("family member not found")
+	}
+	if familyMember.UserID != userID {
+		return nil, fmt.Errorf("family member does not belong to the selected client")
+	}
+
+	// An LIC due list has no sum assured column, so it is collected at link time rather than
+	// letting a policy reach the client's portfolio showing zero cover.
+	if dto.SumAssured <= 0 {
+		return nil, fmt.Errorf("sum assured is required to link a policy")
+	}
+
+	term := imported.Term
+	if term < 1 {
+		term = 1
+	}
+
+	planName := strings.TrimSpace(dto.PlanName)
+	if planName == "" && imported.PlanCode != "" {
+		planName = fmt.Sprintf("LIC Plan %s", imported.PlanCode)
+	}
+	if planName == "" {
+		planName = "LIC Policy"
+	}
+
+	policy := &domain.LifeInsurance{
+		UserID:         userID,
+		FamilyMemberID: familyMemberID,
+		CompanyName:    licCompanyName,
+		PolicyDetails: domain.PolicyDetails{
+			PolicyNo: imported.PolicyNo,
+			PlanName: planName,
+			// The insured's name is cached from the family member the admin picked, matching how
+			// every other Life policy in the app is created.
+			LifeInsuredName: familyMember.Name,
+			NomineeName:     strings.TrimSpace(dto.NomineeName),
+			SumAssured:      dto.SumAssured,
+			Term:            term,
+			// The due list carries no separate premium-paying term; defaulting PPT to the policy
+			// term covers the common case and the admin can correct it on the policy screen.
+			PPT:          term,
+			DOC:          imported.DOC,
+			MaturityDate: imported.DOC.AddDate(term, 0, 0),
+		},
+		PremiumDetails: domain.PremiumDetails{
+			InstallmentPremium: imported.InstallmentPremium,
+			NextDueDate:        imported.NextDueDate,
+			PaymentMode:        imported.Mode,
+		},
+		IsMapped: true,
+	}
+
+	created, err := s.lifeInsuranceRepo.Create(ctx, policy)
+	if err != nil {
+		return nil, err
+	}
+
+	return created, nil
+}
+
+// DeleteImportedPolicy removes an inbox row — used when the wrong file was uploaded. A row that is
+// already linked to a client's policy is refused, so this can never be mistaken for a way to
+// delete the client's actual policy.
+func (s *agencySyncService) DeleteImportedPolicy(ctx context.Context, requesterRole, requesterID, idStr string) error {
+	agencyID, err := s.resolveSyncAgency(ctx, requesterRole, requesterID)
+	if err != nil {
+		return err
+	}
+
+	id, err := bson.ObjectIDFromHex(idStr)
+	if err != nil {
+		return fmt.Errorf("invalid imported policy ID format: %w", err)
+	}
+
+	imported, err := s.importedPolicyRepo.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if imported.AgencyID != agencyID {
+		return fmt.Errorf("imported policy not found")
+	}
+
+	existing, err := s.lifeInsuranceRepo.GetExistingPolicyNumbers(ctx, []string{imported.PolicyNo}, agencyID)
+	if err != nil {
+		return fmt.Errorf("failed to check whether this policy is linked: %w", err)
+	}
+	if existing[imported.PolicyNo] {
+		return fmt.Errorf("this policy is linked to a client account — remove it from that client's policies first")
+	}
+
+	return s.importedPolicyRepo.Delete(ctx, id)
 }
 
 // extractTextFromPDF reads all text content from an in-memory PDF byte slice using ledongthuc/pdf.
@@ -152,121 +374,100 @@ func extractTextFromPDF(fileBytes []byte) (string, error) {
 	return buf.String(), nil
 }
 
-// parseLICRecordsFromText extracts structured LIC records using regex strategy & Date Math. The
-// second return value lists every 9-digit policy number the fallback pass located in the text but
-// could not fully parse (missing a DOC or FUP date nearby) — these used to be dropped with zero
-// trace; now the admin can see that something was found in the PDF for that policy number, even
-// though it couldn't be reconciled automatically.
-func parseLICRecordsFromText(rawText string) ([]domain.LICParsedRecord, []string) {
-	// Normalize text: replace newlines, tabs, and vertical bars with spaces
-	normalized := strings.ReplaceAll(rawText, "\r\n", " ")
-	normalized = strings.ReplaceAll(normalized, "\n", " ")
-	normalized = strings.ReplaceAll(normalized, "\r", " ")
-	normalized = strings.ReplaceAll(normalized, "|", " ")
-	normalized = strings.ReplaceAll(normalized, "\t", " ")
+// licRowRegex matches one complete row of an LIC Premium Due List, in the exact column order the
+// report prints them:
+//
+//	S.No | PolicyNo | Name of Assured | D.o.C | Pln/Tm | Mod | FUP | Flg | InstPrem | Due | GST | TotPrem | EstCom
+//
+// Anchoring on the *whole* row rather than a few landmarks is what makes the amounts trustworthy:
+// a looser pattern happily reads the year out of the D.o.C or the plan number out of "Pln/Tm" and
+// writes it into a client's premium. Every column is therefore matched in sequence, and anything
+// that doesn't fit the shape is reported as unreadable instead of being guessed at.
+var licRowRegex = regexp.MustCompile(
+	`\b(\d{9})\s+` + // 1  policy number
+		`([A-Z][A-Z .,'()\-]*?)\s+` + // 2  name of assured
+		`(\d{2}/\d{2}/\d{4})\s+` + // 3  date of commencement
+		`(\d{1,3})/(\d{1,3})\s+` + // 4  plan code, 5 term (the "Pln/Tm" column)
+		`(?i:(Yly|Hly|Qly|Mly|SSS))\s+` + // 6  mode
+		`(\d{1,2}/\d{4})\s+` + // 7  first unpaid premium (MM/YYYY)
+		`(?:(FY|ST|MT|LP)\s+)?` + // 8  flag (absent on renewal rows)
+		`(\d+(?:\.\d{1,2})?)\s+` + // 9  installment premium
+		`(\d+)\s+` + // 10 number of instalments due
+		`(\d+(?:\.\d{1,2})?)\s+` + // 11 GST
+		`(\d+(?:\.\d{1,2})?)\s+` + // 12 total premium
+		`(\d+(?:\.\d{1,2})?)\b`, // 13 estimated commission
+)
 
-	spaceRegex := regexp.MustCompile(`\s+`)
-	normalized = spaceRegex.ReplaceAllString(normalized, " ")
+var (
+	licPolicyNoRegex  = regexp.MustCompile(`\b\d{9}\b`)
+	licAgentCodeRegex = regexp.MustCompile(`(?i)Agent\s*Code\s*:?\s*([A-Z]{2,4}\d{6,12})`)
+	licAgentNameRegex = regexp.MustCompile(`(?i)Agent\s*Name\s*:?\s*([A-Z][A-Za-z .]*?)\s+(?:Agent|Branch|Premium)\b`)
+	licBranchRegex    = regexp.MustCompile(`(?i)Branch\s*Code\s*:?\s*(\d{1,6})`)
+	licDueMonthRegex  = regexp.MustCompile(`(?i)(?:Due\s*(?:Month)?\s*:?\s*|For\s+)(\d{1,2}/\d{4})`)
+	licWhitespace     = regexp.MustCompile(`\s+`)
+)
 
+// parseLICDueList extracts the report header and every readable policy row from the PDF's text.
+// The third return value lists 9-digit policy numbers that appear in the file but could not be
+// read as a complete row — they are surfaced to the admin rather than silently dropped or, worse,
+// reconstructed from guessed values.
+func parseLICDueList(rawText string) (domain.LICDueListHeader, []domain.LICParsedRecord, []string) {
+	normalized := strings.NewReplacer("\r\n", " ", "\n", " ", "\r", " ", "\t", " ", "|", " ").Replace(rawText)
+	normalized = licWhitespace.ReplaceAllString(normalized, " ")
+
+	header := domain.LICDueListHeader{}
+	if m := licAgentCodeRegex.FindStringSubmatch(normalized); len(m) > 1 {
+		header.AgentCode = strings.ToUpper(strings.TrimSpace(m[1]))
+	}
+	if m := licAgentNameRegex.FindStringSubmatch(normalized); len(m) > 1 {
+		header.AgentName = strings.TrimSpace(m[1])
+	}
+	if m := licBranchRegex.FindStringSubmatch(normalized); len(m) > 1 {
+		header.BranchCode = strings.TrimSpace(m[1])
+	}
+	if m := licDueMonthRegex.FindStringSubmatch(normalized); len(m) > 1 {
+		header.DueMonth = strings.TrimSpace(m[1])
+	}
+
+	// A due list can legitimately repeat a policy number across pages; the map keeps the last read
+	// of each so one policy contributes exactly one record.
 	recordMap := make(map[string]domain.LICParsedRecord)
 
-	// Primary Pattern: Match complete LIC Due List rows
-	// Matches: PolicyNo(9 digits) AssuredName DOC(DD/MM/YYYY) Mode(Yly|Hly|Qly|Mly) FUP(MM/YYYY) Premium(float)
-	rowRegex := regexp.MustCompile(`(?i)\b(\d{9})\b\s+([A-Z\s\.\,\'-]{2,35}?)\s+(\d{2}/\d{2}/\d{4})\s+(Yly|Hly|Qly|Mly|Yearly|Half-Yearly|Quarterly|Monthly|Y|H|Q|M|SSS)\s+(\d{1,2}/\d{4})\s+(\d+(?:\.\d{1,2})?)`)
-	matches := rowRegex.FindAllStringSubmatch(normalized, -1)
+	for _, match := range licRowRegex.FindAllStringSubmatch(normalized, -1) {
+		policyNo := match[1]
+		term, _ := strconv.Atoi(match[5])
+		premium, _ := strconv.ParseFloat(match[9], 64)
+		dueCount, _ := strconv.Atoi(match[10])
+		totalPremium, _ := strconv.ParseFloat(match[12], 64)
+		estCommission, _ := strconv.ParseFloat(match[13], 64)
 
-	for _, match := range matches {
-		if len(match) >= 7 {
-			policyNo := match[1]
-			name := strings.TrimSpace(match[2])
-			docStr := match[3]
-			modeStr := match[4]
-			fupStr := match[5]
-			premiumStr := match[6]
-
-			premium, _ := strconv.ParseFloat(premiumStr, 64)
-			nextDueDate := calculateNextDueDate(docStr, fupStr)
-
-			rec := domain.LICParsedRecord{
-				PolicyNo:              policyNo,
-				AssuredName:           cleanName(name),
-				DOC:                   docStr,
-				FUP:                   fupStr,
-				Mode:                  normalizeMode(modeStr),
-				Premium:               premium,
-				CalculatedNextDueDate: nextDueDate,
-			}
-			recordMap[policyNo] = rec
+		recordMap[policyNo] = domain.LICParsedRecord{
+			PolicyNo:              policyNo,
+			AssuredName:           cleanName(match[2]),
+			DOC:                   match[3],
+			PlanCode:              match[4],
+			Term:                  term,
+			Mode:                  normalizeMode(match[6]),
+			FUP:                   match[7],
+			Flag:                  strings.ToUpper(match[8]),
+			Premium:               premium,
+			DueCount:              dueCount,
+			TotalPremium:          totalPremium,
+			EstimatedCommission:   estCommission,
+			CalculatedNextDueDate: calculateNextDueDate(match[3], match[7]),
 		}
 	}
 
-	// Fallback Pattern: Find 9-digit policy numbers that were missed by primary row regex
-	policyNoRegex := regexp.MustCompile(`\b\d{9}\b`)
-	policyLocs := policyNoRegex.FindAllStringIndex(normalized, -1)
-
-	docRegex := regexp.MustCompile(`\b(\d{2}/\d{2}/\d{4})\b`)
-	modeRegex := regexp.MustCompile(`(?i)\b(Yly|Hly|Qly|Mly|Yearly|Half-Yearly|Quarterly|Monthly|SSS)\b`)
-	fupRegex := regexp.MustCompile(`\b(\d{1,2}/\d{4})\b`)
-	numRegex := regexp.MustCompile(`\b(\d{3,7}(?:\.\d{1,2})?)\b`)
-
+	// Anything shaped like a policy number that no complete row claimed is reported as unreadable.
+	// Guessing values for these is what previously corrupted premiums, so they are never inferred.
+	seenUnparsed := make(map[string]bool)
 	var unparsedPolicyNos []string
-
-	for _, loc := range policyLocs {
-		policyNo := normalized[loc[0]:loc[1]]
-		if _, exists := recordMap[policyNo]; exists {
+	for _, policyNo := range licPolicyNoRegex.FindAllString(normalized, -1) {
+		if _, parsed := recordMap[policyNo]; parsed || seenUnparsed[policyNo] {
 			continue
 		}
-
-		// Look ahead in window of 180 characters
-		endIdx := loc[1] + 180
-		if endIdx > len(normalized) {
-			endIdx = len(normalized)
-		}
-		window := normalized[loc[1]:endIdx]
-
-		docMatch := docRegex.FindString(window)
-		modeMatch := modeRegex.FindString(window)
-		fupMatch := fupRegex.FindString(window)
-
-		if docMatch == "" || fupMatch == "" {
-			unparsedPolicyNos = append(unparsedPolicyNos, policyNo)
-			continue
-		}
-
-		{
-			numMatches := numRegex.FindAllString(window, -1)
-			var premium float64
-			for _, n := range numMatches {
-				p, err := strconv.ParseFloat(n, 64)
-				if err == nil && p > 50 { // Valid premium threshold
-					premium = p
-					break
-				}
-			}
-
-			// Extract name substring between policyNo and DOC
-			name := "UNKNOWN"
-			docIdx := strings.Index(window, docMatch)
-			if docIdx > 0 {
-				namePart := window[:docIdx]
-				name = cleanName(namePart)
-			}
-
-			if modeMatch == "" {
-				modeMatch = "Yly"
-			}
-
-			nextDueDate := calculateNextDueDate(docMatch, fupMatch)
-			recordMap[policyNo] = domain.LICParsedRecord{
-				PolicyNo:              policyNo,
-				AssuredName:           name,
-				DOC:                   docMatch,
-				FUP:                   fupMatch,
-				Mode:                  normalizeMode(modeMatch),
-				Premium:               premium,
-				CalculatedNextDueDate: nextDueDate,
-			}
-		}
+		seenUnparsed[policyNo] = true
+		unparsedPolicyNos = append(unparsedPolicyNos, policyNo)
 	}
 
 	records := make([]domain.LICParsedRecord, 0, len(recordMap))
@@ -274,7 +475,16 @@ func parseLICRecordsFromText(rawText string) ([]domain.LICParsedRecord, []string
 		records = append(records, rec)
 	}
 
-	return records, unparsedPolicyNos
+	return header, records, unparsedPolicyNos
+}
+
+// parseDueListDate converts a DD/MM/YYYY date as printed in the due list into a UTC time.
+func parseDueListDate(value string) time.Time {
+	parsed, err := time.Parse("02/01/2006", strings.TrimSpace(value))
+	if err != nil {
+		return time.Time{}
+	}
+	return parsed.UTC()
 }
 
 // calculateNextDueDate implements the required Date Math logic:
@@ -337,14 +547,13 @@ func normalizeMode(mode string) string {
 	}
 }
 
+// cleanName tidies the captured assured name without editorialising it: the row regex already
+// constrains what can be captured, so this only collapses whitespace. Suffixes the report itself
+// prints — "(LA)", "-LA", "NM" — are left intact, because they are how the agent recognises the
+// record in LIC's own paperwork.
 func cleanName(raw string) string {
-	name := strings.TrimSpace(raw)
-	// Remove common PDF table headers or non-name noise
-	cleanRegex := regexp.MustCompile(`[^A-Za-z\s\.\,\'-]`)
-	name = cleanRegex.ReplaceAllString(name, "")
-	name = regexp.MustCompile(`\s+`).ReplaceAllString(name, " ")
-	name = strings.TrimSpace(name)
-
+	name := licWhitespace.ReplaceAllString(strings.TrimSpace(raw), " ")
+	name = strings.Trim(name, " .,-")
 	if len(name) < 2 {
 		return "VALUED CLIENT"
 	}
