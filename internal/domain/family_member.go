@@ -26,8 +26,13 @@ type FamilyMember struct {
 	UpdatedAt     time.Time `bson:"updated_at" json:"updated_at"`
 }
 
-// CreateFamilyMemberDTO represents the payload for creating a new family member.
+// CreateFamilyMemberDTO represents the payload for creating a new family member. UserID is
+// optional and only honored for admin/super_admin requesters (and only for a client inside their
+// own agency) — a client always gets the member created under their own JWT account regardless of
+// what is sent here. This mirrors CreateLifeInsuranceDTO/CreateFixedDepositDTO, and is what lets an
+// admin set up a newly-approved client's insured persons while linking their policies.
 type CreateFamilyMemberDTO struct {
+	UserID          string `json:"user_id,omitempty" example:"64f1a2b3c4d5e6f7a8b9c0d1"`
 	Name            string `json:"name" binding:"required"`
 	RelationWithHOF string `json:"relation_with_hof" binding:"required"`
 	Phone           string `json:"phone" binding:"required"`
@@ -69,7 +74,7 @@ type FamilyMemberRepository interface {
 
 // FamilyMemberService defines business logic operations for family members.
 type FamilyMemberService interface {
-	AddMember(ctx context.Context, userIDStr string, dto *CreateFamilyMemberDTO) (*FamilyMember, error)
+	AddMember(ctx context.Context, requesterRole, requesterID string, dto *CreateFamilyMemberDTO) (*FamilyMember, error)
 	GetMyMembers(ctx context.Context, userIDStr string) (*FamilyMemberListResponse, error)
 	GetMemberByID(ctx context.Context, idStr, userIDStr string) (*FamilyMember, error)
 	UpdateMember(ctx context.Context, idStr, userIDStr string, dto *UpdateFamilyMemberDTO) (*FamilyMember, error)

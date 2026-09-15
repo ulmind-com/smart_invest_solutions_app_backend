@@ -946,6 +946,218 @@
                 }
             }
         },
+        "/agency/imported-policies": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the calling admin's policy inbox: every policy row imported from their LIC due lists, with live link status. Filter with status=unclaimed (no client account yet), status=linked (already attached to a client), or status=all. Search matches policy number or assured name.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agency Sync"
+                ],
+                "summary": "List imported LIC policies (Admin only, not Super Admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "unclaimed | linked | all (default: all)",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search by policy number or assured name",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Items per page (default: 20, max: 100)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Imported policies retrieved successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.PaginatedResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.ImportedPolicyView"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden — admin role required (super_admin excluded)",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agency/imported-policies/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Deletes an imported due-list row from the agency's inbox — used when the wrong file was uploaded. A row already linked to a client's policy is refused; the client's actual policy is never touched by this endpoint.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agency Sync"
+                ],
+                "summary": "Remove an imported LIC policy row (Admin only, not Super Admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Imported policy ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Imported policy removed successfully",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request — row is linked to a client policy",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden — admin role required (super_admin excluded)",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agency/imported-policies/{id}/link": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates the client's Life Insurance record from an imported due-list row. The policy number carries over, so every later due-list upload keeps this policy's premium and next due date current automatically. Sum assured (and optionally nominee/plan name) must be supplied because an LIC due list does not carry them.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agency Sync"
+                ],
+                "summary": "Link an imported LIC policy to a client (Admin only, not Super Admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Imported policy ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Client account, insured family member, and sum assured",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.LinkImportedPolicyDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Policy linked successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_internal_domain.LifeInsurance"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request — already linked, wrong client, or missing sum assured",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden — admin role required (super_admin excluded)",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_smart-invest-solutions_backend_pkg_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/agency/sync/lic-due-list": {
             "post": {
                 "security": [
@@ -1887,7 +2099,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Creates a new family member record linked to the authenticated user.",
+                "description": "Creates a new family member record linked to the authenticated user. An admin/super_admin may instead create it under a client account by sending user_id (a plain admin only for clients inside their own agency); user_id is ignored for client callers, who always create under their own account.",
                 "consumes": [
                     "application/json"
                 ],
@@ -5772,6 +5984,10 @@
                 },
                 "relation_with_hof": {
                     "type": "string"
+                },
+                "user_id": {
+                    "type": "string",
+                    "example": "64f1a2b3c4d5e6f7a8b9c0d1"
                 }
             }
         },
@@ -6542,6 +6758,92 @@
                 }
             }
         },
+        "github_com_smart-invest-solutions_backend_internal_domain.ImportedPolicyView": {
+            "type": "object",
+            "properties": {
+                "agency_id": {
+                    "description": "AgencyID is the uploading admin's own AdminID — the hard agency boundary for this record.",
+                    "type": "string"
+                },
+                "agent_code": {
+                    "description": "AgentCode and DueMonth come from the PDF header — useful when an agency works more than one\nLIC agent code, and for telling at a glance how fresh a row is.",
+                    "type": "string"
+                },
+                "assured_name": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "doc": {
+                    "type": "string"
+                },
+                "due_count": {
+                    "type": "integer"
+                },
+                "due_month": {
+                    "type": "string"
+                },
+                "estimated_commission": {
+                    "type": "number"
+                },
+                "first_seen_at": {
+                    "type": "string"
+                },
+                "flag": {
+                    "description": "Flag is the PDF's \"Flg\" column: FY (first year), ST (2nd/3rd year), LP (last premium),\nMT (matures after this due), or empty.",
+                    "type": "string"
+                },
+                "fup": {
+                    "description": "FUP (\"first unpaid premium\") is kept exactly as printed, MM/YYYY.",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "installment_premium": {
+                    "type": "number"
+                },
+                "is_linked": {
+                    "type": "boolean"
+                },
+                "last_synced_at": {
+                    "type": "string"
+                },
+                "linked_client": {
+                    "type": "string"
+                },
+                "linked_policy_id": {
+                    "type": "string"
+                },
+                "linked_user_id": {
+                    "type": "string"
+                },
+                "mode": {
+                    "description": "Mode is normalized to the same vocabulary as PremiumDetails.PaymentMode.",
+                    "type": "string"
+                },
+                "next_due_date": {
+                    "type": "string"
+                },
+                "plan_code": {
+                    "description": "PlanCode and Term come from the PDF's \"Pln/Tm\" column (e.g. \"714/18\" → plan 714, term 18).",
+                    "type": "string"
+                },
+                "policy_no": {
+                    "type": "string"
+                },
+                "term": {
+                    "type": "integer"
+                },
+                "total_premium": {
+                    "type": "number"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_smart-invest-solutions_backend_internal_domain.LifeInsurance": {
             "type": "object",
             "properties": {
@@ -6586,6 +6888,33 @@
                 },
                 "total": {
                     "type": "integer"
+                }
+            }
+        },
+        "github_com_smart-invest-solutions_backend_internal_domain.LinkImportedPolicyDTO": {
+            "type": "object",
+            "required": [
+                "family_member_id",
+                "sum_assured",
+                "user_id"
+            ],
+            "properties": {
+                "family_member_id": {
+                    "type": "string"
+                },
+                "nominee_name": {
+                    "type": "string"
+                },
+                "plan_name": {
+                    "description": "PlanName is free text (e.g. \"Jeevan Labh\"); the PDF only carries the numeric plan code.",
+                    "type": "string"
+                },
+                "sum_assured": {
+                    "type": "number"
+                },
+                "user_id": {
+                    "type": "string",
+                    "example": "64f1a2b3c4d5e6f7a8b9c0d1"
                 }
             }
         },
@@ -6964,6 +7293,16 @@
         "github_com_smart-invest-solutions_backend_internal_domain.SyncResultDTO": {
             "type": "object",
             "properties": {
+                "agent_code": {
+                    "type": "string"
+                },
+                "agent_name": {
+                    "type": "string"
+                },
+                "due_month": {
+                    "description": "DueMonth / AgentCode / AgentName are read from the PDF header so the admin can confirm at a\nglance that they uploaded the file they meant to (right agent code, right month).",
+                    "type": "string"
+                },
                 "failed_policies": {
                     "description": "FailedPolicies names exactly which policy numbers failed to update and why, so an admin\nisn't left with just a bare failure count and no way to diagnose or target a re-run.",
                     "type": "array",
@@ -6974,10 +7313,18 @@
                 "failed_to_update_in_db": {
                     "type": "integer"
                 },
+                "newly_imported": {
+                    "description": "NewlyImported counts rows that had never been seen in any previous upload — they are now\nsitting in the agency's policy inbox waiting to be linked to a client account.",
+                    "type": "integer"
+                },
                 "successfully_updated_in_db": {
                     "type": "integer"
                 },
                 "total_policies_found_in_pdf": {
+                    "type": "integer"
+                },
+                "unclaimed_total": {
+                    "description": "UnclaimedTotal is the agency's *running* count of inbox rows with no client account yet —\nnot just from this upload, so it reflects the real size of the follow-up job.",
                     "type": "integer"
                 },
                 "unmapped_policies": {
@@ -6987,7 +7334,7 @@
                     }
                 },
                 "unparsed_policy_numbers": {
-                    "description": "UnparsedPolicyNumbers lists 9-digit numbers the parser located in the PDF but could not fully\nread (missing a DOC or FUP date nearby) — previously dropped with zero trace, so a row could\nsilently vanish from the sync with no signal to the admin that anything was even there.",
+                    "description": "UnparsedPolicyNumbers lists 9-digit numbers the parser located in the PDF but could not read\nas a complete row — so a row can never silently vanish from the sync with no signal that\nanything was even there.",
                     "type": "array",
                     "items": {
                         "type": "string"

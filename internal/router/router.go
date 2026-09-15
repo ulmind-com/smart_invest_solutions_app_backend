@@ -67,6 +67,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	generalInsuranceRepo := repository.NewGeneralInsuranceRepository(db.Database)
 	documentRepo := repository.NewDocumentRepository(db.Database)
 	lifeInsuranceRepo := repository.NewLifeInsuranceRepository(db.Database)
+	importedPolicyRepo := repository.NewImportedPolicyRepository(db.Database)
 	fixedDepositRepo := repository.NewFixedDepositRepository(db.Database)
 	healthInsuranceRepo := repository.NewHealthInsuranceRepository(db.Database)
 	supportTicketRepo := repository.NewSupportTicketRepository(db.Database)
@@ -97,7 +98,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	productService := service.NewProductService(productRepo, storageSvc)
 	dashboardService := service.NewDashboardService(userRepo, familyMemberRepo, lifeInsuranceRepo, healthInsuranceRepo, generalInsuranceRepo, fixedDepositRepo, accessReqRepo)
 	reportService := service.NewReportService(userRepo, familyMemberRepo, lifeInsuranceRepo, healthInsuranceRepo, generalInsuranceRepo, fixedDepositRepo)
-	agencySyncService := service.NewAgencySyncService(lifeInsuranceRepo, userRepo)
+	agencySyncService := service.NewAgencySyncService(lifeInsuranceRepo, importedPolicyRepo, familyMemberRepo, userRepo)
 	calculatorService := service.NewCalculatorService(calculatorRepo)
 	referralService := service.NewReferralService(referralRepo, userRepo)
 
@@ -388,6 +389,12 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			agency.Use(middleware.RequireRole("admin"))
 
 			agency.POST("/sync/lic-due-list", agencySyncHandler.ProcessLICDueList)
+
+			// Policy inbox — every row imported from a due list, and the action that attaches one
+			// to a client account. Super Admin is rejected inside each handler, same as the upload.
+			agency.GET("/imported-policies", agencySyncHandler.ListImportedPolicies)
+			agency.POST("/imported-policies/:id/link", agencySyncHandler.LinkImportedPolicy)
+			agency.DELETE("/imported-policies/:id", agencySyncHandler.DeleteImportedPolicy)
 		}
 
 		// Financial Calculators routes — SIP, Lumpsum, and FD calculators with Admin rate settings

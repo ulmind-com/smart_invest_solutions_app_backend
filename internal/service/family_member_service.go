@@ -22,11 +22,33 @@ func NewFamilyMemberService(repo domain.FamilyMemberRepository, userRepo domain.
 	}
 }
 
-// AddMember creates a new family member record for the authenticated user.
-func (s *familyMemberService) AddMember(ctx context.Context, userIDStr string, dto *domain.CreateFamilyMemberDTO) (*domain.FamilyMember, error) {
-	userID, err := bson.ObjectIDFromHex(userIDStr)
+// AddMember creates a new family member record. A client always creates under their own account; an
+// admin/super_admin may create on behalf of a client by passing dto.UserID, and a plain admin may
+// only do so for a client inside their own agency (same resolveCallerAgencyID/
+// canAccessAgencyScopedRecord pattern used by the on-behalf-of policy creation paths).
+func (s *familyMemberService) AddMember(ctx context.Context, requesterRole, requesterID string, dto *domain.CreateFamilyMemberDTO) (*domain.FamilyMember, error) {
+	targetIDStr := requesterID
+	isStaff := requesterRole == domain.RoleAdmin || requesterRole == domain.RoleSuperAdmin
+	if isStaff && strings.TrimSpace(dto.UserID) != "" {
+		targetIDStr = strings.TrimSpace(dto.UserID)
+	}
+
+	userID, err := bson.ObjectIDFromHex(targetIDStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid user ID format: %w", err)
+	}
+
+	if isStaff && targetIDStr != requesterID {
+		targetUser, err := s.userRepo.FindByID(ctx, userID)
+		if err != nil || targetUser == nil {
+			return nil, fmt.Errorf("target user not found")
+		}
+		if requesterRole == domain.RoleAdmin {
+			agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
+			if !canAccessAgencyScopedRecord(requesterRole, agencyFilter, targetUser.AgencyID) {
+				return nil, fmt.Errorf("target user not found")
+			}
+		}
 	}
 
 	member := &domain.FamilyMember{
