@@ -3,6 +3,8 @@ package repository
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/smart-invest-solutions/backend/internal/domain"
@@ -55,7 +57,7 @@ func (r *userRepository) FindByID(ctx context.Context, id bson.ObjectID) (*domai
 	err := r.collection.FindOne(ctx, bson.M{"_id": id}).Decode(&user)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			return nil, fmt.Errorf("user not found")
+			return nil, domain.ErrUserNotFound
 		}
 		return nil, fmt.Errorf("failed to find user: %w", err)
 	}
@@ -68,7 +70,7 @@ func (r *userRepository) FindByEmail(ctx context.Context, email string) (*domain
 	err := r.collection.FindOne(ctx, utils.EmailFilter(email)).Decode(&user)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			return nil, fmt.Errorf("user not found")
+			return nil, domain.ErrUserNotFound
 		}
 		return nil, fmt.Errorf("failed to find user by email: %w", err)
 	}
@@ -81,7 +83,7 @@ func (r *userRepository) FindByAdminID(ctx context.Context, adminID string) (*do
 	err := r.collection.FindOne(ctx, bson.M{"admin_id": adminID}).Decode(&user)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			return nil, fmt.Errorf("user not found")
+			return nil, domain.ErrUserNotFound
 		}
 		return nil, fmt.Errorf("failed to find user: %w", err)
 	}
@@ -118,7 +120,7 @@ func (r *userRepository) FindAllByRoles(ctx context.Context, roles []string, pag
 }
 
 // FindAll retrieves a paginated list of users, optionally narrowed by role and/or agency.
-func (r *userRepository) FindAll(ctx context.Context, roleFilter, agencyIDFilter string, page, limit int64) ([]*domain.User, int64, error) {
+func (r *userRepository) FindAll(ctx context.Context, roleFilter, agencyIDFilter, search string, page, limit int64) ([]*domain.User, int64, error) {
 	skip := (page - 1) * limit
 
 	filter := bson.M{}
@@ -127,6 +129,15 @@ func (r *userRepository) FindAll(ctx context.Context, roleFilter, agencyIDFilter
 	}
 	if agencyIDFilter != "" {
 		filter["agency_id"] = agencyIDFilter
+	}
+	if q := strings.TrimSpace(search); q != "" {
+		// Escaped: the search box is a plain substring match, never a regex.
+		safe := regexp.QuoteMeta(q)
+		filter["$or"] = bson.A{
+			bson.M{"name": bson.M{"$regex": safe, "$options": "i"}},
+			bson.M{"email": bson.M{"$regex": safe, "$options": "i"}},
+			bson.M{"phone": bson.M{"$regex": safe, "$options": "i"}},
+		}
 	}
 
 	// Get total count
@@ -189,7 +200,7 @@ func (r *userRepository) Update(ctx context.Context, id bson.ObjectID, req *doma
 	err := r.collection.FindOneAndUpdate(ctx, filter, update, opts).Decode(&user)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			return nil, fmt.Errorf("user not found")
+			return nil, domain.ErrUserNotFound
 		}
 		return nil, fmt.Errorf("failed to update user: %w", err)
 	}
@@ -427,4 +438,17 @@ func (r *userRepository) MarkEmailVerified(ctx context.Context, id bson.ObjectID
 		return fmt.Errorf("failed to mark email verified: %w", err)
 	}
 	return nil
+}
+
+// CountActiveClients counts active role=client accounts, optionally within one agency.
+func (r *userRepository) CountActiveClients(ctx context.Context, agencyIDFilter string) (int64, error) {
+	filter := bson.M{"role": domain.RoleClient, "is_active": true}
+	if agencyIDFilter != "" {
+		filter["agency_id"] = agencyIDFilter
+	}
+	n, err := r.collection.CountDocuments(ctx, filter)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count active clients: %w", err)
+	}
+	return n, nil
 }

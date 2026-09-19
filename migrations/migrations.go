@@ -243,7 +243,63 @@ func GetMigrations(cfg *config.Config) []Migration {
 				return err
 			},
 		},
+		{
+			Version:     8,
+			Description: "Replace the placeholder advisor on motor policies with the client's agency admin",
+			Up:          backfillMotorPolicyAdvisors,
+		},
 	}
+}
+
+// legacyAdvisorContact is the dummy number every motor policy used to be stamped with, whatever
+// agency the client belonged to.
+const legacyAdvisorContact = "+91 9876543210"
+
+// backfillMotorPolicyAdvisors rewrites motor policies still carrying the placeholder advisor: a
+// client with an agency gets that agency admin's name and phone; an unassigned client just loses the
+// fake number (the app then shows no call button rather than dialling a stranger).
+func backfillMotorPolicyAdvisors(ctx context.Context, db *mongo.Database) error {
+	policies := db.Collection("general_insurances")
+	users := db.Collection("users")
+
+	cursor, err := policies.Find(ctx, bson.M{"advisor_contact": legacyAdvisorContact},
+		options.Find().SetProjection(bson.M{"_id": 1, "user_id": 1}))
+	if err != nil {
+		return fmt.Errorf("failed to find motor policies with the placeholder advisor: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	advisors := map[bson.ObjectID][2]string{} // user_id -> {name, phone}
+	for cursor.Next(ctx) {
+		var row struct {
+			ID     bson.ObjectID `bson:"_id"`
+			UserID bson.ObjectID `bson:"user_id"`
+		}
+		if err := cursor.Decode(&row); err != nil {
+			continue
+		}
+
+		advisor, cached := advisors[row.UserID]
+		if !cached {
+			var client domain.User
+			if err := users.FindOne(ctx, bson.M{"_id": row.UserID}).Decode(&client); err == nil && client.AgencyID != "" {
+				var admin domain.User
+				if err := users.FindOne(ctx, bson.M{"admin_id": client.AgencyID}).Decode(&admin); err == nil {
+					advisor = [2]string{admin.Name, admin.Phone}
+				}
+			}
+			advisors[row.UserID] = advisor
+		}
+
+		set := bson.M{"advisor_contact": advisor[1], "updated_at": time.Now().UTC()}
+		if advisor[0] != "" {
+			set["advisor_name"] = advisor[0]
+		}
+		if _, err := policies.UpdateOne(ctx, bson.M{"_id": row.ID}, bson.M{"$set": set}); err != nil {
+			return fmt.Errorf("failed to update motor policy %s: %w", row.ID.Hex(), err)
+		}
+	}
+	return cursor.Err()
 }
 
 // Run executes all pending migrations.

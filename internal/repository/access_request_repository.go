@@ -156,6 +156,51 @@ func (r *accessRequestRepository) ClaimApproval(ctx context.Context, id bson.Obj
 	return &req, nil
 }
 
+// ClaimRejection atomically transitions a request to Rejected only if it has not been approved.
+func (r *accessRequestRepository) ClaimRejection(ctx context.Context, id bson.ObjectID, reason string) (*domain.AccessRequest, error) {
+	filter := bson.M{"_id": id, "status": bson.M{"$ne": domain.AccessStatusApproved}}
+	update := bson.M{
+		"$set": bson.M{
+			"status":      domain.AccessStatusRejected,
+			"admin_notes": reason,
+			"updated_at":  time.Now().UTC(),
+		},
+	}
+
+	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
+	var req domain.AccessRequest
+	err := r.collection.FindOneAndUpdate(ctx, filter, update, opts).Decode(&req)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, fmt.Errorf("this access request has already been approved and can no longer be rejected — deactivate the client's account instead")
+		}
+		return nil, fmt.Errorf("failed to reject access request: %w", err)
+	}
+
+	return &req, nil
+}
+
+// RevertApproval moves an Approved request back to Pending.
+func (r *accessRequestRepository) RevertApproval(ctx context.Context, id bson.ObjectID) error {
+	_, err := r.collection.UpdateOne(ctx,
+		bson.M{"_id": id, "status": domain.AccessStatusApproved},
+		bson.M{"$set": bson.M{"status": domain.AccessStatusPending, "updated_at": time.Now().UTC()}},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to revert access request approval: %w", err)
+	}
+	return nil
+}
+
+// DeleteAllByEmail removes every access request filed for an email address.
+func (r *accessRequestRepository) DeleteAllByEmail(ctx context.Context, email string) error {
+	_, err := r.collection.DeleteMany(ctx, utils.EmailFilter(email))
+	if err != nil {
+		return fmt.Errorf("failed to delete access requests: %w", err)
+	}
+	return nil
+}
+
 // UpdateDetailsAndStatus updates the details and resets status of an existing AccessRequest.
 func (r *accessRequestRepository) UpdateDetailsAndStatus(ctx context.Context, id bson.ObjectID, name, phone, notes, appliedReferralCode, appliedAgencyID, status string) (*domain.AccessRequest, error) {
 	update := bson.M{

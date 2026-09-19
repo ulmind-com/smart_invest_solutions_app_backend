@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jung-kurt/gofpdf"
@@ -132,38 +133,50 @@ func renderPortfolioPDF(
 	pdf := gofpdf.New("P", "mm", "A4", "")
 	pdf.SetMargins(15, 15, 15)
 	pdf.SetAutoPageBreak(true, 15)
+	// The core Helvetica font is cp1252-encoded: translate UTF-8 text so accented characters render
+	// correctly instead of as mojibake (characters outside cp1252 degrade to a placeholder).
+	tr := pdf.UnicodeTranslatorFromDescriptor("")
 	pdf.AddPage()
 
-	// Header
 	pdf.SetFont("Helvetica", "B", 18)
 	pdf.CellFormat(0, 10, "Smart Invest Solutions - Client Portfolio", "", 1, "L", false, 0, "")
 	pdf.SetFont("Helvetica", "", 10)
 	pdf.SetTextColor(100, 100, 100)
-	pdf.CellFormat(0, 6, "Generated on: "+time.Now().UTC().Format(dateLayout), "", 1, "L", false, 0, "")
+	pdf.CellFormat(0, 6, "Generated on: "+time.Now().In(indiaTZ).Format(dateLayout), "", 1, "L", false, 0, "")
 	pdf.SetTextColor(0, 0, 0)
 	pdf.Ln(4)
 
-	// Section 1: Client Details
 	addSectionTitle(pdf, "Client Details")
 	pdf.SetFont("Helvetica", "", 11)
 	pdf.CellFormat(30, 7, "Name:", "", 0, "L", false, 0, "")
-	pdf.CellFormat(0, 7, user.Name, "", 1, "L", false, 0, "")
+	pdf.CellFormat(0, 7, tr(user.Name), "", 1, "L", false, 0, "")
+	pdf.CellFormat(30, 7, "Email:", "", 0, "L", false, 0, "")
+	pdf.CellFormat(0, 7, tr(user.Email), "", 1, "L", false, 0, "")
 	pdf.CellFormat(30, 7, "Phone:", "", 0, "L", false, 0, "")
-	pdf.CellFormat(0, 7, user.Phone, "", 1, "L", false, 0, "")
+	pdf.CellFormat(0, 7, tr(orDash(user.Phone)), "", 1, "L", false, 0, "")
 	pdf.Ln(4)
 
-	// Family Members
-	if len(familyMembers) > 0 {
-		addSectionTitle(pdf, "Family Members")
+	memberNames := make(map[string]string, len(familyMembers))
+	addSectionTitle(pdf, "Family Members")
+	if len(familyMembers) == 0 {
+		addEmptyNote(pdf, "No family members on record.")
+	} else {
 		rows := make([][]string, 0, len(familyMembers))
 		for _, m := range familyMembers {
-			rows = append(rows, []string{m.Name, m.RelationWithHOF, m.Phone, m.DateOfBirth})
+			memberNames[m.ID.Hex()] = m.Name
+			rows = append(rows, []string{m.Name, m.RelationWithHOF, orDash(m.Phone), formatISODate(m.DateOfBirth), orDash(m.BloodGroup)})
 		}
-		addTable(pdf, []string{"Name", "Relation", "Phone", "Date of Birth"}, []float64{50, 40, 40, 50}, rows)
-		pdf.Ln(4)
+		addTable(pdf, tr, []string{"Name", "Relation", "Phone", "Date of Birth", "Blood Group"}, []float64{50, 35, 40, 30, 25}, rows)
+	}
+	pdf.Ln(4)
+
+	insured := func(cached, familyMemberID string) string {
+		if cached != "" {
+			return cached
+		}
+		return orDash(memberNames[familyMemberID])
 	}
 
-	// Section 2: Life Insurance
 	addSectionTitle(pdf, "Life Insurance")
 	if len(lifePolicies) == 0 {
 		addEmptyNote(pdf, "No life insurance policies on record.")
@@ -173,15 +186,20 @@ func renderPortfolioPDF(
 			rows = append(rows, []string{
 				p.PolicyDetails.PolicyNo,
 				p.PolicyDetails.PlanName,
+				insured(p.PolicyDetails.LifeInsuredName, p.FamilyMemberID.Hex()),
+				orDash(p.PolicyDetails.NomineeName),
 				formatAmount(p.PolicyDetails.SumAssured),
-				p.PremiumDetails.NextDueDate.Format(dateLayout),
+				formatAmount(p.PremiumDetails.InstallmentPremium) + " " + modeShort(p.PremiumDetails.PaymentMode),
+				formatDate(p.PremiumDetails.NextDueDate),
+				formatDate(p.PolicyDetails.MaturityDate),
 			})
 		}
-		addTable(pdf, []string{"Policy No", "Plan Name", "Sum Assured", "Next Due Date"}, []float64{40, 55, 40, 45}, rows)
+		addTable(pdf, tr,
+			[]string{"Policy No", "Plan", "Insured", "Nominee", "Sum Assured", "Premium", "Next Due", "Maturity"},
+			[]float64{21, 26, 22, 22, 24, 25, 20, 20}, rows)
 	}
 	pdf.Ln(4)
 
-	// Section 3: Health Insurance
 	addSectionTitle(pdf, "Health Insurance")
 	if len(healthPolicies) == 0 {
 		addEmptyNote(pdf, "No health insurance policies on record.")
@@ -190,43 +208,53 @@ func renderPortfolioPDF(
 		for _, p := range healthPolicies {
 			rows = append(rows, []string{
 				p.PolicyDetails.PolicyNo,
-				p.PolicyDetails.PlanName,
+				p.CompanyName + " - " + p.PolicyDetails.PlanName,
+				insured(p.PolicyDetails.PrimaryInsuredName, p.FamilyMemberID.Hex()),
 				formatAmount(p.PolicyDetails.SumInsured),
-				p.PremiumDetails.NextDueDate.Format(dateLayout),
+				formatAmount(p.PremiumDetails.InstallmentPremium) + " " + modeShort(p.PremiumDetails.PaymentMode),
+				formatDate(p.PolicyDetails.DOC) + " to " + formatDate(p.PolicyDetails.ExpiryDate),
 			})
 		}
-		addTable(pdf, []string{"Policy No", "Plan Name", "Sum Insured", "Next Due Date"}, []float64{40, 55, 40, 45}, rows)
+		addTable(pdf, tr,
+			[]string{"Policy No", "Insurer / Plan", "Insured", "Sum Insured", "Premium", "Cover Period"},
+			[]float64{24, 38, 26, 26, 26, 40}, rows)
 	}
 	pdf.Ln(4)
 
-	// Section 4: General Insurance
-	addSectionTitle(pdf, "General Insurance")
+	addSectionTitle(pdf, "Motor Insurance")
 	if len(generalPolicies) == 0 {
-		addEmptyNote(pdf, "No general insurance policies on record.")
+		addEmptyNote(pdf, "No motor insurance policies on record.")
 	} else {
 		rows := make([][]string, 0, len(generalPolicies))
 		for _, p := range generalPolicies {
-			rows = append(rows, []string{p.PolicyNo, p.CompanyName, p.VehicleNo, p.DateOfExpiry})
+			rows = append(rows, []string{p.PolicyNo, p.CompanyName, p.VehicleNo, orDash(p.AdvisorName), formatISODate(p.DateOfExpiry)})
 		}
-		addTable(pdf, []string{"Policy No", "Company Name", "Vehicle No", "Expiry Date"}, []float64{40, 55, 40, 45}, rows)
+		addTable(pdf, tr, []string{"Policy No", "Insurer", "Vehicle No", "Advisor", "Expiry Date"}, []float64{35, 45, 30, 40, 30}, rows)
 	}
 	pdf.Ln(4)
 
-	// Section 5: Fixed Deposits
 	addSectionTitle(pdf, "Fixed Deposits")
 	if len(fixedDeposits) == 0 {
 		addEmptyNote(pdf, "No fixed deposits on record.")
 	} else {
 		rows := make([][]string, 0, len(fixedDeposits))
 		for _, fd := range fixedDeposits {
+			holders := insured("", fd.FamilyMemberID.Hex())
+			if fd.SecondHolderName != "" {
+				holders += " & " + fd.SecondHolderName
+			}
 			rows = append(rows, []string{
 				fd.FDNumber,
-				fd.FDName,
+				fd.FDName + " (" + fd.CompanyName + ")",
+				holders,
+				formatAmount(fd.PrincipalAmount),
 				formatAmount(fd.MaturityAmount),
-				fd.MaturityDate.Format(dateLayout),
+				formatDate(fd.MaturityDate),
 			})
 		}
-		addTable(pdf, []string{"FD No", "FD Name", "Maturity Amount", "Maturity Date"}, []float64{40, 55, 40, 45}, rows)
+		addTable(pdf, tr,
+			[]string{"FD No", "Deposit", "Holder(s)", "Principal", "Maturity Value", "Matures On"},
+			[]float64{24, 40, 34, 27, 30, 25}, rows)
 	}
 
 	if pdf.Error() != nil {
@@ -241,14 +269,14 @@ func renderPortfolioPDF(
 	return buf.Bytes(), nil
 }
 
-// addSectionTitle renders a bold section heading with a thin rule underneath.
+// addSectionTitle renders a bold section heading with an underline rule.
 func addSectionTitle(pdf *gofpdf.Fpdf, title string) {
 	pdf.SetFont("Helvetica", "B", 13)
 	pdf.CellFormat(0, 8, title, "B", 1, "L", false, 0, "")
 	pdf.Ln(2)
 }
 
-// addEmptyNote renders a small italic placeholder line for a section with no data.
+// addEmptyNote renders an italic placeholder line for a section with no records.
 func addEmptyNote(pdf *gofpdf.Fpdf, note string) {
 	pdf.SetFont("Helvetica", "I", 10)
 	pdf.SetTextColor(120, 120, 120)
@@ -256,26 +284,99 @@ func addEmptyNote(pdf *gofpdf.Fpdf, note string) {
 	pdf.SetTextColor(0, 0, 0)
 }
 
-// addTable renders a header row (shaded) followed by one row per entry, using fixed column widths.
-func addTable(pdf *gofpdf.Fpdf, headers []string, colWidths []float64, rows [][]string) {
-	pdf.SetFont("Helvetica", "B", 10)
+// addTable renders a bordered table. Cell text is translated for the core font and truncated with
+// an ellipsis to fit its column, so a long plan or bank name never spills over its neighbours.
+func addTable(pdf *gofpdf.Fpdf, tr func(string) string, headers []string, colWidths []float64, rows [][]string) {
+	pdf.SetFont("Helvetica", "B", 8)
 	pdf.SetFillColor(230, 230, 230)
 	for i, h := range headers {
-		pdf.CellFormat(colWidths[i], 8, h, "1", 0, "L", true, 0, "")
+		pdf.CellFormat(colWidths[i], 7, fitText(pdf, h, colWidths[i]), "1", 0, "L", true, 0, "")
 	}
 	pdf.Ln(-1)
 
-	pdf.SetFont("Helvetica", "", 10)
+	pdf.SetFont("Helvetica", "", 8)
 	for _, row := range rows {
 		for i, cell := range row {
-			pdf.CellFormat(colWidths[i], 8, cell, "1", 0, "L", false, 0, "")
+			pdf.CellFormat(colWidths[i], 7, fitText(pdf, tr(cell), colWidths[i]), "1", 0, "L", false, 0, "")
 		}
 		pdf.Ln(-1)
 	}
 }
 
-// formatAmount renders a currency amount with thousands-separated rupee formatting kept simple —
-// two decimal places, no locale-specific grouping (avoids pulling in a formatting dependency).
+// fitText truncates text (with "...") so it fits a cell of the given width, allowing for padding.
+func fitText(pdf *gofpdf.Fpdf, text string, width float64) string {
+	available := width - 2*pdf.GetCellMargin()
+	if pdf.GetStringWidth(text) <= available {
+		return text
+	}
+	runes := []rune(text)
+	for len(runes) > 0 && pdf.GetStringWidth(string(runes)+"...") > available {
+		runes = runes[:len(runes)-1]
+	}
+	return string(runes) + "..."
+}
+
+// formatAmount renders rupees with Indian digit grouping, e.g. "Rs. 12,34,567".
 func formatAmount(amount float64) string {
-	return fmt.Sprintf("Rs. %.2f", amount)
+	rounded := int64(amount + 0.5)
+	if amount < 0 {
+		rounded = int64(amount - 0.5)
+	}
+	sign := ""
+	if rounded < 0 {
+		sign = "-"
+		rounded = -rounded
+	}
+	digits := fmt.Sprintf("%d", rounded)
+	if len(digits) > 3 {
+		head, tail := digits[:len(digits)-3], digits[len(digits)-3:]
+		var groups []string
+		for len(head) > 2 {
+			groups = append([]string{head[len(head)-2:]}, groups...)
+			head = head[:len(head)-2]
+		}
+		if head != "" {
+			groups = append([]string{head}, groups...)
+		}
+		digits = strings.Join(groups, ",") + "," + tail
+	}
+	return "Rs. " + sign + digits
+}
+
+// formatDate renders a stored timestamp as an Indian calendar date, or "-" when unset.
+func formatDate(t time.Time) string {
+	if t.IsZero() || t.Year() < 1900 {
+		return "-"
+	}
+	return t.In(indiaTZ).Format(dateLayout)
+}
+
+// formatISODate renders a YYYY-MM-DD string (motor expiry, date of birth) in the report's layout.
+func formatISODate(value string) string {
+	if t, err := time.Parse("2006-01-02", strings.TrimSpace(value)); err == nil {
+		return t.Format(dateLayout)
+	}
+	return orDash(value)
+}
+
+// modeShort abbreviates a payment mode for a narrow table column.
+func modeShort(mode string) string {
+	switch mode {
+	case domain.PaymentModeYearly:
+		return "/yr"
+	case domain.PaymentModeHalfYearly:
+		return "/half-yr"
+	case domain.PaymentModeQuarterly:
+		return "/qtr"
+	case domain.PaymentModeMonthly:
+		return "/mo"
+	}
+	return ""
+}
+
+func orDash(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return "-"
+	}
+	return value
 }

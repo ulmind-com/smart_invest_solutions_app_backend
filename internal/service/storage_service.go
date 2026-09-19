@@ -5,18 +5,27 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"image/draw"
 	"image/jpeg"
 	_ "image/png"
 	"io"
+	"net/http"
 	"time"
 
 	"github.com/cloudinary/cloudinary-go/v2"
 	"github.com/cloudinary/cloudinary-go/v2/api/uploader"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 	"github.com/smart-invest-solutions/backend/internal/config"
 )
 
 // UploadResult represents the metadata output after uploading a file to Cloudinary.
+// Images above compressionThresholdBytes are re-encoded, aiming for compressionTargetBytes.
+const (
+	compressionThresholdBytes = 1 << 20 // 1 MiB
+	compressionTargetBytes    = 1 << 20
+)
+
 type UploadResult struct {
 	SecureURL string `json:"secure_url"`
 	PublicID  string `json:"public_id"`
@@ -52,6 +61,33 @@ func NewCloudinaryService(cfg *config.Config) (*CloudinaryService, error) {
 	}, nil
 }
 
+// NewStorageService returns the Cloudinary-backed StorageService, or — when Cloudinary isn't
+// configured — a stand-in whose every call fails with a clear error. Returning the constructor's nil
+// *CloudinaryService instead (as the router used to) produced a non-nil interface wrapping a nil
+// pointer: every upload or delete then panicked, and `storageSvc != nil` guards never caught it.
+func NewStorageService(cfg *config.Config) StorageService {
+	svc, err := NewCloudinaryService(cfg)
+	if err != nil {
+		log.Error().Err(err).Msg("file storage unavailable — document and brochure uploads will be refused")
+		return unavailableStorage{reason: err}
+	}
+	return svc
+}
+
+type unavailableStorage struct{ reason error }
+
+func (u unavailableStorage) UploadImage(context.Context, interface{}, string) (string, error) {
+	return "", fmt.Errorf("file storage is not configured on the server: %v", u.reason)
+}
+
+func (u unavailableStorage) UploadDocumentWithCompression(context.Context, interface{}, string) (*UploadResult, error) {
+	return nil, fmt.Errorf("file storage is not configured on the server: %v", u.reason)
+}
+
+func (u unavailableStorage) DeleteImage(context.Context, string) error {
+	return fmt.Errorf("file storage is not configured on the server: %v", u.reason)
+}
+
 // UploadImage uploads a file to Cloudinary and returns its secure URL.
 func (s *CloudinaryService) UploadImage(ctx context.Context, file interface{}, folder string) (string, error) {
 	uniqueID := uuid.New().String()
@@ -80,28 +116,33 @@ func (s *CloudinaryService) UploadDocumentWithCompression(ctx context.Context, f
 
 	// Handle in-memory buffer compression if file is an io.Reader or []byte
 	processedFile := file
+	isPDF := false
 	if reader, ok := file.(io.Reader); ok {
 		buf, err := io.ReadAll(reader)
-		if err == nil && len(buf) > 500*1024 {
-			// If raw file size is > 500KB, attempt image compression
-			compressedBuf, isCompressed := compressImageBufferSub500KB(buf)
-			if isCompressed {
+		if err != nil {
+			return nil, fmt.Errorf("failed to read uploaded file: %w", err)
+		}
+		isPDF = http.DetectContentType(buf) == "application/pdf"
+		processedFile = bytes.NewReader(buf)
+		if !isPDF && len(buf) > compressionThresholdBytes {
+			if compressedBuf, ok := compressImageBuffer(buf); ok {
 				processedFile = bytes.NewReader(compressedBuf)
-			} else {
-				processedFile = bytes.NewReader(buf)
 			}
-		} else if err == nil {
-			processedFile = bytes.NewReader(buf)
 		}
 	}
 
-	// Upload to Cloudinary with aggressive sub-500KB target transformations (q_auto:eco, w_1920, c_limit)
-	resp, err := s.client.Upload.Upload(uploadCtx, processedFile, uploader.UploadParams{
-		Folder:         folder,
-		PublicID:       uniqueID,
-		Transformation: "w_1920,c_limit,q_auto:eco,f_auto",
-		ResourceType:   "auto",
-	})
+	params := uploader.UploadParams{
+		Folder:       folder,
+		PublicID:     uniqueID,
+		ResourceType: "auto",
+	}
+	// The size cap is an image-only transformation: applied to a PDF it would have Cloudinary
+	// rasterise or reject the document, so PDFs are stored exactly as uploaded.
+	if !isPDF {
+		params.Transformation = "c_limit,w_1920,h_1920,q_auto:good"
+	}
+
+	resp, err := s.client.Upload.Upload(uploadCtx, processedFile, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to upload document to Cloudinary: %v", err)
 	}
@@ -114,22 +155,22 @@ func (s *CloudinaryService) UploadDocumentWithCompression(ctx context.Context, f
 	}, nil
 }
 
-// compressImageBufferSub500KB attempts to compress JPG/PNG image bytes to under 500KB using Go image encoding.
-func compressImageBufferSub500KB(input []byte) ([]byte, bool) {
+// compressImageBuffer re-encodes a large JPG/PNG as a JPEG no wider/taller than 1920px, aiming for
+// compressionTargetBytes. It reports false (and the original bytes) when the input isn't a decodable
+// image or re-encoding wouldn't make it smaller.
+func compressImageBuffer(input []byte) ([]byte, bool) {
 	img, _, err := image.Decode(bytes.NewReader(input))
 	if err != nil {
-		return input, false // Not a standard image (e.g. PDF or raw binary), rely on Cloudinary q_auto:eco
+		return input, false // Not a decodable image; Cloudinary's own optimisation handles it
 	}
 
 	bounds := img.Bounds()
 	width := bounds.Dx()
 	height := bounds.Dy()
 
-	// Scale down dimensions if image resolution is very large
 	maxWidth := 1920
 	maxHeight := 1920
 	if width > maxWidth || height > maxHeight {
-		// Calculate ratio
 		ratioW := float64(maxWidth) / float64(width)
 		ratioH := float64(maxHeight) / float64(height)
 		ratio := ratioW
@@ -138,32 +179,42 @@ func compressImageBufferSub500KB(input []byte) ([]byte, bool) {
 		}
 		newW := int(float64(width) * ratio)
 		newH := int(float64(height) * ratio)
-		
-		// Simple nearest neighbor or bounds crop to fit max dimensions
+
 		dst := image.NewRGBA(image.Rect(0, 0, newW, newH))
 		for y := 0; y < newH; y++ {
 			for x := 0; x < newW; x++ {
-				srcX := int(float64(x) / ratio)
-				srcY := int(float64(y) / ratio)
+				srcX := bounds.Min.X + int(float64(x)/ratio)
+				srcY := bounds.Min.Y + int(float64(y)/ratio)
 				dst.Set(x, y, img.At(srcX, srcY))
 			}
 		}
 		img = dst
 	}
 
-	// Try decreasing qualities (70, 55, 40, 30) until size is under 500KB (512,000 bytes)
-	qualities := []int{70, 55, 40, 30, 20}
-	for _, q := range qualities {
+	// JPEG has no alpha channel: flatten onto white so transparent regions of a PNG don't turn black.
+	flat := image.NewRGBA(image.Rect(0, 0, img.Bounds().Dx(), img.Bounds().Dy()))
+	draw.Draw(flat, flat.Bounds(), image.White, image.Point{}, draw.Src)
+	draw.Draw(flat, flat.Bounds(), img, img.Bounds().Min, draw.Over)
+	img = flat
+
+	// Vault files are KYC scans and policy papers: text must stay legible, so quality never drops
+	// below 60 — a slightly larger file beats an unreadable Aadhaar card.
+	var best []byte
+	for _, q := range []int{85, 75, 65, 60} {
 		var outBuf bytes.Buffer
-		err := jpeg.Encode(&outBuf, img, &jpeg.Options{Quality: q})
-		if err == nil {
-			if outBuf.Len() <= 500*1024 || q == 20 {
-				return outBuf.Bytes(), true
-			}
+		if err := jpeg.Encode(&outBuf, img, &jpeg.Options{Quality: q}); err != nil {
+			continue
+		}
+		best = outBuf.Bytes()
+		if len(best) <= compressionTargetBytes {
+			break
 		}
 	}
 
-	return input, false
+	if best == nil || len(best) >= len(input) {
+		return input, false
+	}
+	return best, true
 }
 
 // DeleteImage removes a file from Cloudinary using its public ID.

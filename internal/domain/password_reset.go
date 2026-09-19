@@ -60,3 +60,12 @@ type PasswordResetService interface {
 	VerifyOTP(ctx context.Context, req *VerifyOTPRequest) error
 	ResetPassword(ctx context.Context, req *ResetPasswordRequest) error
 }
+
+// CooldownError reports that an action (e.g. sending another OTP) was refused only because the
+// previous one was too recent. Handlers surface it as 429 so the app can tell the user to wait
+// instead of claiming a code was sent.
+type CooldownError struct {
+	Message string
+}
+
+func (e *CooldownError) Error() string { return e.Message }

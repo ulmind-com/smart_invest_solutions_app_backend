@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/smart-invest-solutions/backend/internal/config"
+	"github.com/smart-invest-solutions/backend/internal/domain"
 	"github.com/smart-invest-solutions/backend/pkg/response"
 	"github.com/smart-invest-solutions/backend/pkg/utils"
 )
@@ -13,8 +14,17 @@ import (
 // AuthCtxKey is the key used to store user claims in the gin context
 const AuthCtxKey = "user_claims"
 
-// RequireAuth validates the JWT token and adds the claims to the context.
-func RequireAuth(cfg *config.Config) gin.HandlerFunc {
+// RequireAuth validates the JWT token, re-checks that the account behind it may still use the API,
+// and adds the claims to the context.
+//
+// A JWT stays cryptographically valid for its whole lifetime (24h by default), so the signature
+// alone can't tell that an admin has since deactivated the account, merged it into another family
+// account, let an admin's access expire, deleted it, or changed its role. The account guard looks
+// the user up (through a short-lived cache) on every request and rejects the token as soon as any
+// of that happens, instead of letting the old session run until the token expires.
+func RequireAuth(cfg *config.Config, users domain.UserRepository) gin.HandlerFunc {
+	guard := newAccountGuard(users)
+
 	return func(c *gin.Context) {
 		// Get Authorization header
 		authHeader := c.GetHeader("Authorization")
@@ -38,6 +48,12 @@ func RequireAuth(cfg *config.Config) gin.HandlerFunc {
 		claims, err := utils.ValidateJWT(tokenString, cfg.JWTSecret)
 		if err != nil {
 			response.Error(c, http.StatusUnauthorized, "Invalid or expired token")
+			c.Abort()
+			return
+		}
+
+		if status, message := guard.check(c.Request.Context(), claims); status != 0 {
+			response.Error(c, status, message)
 			c.Abort()
 			return
 		}

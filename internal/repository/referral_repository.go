@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/smart-invest-solutions/backend/internal/domain"
+	"github.com/smart-invest-solutions/backend/pkg/utils"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -40,6 +41,7 @@ func (r *referralRepository) Create(ctx context.Context, record *domain.Referral
 	now := time.Now().UTC()
 	record.CreatedAt = now
 	record.UpdatedAt = now
+	record.ReferredEmail = utils.NormalizeEmail(record.ReferredEmail)
 
 	result, err := r.collection.InsertOne(ctx, record)
 	if err != nil {
@@ -52,8 +54,10 @@ func (r *referralRepository) Create(ctx context.Context, record *domain.Referral
 
 // GetPendingByReferredEmail retrieves a pending referral record matching a referred email.
 func (r *referralRepository) GetPendingByReferredEmail(ctx context.Context, email string) (*domain.ReferralRecord, error) {
+	// Case-insensitive: records written before emails were normalised may still carry the
+	// capitalisation the applicant typed.
 	filter := bson.M{
-		"referred_email": email,
+		"referred_email": utils.EmailFilter(email)["email"],
 		"status":         domain.ReferralStatusPending,
 	}
 
@@ -149,15 +153,25 @@ func (r *referralRepository) GetStatsByReferrerID(ctx context.Context, referrerI
 
 // GetAll retrieves a paginated master list of all referral records across all clients,
 // enriched (via $lookup on users collection) with ReferrerName and ReferrerEmail for Admin tracking.
-func (r *referralRepository) GetAll(ctx context.Context, page, limit int64) ([]*domain.ReferralRecordWithDetails, int64, error) {
+func (r *referralRepository) GetAll(ctx context.Context, page, limit int64, agencyID string) ([]*domain.ReferralRecordWithDetails, int64, error) {
 	skip := (page - 1) * limit
 
-	total, err := r.collection.CountDocuments(ctx, bson.M{})
+	filter := bson.M{}
+	if agencyID != "" {
+		ids, err := agencyClientIDs(ctx, r.collection.Database(), agencyID)
+		if err != nil {
+			return nil, 0, err
+		}
+		filter["referrer_id"] = bson.M{"$in": ids}
+	}
+
+	total, err := r.collection.CountDocuments(ctx, filter)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to count referral records: %w", err)
 	}
 
 	pipeline := mongo.Pipeline{
+		bson.D{{Key: "$match", Value: filter}},
 		bson.D{{Key: "$sort", Value: bson.D{{Key: "created_at", Value: -1}}}},
 		bson.D{{Key: "$skip", Value: skip}},
 		bson.D{{Key: "$limit", Value: limit}},
@@ -200,4 +214,39 @@ func (r *referralRepository) GetAll(ctx context.Context, page, limit int64) ([]*
 	}
 
 	return records, total, nil
+}
+
+// ReassignReferrer moves every referral made by fromUserID to toUserID.
+func (r *referralRepository) ReassignReferrer(ctx context.Context, fromUserID, toUserID bson.ObjectID) (int64, error) {
+	result, err := r.collection.UpdateMany(ctx,
+		bson.M{"referrer_id": fromUserID},
+		bson.M{"$set": bson.M{"referrer_id": toUserID, "updated_at": time.Now().UTC()}},
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to reassign referral records: %w", err)
+	}
+	return result.ModifiedCount, nil
+}
+
+// agencyClientIDs returns the IDs of every account registered under agencyID.
+func agencyClientIDs(ctx context.Context, db *mongo.Database, agencyID string) ([]bson.ObjectID, error) {
+	cursor, err := db.Collection(usersCollection).Find(ctx,
+		bson.M{"agency_id": agencyID},
+		options.Find().SetProjection(bson.M{"_id": 1}),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve agency clients: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	ids := []bson.ObjectID{}
+	for cursor.Next(ctx) {
+		var doc struct {
+			ID bson.ObjectID `bson:"_id"`
+		}
+		if err := cursor.Decode(&doc); err == nil {
+			ids = append(ids, doc.ID)
+		}
+	}
+	return ids, nil
 }

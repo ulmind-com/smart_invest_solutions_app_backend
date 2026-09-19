@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -160,7 +161,7 @@ func (h *UserHandler) GetAll(c *gin.Context) {
 		return
 	}
 
-	users, total, err := h.userService.GetAll(c.Request.Context(), claims.Role, claims.UserID.Hex(), page, limit)
+	users, total, err := h.userService.GetAll(c.Request.Context(), claims.Role, claims.UserID.Hex(), c.Query("q"), page, limit)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err.Error())
 		return
@@ -230,7 +231,7 @@ func (h *UserHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.userService.Delete(c.Request.Context(), claims.Role, id); err != nil {
+	if err := h.userService.Delete(c.Request.Context(), claims.Role, claims.UserID.Hex(), id); err != nil {
 		response.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -312,6 +313,10 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 // @Security     BearerAuth
 // @Router       /users/me [delete]
 func (h *UserHandler) DeleteMyAccount(c *gin.Context) {
+	if rejectWhileImpersonating(c) {
+		return
+	}
+
 	userID, ok := middleware.GetUserID(c)
 	if !ok {
 		response.Error(c, http.StatusUnauthorized, "unauthorized")
@@ -340,6 +345,10 @@ func (h *UserHandler) DeleteMyAccount(c *gin.Context) {
 // @Security     BearerAuth
 // @Router       /users/change-password [put]
 func (h *UserHandler) ChangePassword(c *gin.Context) {
+	if rejectWhileImpersonating(c) {
+		return
+	}
+
 	userID, ok := middleware.GetUserID(c)
 	if !ok {
 		response.Error(c, http.StatusUnauthorized, "unauthorized")
@@ -374,6 +383,10 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 // @Security     BearerAuth
 // @Router       /users/change-pin [put]
 func (h *UserHandler) ChangePIN(c *gin.Context) {
+	if rejectWhileImpersonating(c) {
+		return
+	}
+
 	userID, ok := middleware.GetUserID(c)
 	if !ok {
 		response.Error(c, http.StatusUnauthorized, "unauthorized")
@@ -411,7 +424,16 @@ func (h *UserHandler) ForgotPassword(c *gin.Context) {
 		return
 	}
 
-	_ = h.passResetService.SendOTP(c.Request.Context(), &req)
+	// Any other failure stays silent so this endpoint never reveals whether an email is registered —
+	// but a cooldown refusal must not be reported as "sent", or the user waits for a code that
+	// never comes.
+	if err := h.passResetService.SendOTP(c.Request.Context(), &req); err != nil {
+		var cooldown *domain.CooldownError
+		if errors.As(err, &cooldown) {
+			response.Error(c, http.StatusTooManyRequests, cooldown.Message)
+			return
+		}
+	}
 	response.Success(c, "If an account exists with this email, an OTP has been sent.", nil)
 }
 
@@ -715,4 +737,15 @@ func (h *UserHandler) MergeFamilyAccounts(c *gin.Context) {
 	}
 
 	response.Success(c, "Accounts merged successfully", result)
+}
+
+// rejectWhileImpersonating blocks account-owner-only actions (deleting the account, changing its
+// password or PIN) inside a super admin's impersonation session: viewing as someone must never be
+// able to lock them out of, or erase, their own account.
+func rejectWhileImpersonating(c *gin.Context) bool {
+	if claims, ok := middleware.GetClaims(c); ok && claims.IsImpersonating {
+		response.Error(c, http.StatusForbidden, "This action is disabled while viewing as another account")
+		return true
+	}
+	return false
 }

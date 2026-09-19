@@ -120,7 +120,7 @@ func (s *healthInsuranceService) CreatePolicy(ctx context.Context, requesterRole
 			NextDueDate:        dto.PremiumDetails.NextDueDate,
 			PaymentMode:        dto.PremiumDetails.PaymentMode,
 		},
-		IsMapped: dto.IsMapped,
+		IsMapped: dto.IsMapped && isAgencyStaff(requesterRole),
 	}
 
 	return s.repo.Create(ctx, policy)
@@ -300,4 +300,27 @@ func (s *healthInsuranceService) DeleteAllByUserID(ctx context.Context, userIDSt
 		return fmt.Errorf("invalid user ID format: %w", err)
 	}
 	return s.repo.DeleteAllByUserID(ctx, userID)
+}
+
+// MarkPremiumPaid advances the policy to its next installment.
+func (s *healthInsuranceService) MarkPremiumPaid(ctx context.Context, requesterRole, requesterID, idStr string) (*domain.HealthInsurance, error) {
+	id, err := bson.ObjectIDFromHex(idStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid policy ID format: %w", err)
+	}
+
+	policy, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.checkOwnership(ctx, requesterRole, requesterID, policy.UserID); err != nil {
+		return nil, err
+	}
+
+	current := policy.PremiumDetails.NextDueDate
+	next, err := nextPremiumDueDate(current, policy.PremiumDetails.PaymentMode, policy.PolicyDetails.DOC)
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.AdvanceNextDueDate(ctx, id, current, next)
 }

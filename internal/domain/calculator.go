@@ -25,30 +25,33 @@ type CalculatorSettings struct {
 
 // UpdateCalculatorSettingsDTO represents payload sent by Admin to update global default rates.
 type UpdateCalculatorSettingsDTO struct {
-	DefaultSIPRate     *float64 `json:"default_sip_rate,omitempty" binding:"omitempty,gte=0"`
-	DefaultLumpsumRate *float64 `json:"default_lumpsum_rate,omitempty" binding:"omitempty,gte=0"`
-	DefaultFDRate      *float64 `json:"default_fd_rate,omitempty" binding:"omitempty,gte=0"`
+	DefaultSIPRate     *float64 `json:"default_sip_rate,omitempty" binding:"omitempty,gte=0,lte=50"`
+	DefaultLumpsumRate *float64 `json:"default_lumpsum_rate,omitempty" binding:"omitempty,gte=0,lte=50"`
+	DefaultFDRate      *float64 `json:"default_fd_rate,omitempty" binding:"omitempty,gte=0,lte=50"`
 }
+
+// Calculator inputs are bounded so the compound-growth maths can never overflow to ±Inf/NaN, which
+// encoding/json refuses to marshal (the request would fail with an empty 500 instead of a result).
 
 // SIPRequestDTO represents request parameters for SIP calculation.
 type SIPRequestDTO struct {
-	MonthlyInvestment  float64  `json:"monthly_investment" binding:"required,gt=0"`
-	ExpectedReturnRate *float64 `json:"expected_return_rate,omitempty"` // Optional: Uses Admin default if nil
-	TimePeriodYears    int      `json:"time_period_years" binding:"required,gt=0"`
+	MonthlyInvestment  float64  `json:"monthly_investment" binding:"required,gt=0,lte=1000000000"`
+	ExpectedReturnRate *float64 `json:"expected_return_rate,omitempty" binding:"omitempty,gte=0,lte=100"` // Optional: Uses Admin default if nil
+	TimePeriodYears    int      `json:"time_period_years" binding:"required,gt=0,lte=100"`
 }
 
 // LumpsumRequestDTO represents request parameters for Lumpsum calculation.
 type LumpsumRequestDTO struct {
-	TotalInvestment    float64  `json:"total_investment" binding:"required,gt=0"`
-	ExpectedReturnRate *float64 `json:"expected_return_rate,omitempty"` // Optional: Uses Admin default if nil
-	TimePeriodYears    int      `json:"time_period_years" binding:"required,gt=0"`
+	TotalInvestment    float64  `json:"total_investment" binding:"required,gt=0,lte=100000000000"`
+	ExpectedReturnRate *float64 `json:"expected_return_rate,omitempty" binding:"omitempty,gte=0,lte=100"` // Optional: Uses Admin default if nil
+	TimePeriodYears    int      `json:"time_period_years" binding:"required,gt=0,lte=100"`
 }
 
 // FDRequestDTO represents request parameters for Fixed Deposit calculation.
 type FDRequestDTO struct {
-	Principal            float64  `json:"principal" binding:"required,gt=0"`
-	InterestRate         *float64 `json:"interest_rate,omitempty"` // Optional: Uses Admin default if nil
-	TenureMonths         int      `json:"tenure_months" binding:"required,gt=0"`
+	Principal            float64  `json:"principal" binding:"required,gt=0,lte=100000000000"`
+	InterestRate         *float64 `json:"interest_rate,omitempty" binding:"omitempty,gte=0,lte=100"` // Optional: Uses Admin default if nil
+	TenureMonths         int      `json:"tenure_months" binding:"required,gt=0,lte=1200"`
 	CompoundingFrequency string   `json:"compounding_frequency" binding:"required,oneof=Quarterly Half-Yearly Yearly"`
 }
 

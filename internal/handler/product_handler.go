@@ -92,6 +92,10 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 	var fileStream io.Reader
 	var filename string
 	if fileHeader, err := c.FormFile("brochure"); err == nil && fileHeader != nil {
+		if err := validateDocumentUpload(fileHeader); err != nil {
+			response.Error(c, http.StatusBadRequest, err.Error())
+			return
+		}
 		stream, errStream := fileHeader.Open()
 		if errStream == nil {
 			defer stream.Close()
@@ -240,6 +244,10 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 	var newFileStream io.Reader
 	var filename string
 	if fileHeader, err := c.FormFile("brochure"); err == nil && fileHeader != nil {
+		if err := validateDocumentUpload(fileHeader); err != nil {
+			response.Error(c, http.StatusBadRequest, err.Error())
+			return
+		}
 		stream, errStream := fileHeader.Open()
 		if errStream == nil {
 			defer stream.Close()

@@ -65,7 +65,13 @@ func (h *ReferralHandler) GetAllReferrals(c *gin.Context) {
 	page, _ := strconv.ParseInt(c.Query("page"), 10, 64)
 	limit, _ := strconv.ParseInt(c.Query("limit"), 10, 64)
 
-	res, err := h.referralService.GetAllReferrals(c.Request.Context(), page, limit)
+	claims, ok := middleware.GetClaims(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	res, err := h.referralService.GetAllReferrals(c.Request.Context(), claims.Role, claims.UserID.Hex(), page, limit)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err.Error())
 		return

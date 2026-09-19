@@ -70,6 +70,17 @@ type AccessRequestRepository interface {
 	// and credit any referral reward. Returns an error if the request was already approved (or
 	// doesn't exist).
 	ClaimApproval(ctx context.Context, id bson.ObjectID, adminNotes string) (*AccessRequest, error)
+	// ClaimRejection atomically moves a request to Rejected unless it has already been approved —
+	// an approved request has a live account behind it, so rejecting it afterwards would only leave
+	// the status and the account disagreeing.
+	ClaimRejection(ctx context.Context, id bson.ObjectID, reason string) (*AccessRequest, error)
+	// RevertApproval puts a request claimed by ClaimApproval back to Pending — used when the account
+	// behind the approval could not be created, so the request is never stranded as "approved"
+	// without a login.
+	RevertApproval(ctx context.Context, id bson.ObjectID) error
+	// DeleteAllByEmail removes every request filed for an email — part of an account's cascade
+	// delete, so the person can apply again later instead of being told they were "already approved".
+	DeleteAllByEmail(ctx context.Context, email string) error
 	UpdateDetailsAndStatus(ctx context.Context, id bson.ObjectID, name, phone, notes, appliedReferralCode, appliedAgencyID, status string) (*AccessRequest, error)
 }
 

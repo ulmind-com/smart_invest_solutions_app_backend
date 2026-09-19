@@ -102,6 +102,9 @@ func (s *fixedDepositService) CreateFD(ctx context.Context, requesterRole, reque
 	if !dto.OpeningDate.Before(dto.MaturityDate) {
 		return nil, fmt.Errorf("opening date must be before the maturity date")
 	}
+	if dto.MaturityAmount < dto.PrincipalAmount {
+		return nil, fmt.Errorf("maturity amount cannot be less than the principal amount")
+	}
 
 	fd := &domain.FixedDeposit{
 		UserID:           userID,
@@ -118,7 +121,7 @@ func (s *fixedDepositService) CreateFD(ctx context.Context, requesterRole, reque
 		SecondHolderName: dto.SecondHolderName,
 		AccountType:      dto.AccountType,
 		Address:          dto.Address,
-		IsMapped:         dto.IsMapped,
+		IsMapped:         dto.IsMapped && isAgencyStaff(requesterRole),
 	}
 
 	return s.repo.Create(ctx, fd)
@@ -259,6 +262,17 @@ func (s *fixedDepositService) UpdateFD(ctx context.Context, requesterRole, reque
 	}
 	if !openingDate.Before(maturityDate) {
 		return nil, fmt.Errorf("opening date must be before the maturity date")
+	}
+	principal := existing.PrincipalAmount
+	if dto.PrincipalAmount != nil {
+		principal = *dto.PrincipalAmount
+	}
+	maturityAmount := existing.MaturityAmount
+	if dto.MaturityAmount != nil {
+		maturityAmount = *dto.MaturityAmount
+	}
+	if maturityAmount < principal {
+		return nil, fmt.Errorf("maturity amount cannot be less than the principal amount")
 	}
 
 	return s.repo.Update(ctx, id, dto)

@@ -48,7 +48,7 @@ func (s *referralService) GetMyStats(ctx context.Context, userIDStr string) (*do
 }
 
 // GetAllReferrals retrieves a paginated master list of all referral records across the agency (Admin view).
-func (s *referralService) GetAllReferrals(ctx context.Context, page, limit int64) (*domain.ReferralListResponse, error) {
+func (s *referralService) GetAllReferrals(ctx context.Context, requesterRole, requesterID string, page, limit int64) (*domain.ReferralListResponse, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -56,7 +56,14 @@ func (s *referralService) GetAllReferrals(ctx context.Context, page, limit int64
 		limit = 10
 	}
 
-	records, total, err := s.referralRepo.GetAll(ctx, page, limit)
+	// A plain admin only ever sees referrals made by clients of their own agency — the ledger
+	// carries other agencies' prospects' email addresses.
+	agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
+	if requesterRole == domain.RoleAdmin && agencyFilter == "" {
+		return &domain.ReferralListResponse{Total: 0, Data: []*domain.ReferralRecordWithDetails{}}, nil
+	}
+
+	records, total, err := s.referralRepo.GetAll(ctx, page, limit, agencyFilter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch referral records: %w", err)
 	}

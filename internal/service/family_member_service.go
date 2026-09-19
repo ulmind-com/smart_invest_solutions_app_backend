@@ -5,20 +5,33 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/rs/zerolog/log"
 	"github.com/smart-invest-solutions/backend/internal/domain"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 type familyMemberService struct {
-	repo     domain.FamilyMemberRepository
-	userRepo domain.UserRepository
+	repo       domain.FamilyMemberRepository
+	userRepo   domain.UserRepository
+	lifeRepo   domain.LifeInsuranceRepository
+	healthRepo domain.HealthInsuranceRepository
+	fdRepo     domain.FixedDepositRepository
 }
 
 // NewFamilyMemberService creates a new instance of FamilyMemberService.
-func NewFamilyMemberService(repo domain.FamilyMemberRepository, userRepo domain.UserRepository) domain.FamilyMemberService {
+func NewFamilyMemberService(
+	repo domain.FamilyMemberRepository,
+	userRepo domain.UserRepository,
+	lifeRepo domain.LifeInsuranceRepository,
+	healthRepo domain.HealthInsuranceRepository,
+	fdRepo domain.FixedDepositRepository,
+) domain.FamilyMemberService {
 	return &familyMemberService{
-		repo:     repo,
-		userRepo: userRepo,
+		repo:       repo,
+		userRepo:   userRepo,
+		lifeRepo:   lifeRepo,
+		healthRepo: healthRepo,
+		fdRepo:     fdRepo,
 	}
 }
 
@@ -51,9 +64,19 @@ func (s *familyMemberService) AddMember(ctx context.Context, requesterRole, requ
 		}
 	}
 
+	name := strings.TrimSpace(dto.Name)
+	if name == "" {
+		return nil, fmt.Errorf("name is required")
+	}
+	dob, err := normalizeISODate(dto.DateOfBirth, "date of birth")
+	if err != nil {
+		return nil, err
+	}
+	dto.DateOfBirth = dob
+
 	member := &domain.FamilyMember{
 		UserID:          userID,
-		Name:            dto.Name,
+		Name:            name,
 		RelationWithHOF: dto.RelationWithHOF,
 		Phone:           dto.Phone,
 		Email:           dto.Email,
@@ -123,11 +146,44 @@ func (s *familyMemberService) UpdateMember(ctx context.Context, idStr, userIDStr
 		trimmed := strings.TrimSpace(*dto.LICCustomerID)
 		dto.LICCustomerID = &trimmed
 	}
+	if dto.Name != nil {
+		trimmed := strings.TrimSpace(*dto.Name)
+		if trimmed == "" {
+			return nil, fmt.Errorf("name cannot be empty")
+		}
+		dto.Name = &trimmed
+	}
+	if dto.DateOfBirth != nil {
+		dob, err := normalizeISODate(*dto.DateOfBirth, "date of birth")
+		if err != nil {
+			return nil, err
+		}
+		dto.DateOfBirth = &dob
+	}
 
-	return s.repo.Update(ctx, id, userID, dto)
+	updated, err := s.repo.Update(ctx, id, userID, dto)
+	if err != nil {
+		return nil, err
+	}
+
+	// Policies cache the insured person's name; keep them in step with a rename so the policy
+	// screens and PDF report don't keep showing the old name.
+	if dto.Name != nil {
+		if s.lifeRepo != nil {
+			if err := s.lifeRepo.SyncInsuredName(ctx, id, updated.Name); err != nil {
+				log.Error().Err(err).Str("family_member_id", idStr).Msg("failed to sync life insured name")
+			}
+		}
+		if s.healthRepo != nil {
+			if err := s.healthRepo.SyncInsuredName(ctx, id, updated.Name); err != nil {
+				log.Error().Err(err).Str("family_member_id", idStr).Msg("failed to sync health insured name")
+			}
+		}
+	}
+
+	return updated, nil
 }
 
-// DeleteMember removes a family member record belonging to the authenticated user.
 func (s *familyMemberService) DeleteMember(ctx context.Context, idStr, userIDStr string) error {
 	id, err := bson.ObjectIDFromHex(idStr)
 	if err != nil {
@@ -137,6 +193,30 @@ func (s *familyMemberService) DeleteMember(ctx context.Context, idStr, userIDStr
 	userID, err := bson.ObjectIDFromHex(userIDStr)
 	if err != nil {
 		return fmt.Errorf("invalid user ID format: %w", err)
+	}
+
+	member, err := s.repo.FindByID(ctx, id)
+	if err != nil || member == nil || member.UserID != userID {
+		return fmt.Errorf("family member not found or access denied")
+	}
+
+	// Refuse to orphan records: every policy and deposit is filed against a person, and deleting
+	// that person would leave them pointing at nobody (blank "insured" on screens and the report).
+	linked := int64(0)
+	for _, counter := range []interface {
+		CountByFamilyMemberID(context.Context, bson.ObjectID) (int64, error)
+	}{s.lifeRepo, s.healthRepo, s.fdRepo} {
+		if counter == nil {
+			continue
+		}
+		n, err := counter.CountByFamilyMemberID(ctx, id)
+		if err != nil {
+			return fmt.Errorf("failed to check this member's policies: %w", err)
+		}
+		linked += n
+	}
+	if linked > 0 {
+		return fmt.Errorf("%s still has %d linked polic(ies) or deposit(s) — move or delete those first", member.Name, linked)
 	}
 
 	return s.repo.Delete(ctx, id, userID)

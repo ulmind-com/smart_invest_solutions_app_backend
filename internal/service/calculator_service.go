@@ -47,7 +47,7 @@ func (s *calculatorService) UpdateSettings(ctx context.Context, dto *domain.Upda
 // M = P * [((1 + i)^n - 1) / i] * (1 + i)
 func (s *calculatorService) CalculateSIP(ctx context.Context, req *domain.SIPRequestDTO) (*domain.CalculatorResponseDTO, error) {
 	rate := 0.0
-	if req.ExpectedReturnRate != nil && *req.ExpectedReturnRate > 0 {
+	if req.ExpectedReturnRate != nil {
 		rate = *req.ExpectedReturnRate
 	} else {
 		settings, err := s.repo.GetSettings(ctx)
@@ -83,7 +83,7 @@ func (s *calculatorService) CalculateSIP(ctx context.Context, req *domain.SIPReq
 // A = P * (1 + r)^t
 func (s *calculatorService) CalculateLumpsum(ctx context.Context, req *domain.LumpsumRequestDTO) (*domain.CalculatorResponseDTO, error) {
 	rate := 0.0
-	if req.ExpectedReturnRate != nil && *req.ExpectedReturnRate > 0 {
+	if req.ExpectedReturnRate != nil {
 		rate = *req.ExpectedReturnRate
 	} else {
 		settings, err := s.repo.GetSettings(ctx)
@@ -113,7 +113,7 @@ func (s *calculatorService) CalculateLumpsum(ctx context.Context, req *domain.Lu
 // A = P * (1 + r/n)^(n * t)
 func (s *calculatorService) CalculateFD(ctx context.Context, req *domain.FDRequestDTO) (*domain.CalculatorResponseDTO, error) {
 	rate := 0.0
-	if req.InterestRate != nil && *req.InterestRate > 0 {
+	if req.InterestRate != nil {
 		rate = *req.InterestRate
 	} else {
 		settings, err := s.repo.GetSettings(ctx)

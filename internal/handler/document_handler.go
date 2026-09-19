@@ -44,7 +44,23 @@ func validateDocumentUpload(fileHeader *multipart.FileHeader) error {
 	if !allowedDocumentExtensions[ext] {
 		return fmt.Errorf("unsupported file type — only PDF, PNG, JPG, and JPEG are allowed")
 	}
-	return nil
+
+	// The extension is only the client's claim. Sniff the actual bytes so a renamed file (e.g. a
+	// HEIC photo or an executable saved as .pdf) is refused here with a clear message rather than
+	// failing somewhere inside the storage upload.
+	f, err := fileHeader.Open()
+	if err != nil {
+		return fmt.Errorf("failed to read uploaded file")
+	}
+	defer f.Close()
+	head := make([]byte, 512)
+	n, _ := io.ReadFull(f, head)
+	switch http.DetectContentType(head[:n]) {
+	case "application/pdf", "image/png", "image/jpeg":
+		return nil
+	default:
+		return fmt.Errorf("the file's contents are not a PDF, PNG or JPG — please export it in one of those formats")
+	}
 }
 
 // NewDocumentHandler creates a new instance of DocumentHandler.

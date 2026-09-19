@@ -3,14 +3,10 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/smart-invest-solutions/backend/internal/domain"
 	"go.mongodb.org/mongo-driver/v2/bson"
-)
-
-const (
-	DefaultAdvisorName    = "Samiran Samanta"
-	DefaultAdvisorContact = "+91 9876543210"
 )
 
 type generalInsuranceService struct {
@@ -33,27 +29,50 @@ func (s *generalInsuranceService) AddInsurance(ctx context.Context, userIDStr st
 		return nil, fmt.Errorf("invalid user ID format: %w", err)
 	}
 
-	advisorName := dto.AdvisorName
-	if advisorName == "" {
-		advisorName = DefaultAdvisorName
+	expiry, err := normalizeISODate(dto.DateOfExpiry, "date of expiry")
+	if err != nil {
+		return nil, err
 	}
 
-	advisorContact := dto.AdvisorContact
-	if advisorContact == "" {
-		advisorContact = DefaultAdvisorContact
+	// The advisor shown on a motor policy is the admin of the client's own agency (never a
+	// hard-coded person or number). An explicit value from the form still wins.
+	advisorName := strings.TrimSpace(dto.AdvisorName)
+	advisorContact := strings.TrimSpace(dto.AdvisorContact)
+	if advisorName == "" || advisorContact == "" {
+		agencyName, agencyPhone := s.agencyAdvisor(ctx, userID)
+		if advisorName == "" {
+			advisorName = agencyName
+		}
+		if advisorContact == "" {
+			advisorContact = agencyPhone
+		}
 	}
 
 	policy := &domain.GeneralInsurance{
 		UserID:         userID,
-		VehicleNo:      dto.VehicleNo,
-		PolicyNo:       dto.PolicyNo,
-		DateOfExpiry:   dto.DateOfExpiry,
-		CompanyName:    dto.CompanyName,
+		VehicleNo:      strings.ToUpper(strings.TrimSpace(dto.VehicleNo)),
+		PolicyNo:       strings.TrimSpace(dto.PolicyNo),
+		DateOfExpiry:   expiry,
+		CompanyName:    strings.TrimSpace(dto.CompanyName),
 		AdvisorName:    advisorName,
 		AdvisorContact: advisorContact,
 	}
 
 	return s.repo.Create(ctx, policy)
+}
+
+// agencyAdvisor returns the name and phone of the admin whose agency the client belongs to, or
+// empty strings for an unassigned client.
+func (s *generalInsuranceService) agencyAdvisor(ctx context.Context, userID bson.ObjectID) (string, string) {
+	client, err := s.userRepo.FindByID(ctx, userID)
+	if err != nil || client == nil || client.AgencyID == "" {
+		return "", ""
+	}
+	admin, err := s.userRepo.FindByAdminID(ctx, client.AgencyID)
+	if err != nil || admin == nil {
+		return "", ""
+	}
+	return admin.Name, admin.Phone
 }
 
 // GetMyInsurances retrieves all general insurance policies belonging to the authenticated user.
@@ -138,6 +157,21 @@ func (s *generalInsuranceService) UpdateInsurance(ctx context.Context, requester
 
 	if err := s.checkOwnership(ctx, requesterRole, requesterID, existing.UserID); err != nil {
 		return nil, err
+	}
+
+	if dto.DateOfExpiry != nil {
+		expiry, err := normalizeISODate(*dto.DateOfExpiry, "date of expiry")
+		if err != nil {
+			return nil, err
+		}
+		dto.DateOfExpiry = &expiry
+	}
+	if dto.VehicleNo != nil {
+		v := strings.ToUpper(strings.TrimSpace(*dto.VehicleNo))
+		if v == "" {
+			return nil, fmt.Errorf("vehicle number cannot be empty")
+		}
+		dto.VehicleNo = &v
 	}
 
 	return s.repo.Update(ctx, id, existing.UserID, dto)

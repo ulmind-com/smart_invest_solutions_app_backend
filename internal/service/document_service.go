@@ -41,10 +41,7 @@ func (s *documentService) UploadDocument(ctx context.Context, userIDStr, name, c
 		return nil, fmt.Errorf("failed to upload document to Cloudinary: %w", err)
 	}
 
-	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(filename)), ".")
-	if ext == "" {
-		ext = uploadRes.Format
-	}
+	ext := storedFileType(uploadRes, filename)
 
 	if category == "" {
 		category = "General"
@@ -139,10 +136,7 @@ func (s *documentService) UpdateDocument(ctx context.Context, idStr, userIDStr s
 			return nil, fmt.Errorf("failed to upload new document file: %w", err)
 		}
 
-		ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(filename)), ".")
-		if ext == "" {
-			ext = uploadRes.Format
-		}
+		ext := storedFileType(uploadRes, filename)
 
 		dto.DocumentURL = &uploadRes.SecureURL
 		dto.PublicID = &uploadRes.PublicID
@@ -255,4 +249,13 @@ func (s *documentService) DeleteAllByUserID(ctx context.Context, userIDStr strin
 	}
 
 	return s.repo.DeleteAllByUserID(ctx, userID)
+}
+
+// storedFileType is the format actually stored — Cloudinary's reported format wins over the upload's
+// file name, because a large PNG is re-encoded as JPEG before upload.
+func storedFileType(uploadRes *UploadResult, filename string) string {
+	if uploadRes != nil && uploadRes.Format != "" {
+		return strings.ToLower(uploadRes.Format)
+	}
+	return strings.TrimPrefix(strings.ToLower(filepath.Ext(filename)), ".")
 }

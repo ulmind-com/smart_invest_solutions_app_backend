@@ -57,7 +57,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 
 	// Initialize Email & Storage services
 	emailSvc := email.NewResendService(cfg)
-	storageSvc, _ := service.NewCloudinaryService(cfg)
+	storageSvc := service.NewStorageService(cfg)
 
 	// Initialize Repositories
 	userRepo := repository.NewUserRepository(db.Database)
@@ -83,12 +83,17 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	}); ok {
 		setter.SetCascadeDependencies(familyMemberRepo, generalInsuranceRepo, documentRepo, lifeInsuranceRepo, fixedDepositRepo, healthInsuranceRepo, supportTicketRepo, accessReqRepo, emailVerifRepo, storageSvc)
 	}
+	if setter, ok := userSvcConcrete.(interface {
+		SetReferralRepository(domain.ReferralRepository)
+	}); ok {
+		setter.SetReferralRepository(referralRepo)
+	}
 	userService := userSvcConcrete
 
 	accessReqService := service.NewAccessRequestService(accessReqRepo, userRepo, userService, emailSvc, referralRepo)
 	passResetService := service.NewPasswordResetService(passResetRepo, userRepo, emailSvc)
 	emailVerifService := service.NewEmailVerificationService(emailVerifRepo, userRepo, accessReqRepo, emailSvc)
-	familyMemberService := service.NewFamilyMemberService(familyMemberRepo, userRepo)
+	familyMemberService := service.NewFamilyMemberService(familyMemberRepo, userRepo, lifeInsuranceRepo, healthInsuranceRepo, fixedDepositRepo)
 	generalInsuranceService := service.NewGeneralInsuranceService(generalInsuranceRepo, userRepo)
 	documentService := service.NewDocumentService(documentRepo, storageSvc, userRepo)
 	lifeInsuranceService := service.NewLifeInsuranceService(lifeInsuranceRepo, userRepo, familyMemberRepo)
@@ -136,7 +141,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			users.POST("/reset-password", userHandler.ResetPassword)
 
 			// Protected routes (Require Login)
-			users.Use(middleware.RequireAuth(cfg))
+			users.Use(middleware.RequireAuth(cfg, userRepo))
 
 			users.GET("/me", userHandler.GetProfile)
 			users.PUT("/me", userHandler.UpdateProfile)
@@ -164,7 +169,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 
 			// Protected routes (Require Login + super_admin role)
 			protectedAdmins := admins.Group("")
-			protectedAdmins.Use(middleware.RequireAuth(cfg))
+			protectedAdmins.Use(middleware.RequireAuth(cfg, userRepo))
 			protectedAdmins.Use(middleware.RequireRole("super_admin"))
 			{
 				protectedAdmins.POST("", userHandler.CreateAdmin)
@@ -186,7 +191,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 
 			// Admin-only endpoints for reviewing, approving & rejecting requests
 			adminReqs := accessReqs.Group("")
-			adminReqs.Use(middleware.RequireAuth(cfg))
+			adminReqs.Use(middleware.RequireAuth(cfg, userRepo))
 			adminReqs.Use(middleware.RequireRole("admin"))
 			{
 				adminReqs.GET("", accessReqHandler.GetAllRequests)
@@ -199,7 +204,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 		// Family Member routes
 		familyMembers := v1.Group("/family-members")
 		{
-			familyMembers.Use(middleware.RequireAuth(cfg))
+			familyMembers.Use(middleware.RequireAuth(cfg, userRepo))
 
 			familyMembers.POST("", familyMemberHandler.AddMember)
 			familyMembers.GET("", familyMemberHandler.GetMyMembers)
@@ -218,7 +223,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 		// General Insurance routes
 		generalInsurances := v1.Group("/general-insurances")
 		{
-			generalInsurances.Use(middleware.RequireAuth(cfg))
+			generalInsurances.Use(middleware.RequireAuth(cfg, userRepo))
 
 			generalInsurances.POST("", generalInsuranceHandler.AddInsurance)
 			generalInsurances.GET("", generalInsuranceHandler.GetMyInsurances)
@@ -238,7 +243,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 		// E-Vault Document routes
 		documents := v1.Group("/documents")
 		{
-			documents.Use(middleware.RequireAuth(cfg))
+			documents.Use(middleware.RequireAuth(cfg, userRepo))
 
 			documents.POST("", documentHandler.UploadDocument)
 			documents.GET("", documentHandler.GetMyDocuments)
@@ -259,13 +264,14 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 		// route just requires authentication.
 		lifeInsurances := v1.Group("/life-insurances")
 		{
-			lifeInsurances.Use(middleware.RequireAuth(cfg))
+			lifeInsurances.Use(middleware.RequireAuth(cfg, userRepo))
 
 			lifeInsurances.POST("", lifeInsuranceHandler.CreatePolicy)
 			lifeInsurances.GET("", lifeInsuranceHandler.GetPolicies)
 			lifeInsurances.GET("/:id", lifeInsuranceHandler.GetByID)
 			lifeInsurances.PUT("/:id", lifeInsuranceHandler.UpdatePolicy)
 			lifeInsurances.DELETE("/:id", lifeInsuranceHandler.DeletePolicy)
+			lifeInsurances.POST("/:id/mark-paid", lifeInsuranceHandler.MarkPremiumPaid)
 
 			// Admin route
 			adminLifeInsurance := lifeInsurances.Group("")
@@ -280,7 +286,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 		// RequireRole gate is needed at the router level; every route just requires authentication.
 		fixedDeposits := v1.Group("/fixed-deposits")
 		{
-			fixedDeposits.Use(middleware.RequireAuth(cfg))
+			fixedDeposits.Use(middleware.RequireAuth(cfg, userRepo))
 
 			fixedDeposits.POST("", fixedDepositHandler.CreateFD)
 			fixedDeposits.GET("", fixedDepositHandler.GetFDs)
@@ -301,13 +307,14 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 		// gate is needed at the router level; every route just requires authentication.
 		healthInsurances := v1.Group("/health-insurances")
 		{
-			healthInsurances.Use(middleware.RequireAuth(cfg))
+			healthInsurances.Use(middleware.RequireAuth(cfg, userRepo))
 
 			healthInsurances.POST("", healthInsuranceHandler.CreatePolicy)
 			healthInsurances.GET("", healthInsuranceHandler.GetPolicies)
 			healthInsurances.GET("/:id", healthInsuranceHandler.GetByID)
 			healthInsurances.PUT("/:id", healthInsuranceHandler.UpdatePolicy)
 			healthInsurances.DELETE("/:id", healthInsuranceHandler.DeletePolicy)
+			healthInsurances.POST("/:id/mark-paid", healthInsuranceHandler.MarkPremiumPaid)
 
 			// Admin route
 			adminHealthInsurance := healthInsurances.Group("")
@@ -322,7 +329,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 		// DELETE is additionally restricted to super_admin at the router level.
 		tickets := v1.Group("/tickets")
 		{
-			tickets.Use(middleware.RequireAuth(cfg))
+			tickets.Use(middleware.RequireAuth(cfg, userRepo))
 
 			tickets.POST("", supportTicketHandler.CreateTicket)
 			tickets.GET("", supportTicketHandler.GetTickets)
@@ -339,7 +346,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 		// service layer re-checking the role as defense in depth.
 		products := v1.Group("/products")
 		{
-			products.Use(middleware.RequireAuth(cfg))
+			products.Use(middleware.RequireAuth(cfg, userRepo))
 
 			products.GET("", productHandler.GetProducts)
 			products.GET("/:id", productHandler.GetByID)
@@ -356,10 +363,10 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 		// Dashboard routes — pure aggregation views over existing repositories, no own collection.
 		dashboard := v1.Group("/dashboard")
 		{
-			dashboard.Use(middleware.RequireAuth(cfg))
+			dashboard.Use(middleware.RequireAuth(cfg, userRepo))
 
 			clientDashboard := dashboard.Group("")
-			clientDashboard.Use(middleware.RequireRole("client"))
+			clientDashboard.Use(middleware.RequireRole(domain.RoleClient, domain.RoleAdvisor))
 			{
 				clientDashboard.GET("/client", dashboardHandler.GetClientDashboard)
 			}
@@ -377,7 +384,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 		// authentication.
 		reports := v1.Group("/reports")
 		{
-			reports.Use(middleware.RequireAuth(cfg))
+			reports.Use(middleware.RequireAuth(cfg, userRepo))
 
 			reports.GET("/portfolio", reportHandler.GetClientPortfolio)
 		}
@@ -385,7 +392,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 		// Agency Sync routes — automated bulk updates from LIC Premium Due List PDFs
 		agency := v1.Group("/agency")
 		{
-			agency.Use(middleware.RequireAuth(cfg))
+			agency.Use(middleware.RequireAuth(cfg, userRepo))
 			agency.Use(middleware.RequireRole("admin"))
 
 			agency.POST("/sync/lic-due-list", agencySyncHandler.ProcessLICDueList)
@@ -400,10 +407,12 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 		// Financial Calculators routes — SIP, Lumpsum, and FD calculators with Admin rate settings
 		calculators := v1.Group("/calculators")
 		{
-			calculators.Use(middleware.RequireAuth(cfg))
+			calculators.Use(middleware.RequireAuth(cfg, userRepo))
 
 			calculators.GET("/settings", calculatorHandler.GetSettings)
-			calculators.PUT("/settings", middleware.RequireRole(domain.RoleAdmin), calculatorHandler.UpdateSettings)
+			// The default rates are one platform-wide setting shown to every agency's clients, so only a
+			// super admin may change them — a plain admin editing them would rewrite other agencies' numbers.
+			calculators.PUT("/settings", middleware.RequireRole(domain.RoleSuperAdmin), calculatorHandler.UpdateSettings)
 			calculators.POST("/sip", calculatorHandler.CalculateSIP)
 			calculators.POST("/lumpsum", calculatorHandler.CalculateLumpsum)
 			calculators.POST("/fd", calculatorHandler.CalculateFD)
@@ -412,7 +421,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 		// Referral Scheme routes — Earn Extra Validity referrals & agency growth tracking
 		referrals := v1.Group("/referrals")
 		{
-			referrals.Use(middleware.RequireAuth(cfg))
+			referrals.Use(middleware.RequireAuth(cfg, userRepo))
 
 			referrals.GET("/my-stats", referralHandler.GetMyStats)
 			referrals.GET("/all", middleware.RequireRole(domain.RoleAdmin), referralHandler.GetAllReferrals)

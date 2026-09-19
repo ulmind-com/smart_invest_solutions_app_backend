@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"log"
 	"net/http"
@@ -26,6 +27,7 @@ type EmailService interface {
 	SendAdminExpiryAlertEmail(ctx context.Context, toEmail, name string, expiryDate time.Time) error
 	SendAdminExpiryRenewedEmail(ctx context.Context, toEmail, name string, newExpiryDate time.Time) error
 	SendAccountMergedEmail(ctx context.Context, toEmail, name, primaryName string) error
+	SendAccountActivatedEmail(ctx context.Context, toEmail, name string) error
 }
 
 // ResendService implements EmailService using the Resend HTTP API.
@@ -63,6 +65,9 @@ type resendResponse struct {
 
 // SendWelcomeEmail sends an automatic welcome email upon successful user registration.
 func (s *ResendService) SendWelcomeEmail(ctx context.Context, toEmail, name string) error {
+	// User-supplied text is interpolated into HTML below — escape it so a crafted name
+	// or reason can't inject markup (e.g. a phishing link) into an email sent from our domain.
+	name = html.EscapeString(name)
 	subject := "🎉 Welcome to Smart Invest Solutions! Account Under Verification"
 
 	htmlBody := fmt.Sprintf(`
@@ -110,6 +115,9 @@ func (s *ResendService) SendWelcomeEmail(ctx context.Context, toEmail, name stri
 
 // SendCredentialsEmail sends an email containing User ID and Security PIN to an approved client.
 func (s *ResendService) SendCredentialsEmail(ctx context.Context, toEmail, name, pin string) error {
+	// User-supplied text is interpolated into HTML below — escape it so a crafted name
+	// or reason can't inject markup (e.g. a phishing link) into an email sent from our domain.
+	name = html.EscapeString(name)
 	subject := "🎉 Your Access Has Been Approved — Smart Invest Solutions"
 
 	htmlBody := fmt.Sprintf(`
@@ -168,6 +176,10 @@ func (s *ResendService) SendCredentialsEmail(ctx context.Context, toEmail, name,
 
 // SendRejectionEmail sends a notification if an access request or account status is set to inactive.
 func (s *ResendService) SendRejectionEmail(ctx context.Context, toEmail, name, reason string) error {
+	// User-supplied text is interpolated into HTML below — escape it so a crafted name
+	// or reason can't inject markup (e.g. a phishing link) into an email sent from our domain.
+	name = html.EscapeString(name)
+	reason = html.EscapeString(reason)
 	subject := "Update on Your Access Request — Smart Invest Solutions"
 
 	if reason == "" {
@@ -235,6 +247,9 @@ func (s *ResendService) SendOTPEmail(ctx context.Context, toEmail, otpCode strin
 
 // SendVerificationOTPEmail sends a 6-digit OTP code for signup email ownership verification.
 func (s *ResendService) SendVerificationOTPEmail(ctx context.Context, toEmail, name, otpCode string) error {
+	// User-supplied text is interpolated into HTML below — escape it so a crafted name
+	// or reason can't inject markup (e.g. a phishing link) into an email sent from our domain.
+	name = html.EscapeString(name)
 	subject := "📩 Verify Your Email Address — Smart Invest Solutions"
 
 	htmlBody := fmt.Sprintf(`
@@ -298,6 +313,9 @@ func (s *ResendService) SendPasswordResetConfirmationEmail(ctx context.Context, 
 
 // SendAccountDeletionEmail sends a confirmation email notifying the user of permanent account & data erasure.
 func (s *ResendService) SendAccountDeletionEmail(ctx context.Context, toEmail, name string) error {
+	// User-supplied text is interpolated into HTML below — escape it so a crafted name
+	// or reason can't inject markup (e.g. a phishing link) into an email sent from our domain.
+	name = html.EscapeString(name)
 	subject := "⚠️ Account & Data Permanently Deleted — Smart Invest Solutions"
 
 	htmlBody := fmt.Sprintf(`
@@ -320,6 +338,9 @@ func (s *ResendService) SendAccountDeletionEmail(ctx context.Context, toEmail, n
 // SendAdminCredentialsEmail sends an email containing Admin Portal login credentials (Admin ID, Email,
 // Password, PIN) to a newly created Admin account.
 func (s *ResendService) SendAdminCredentialsEmail(ctx context.Context, toEmail, name, adminID, password, pin string) error {
+	// User-supplied text is interpolated into HTML below — escape it so a crafted name
+	// or reason can't inject markup (e.g. a phishing link) into an email sent from our domain.
+	name = html.EscapeString(name)
 	subject := "🔐 Your Admin Portal Access — Smart Invest Solutions"
 
 	htmlBody := fmt.Sprintf(`
@@ -387,6 +408,9 @@ func (s *ResendService) SendAdminCredentialsEmail(ctx context.Context, toEmail, 
 // SendAdminExpiryAlertEmail warns an admin that their Admin Portal access is expiring soon (or has
 // already expired), asking them to contact their Super Admin to renew it before being locked out.
 func (s *ResendService) SendAdminExpiryAlertEmail(ctx context.Context, toEmail, name string, expiryDate time.Time) error {
+	// User-supplied text is interpolated into HTML below — escape it so a crafted name
+	// or reason can't inject markup (e.g. a phishing link) into an email sent from our domain.
+	name = html.EscapeString(name)
 	subject := "⏰ Your Admin Access Is Expiring Soon — Smart Invest Solutions"
 
 	daysLeft := int(time.Until(expiryDate).Hours() / 24)
@@ -444,6 +468,9 @@ func (s *ResendService) SendAdminExpiryAlertEmail(ctx context.Context, toEmail, 
 
 // SendAdminExpiryRenewedEmail confirms to an admin that their Super Admin has extended their access.
 func (s *ResendService) SendAdminExpiryRenewedEmail(ctx context.Context, toEmail, name string, newExpiryDate time.Time) error {
+	// User-supplied text is interpolated into HTML below — escape it so a crafted name
+	// or reason can't inject markup (e.g. a phishing link) into an email sent from our domain.
+	name = html.EscapeString(name)
 	subject := "✅ Your Admin Access Has Been Renewed — Smart Invest Solutions"
 
 	htmlBody := fmt.Sprintf(`
@@ -467,6 +494,10 @@ func (s *ResendService) SendAdminExpiryRenewedEmail(ctx context.Context, toEmail
 // Admin's Family Merge) that their login is now retired and their records live under the other
 // account going forward.
 func (s *ResendService) SendAccountMergedEmail(ctx context.Context, toEmail, name, primaryName string) error {
+	// User-supplied text is interpolated into HTML below — escape it so a crafted name
+	// or reason can't inject markup (e.g. a phishing link) into an email sent from our domain.
+	name = html.EscapeString(name)
+	primaryName = html.EscapeString(primaryName)
 	subject := "Your Smart Invest Solutions account has been merged"
 
 	htmlBody := fmt.Sprintf(`
@@ -568,4 +599,27 @@ func (s *ResendService) executePost(ctx context.Context, jsonBytes []byte) error
 
 	log.Printf("[Resend Success %d] Email delivered successfully", resp.StatusCode)
 	return nil
+}
+
+// SendAccountActivatedEmail tells a client their account has been (re)activated by their advisor.
+// It deliberately carries no credentials — the account keeps whatever PIN or password it already has.
+func (s *ResendService) SendAccountActivatedEmail(ctx context.Context, toEmail, name string) error {
+	name = html.EscapeString(name)
+	subject := "Your account is active — Smart Invest Solutions"
+
+	htmlBody := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<body style="font-family: sans-serif; padding: 20px; background-color: #0f172a; color: #f8fafc;">
+    <div style="max-width: 500px; margin: 0 auto; background: #1e293b; padding: 24px; border-radius: 12px; border: 1px solid #22c55e;">
+        <h2 style="color: #22c55e;">Your account is active</h2>
+        <p>Hello %s,</p>
+        <p>Your <strong>Smart Invest Solutions</strong> account has been activated by your advisor. Sign in with your email and your existing Security PIN or password.</p>
+        <p style="color: #94a3b8; font-size: 13px;">Forgot your password? Use "Forgot password" on the sign-in screen to reset it.</p>
+    </div>
+</body>
+</html>
+`, name)
+
+	return s.sendResendRequest(ctx, subject, toEmail, htmlBody)
 }

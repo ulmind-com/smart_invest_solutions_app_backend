@@ -145,20 +145,34 @@ func (s *productService) UpdateProduct(ctx context.Context, requesterRole, idStr
 		return nil, err
 	}
 
+	// Upload the replacement first and only purge the old brochure once the product points at the
+	// new one — deleting first meant a failed upload left the product linking to a deleted file.
+	oldPublicID := ""
 	if newFile != nil {
-		if existing.BrochurePublicID != "" {
-			_ = s.storageSvc.DeleteImage(ctx, existing.BrochurePublicID)
-		}
-
 		uploadRes, err := s.storageSvc.UploadDocumentWithCompression(ctx, newFile, productBrochureFolder)
 		if err != nil {
 			return nil, fmt.Errorf("failed to upload new brochure file: %w", err)
 		}
 		dto.BrochureURL = &uploadRes.SecureURL
 		dto.BrochurePublicID = &uploadRes.PublicID
+		oldPublicID = existing.BrochurePublicID
 	}
 
-	return s.repo.Update(ctx, id, dto)
+	updated, err := s.repo.Update(ctx, id, dto)
+	if err != nil {
+		if dto.BrochurePublicID != nil {
+			_ = s.storageSvc.DeleteImage(ctx, *dto.BrochurePublicID)
+		}
+		return nil, err
+	}
+
+	if oldPublicID != "" {
+		if err := s.storageSvc.DeleteImage(ctx, oldPublicID); err != nil {
+			log.Warn().Err(err).Str("product_id", idStr).Msg("failed to purge replaced brochure from Cloudinary")
+		}
+	}
+
+	return updated, nil
 }
 
 // DeleteProduct removes a product from MongoDB and cascade-deletes its brochure asset from

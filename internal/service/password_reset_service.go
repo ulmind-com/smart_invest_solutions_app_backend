@@ -10,6 +10,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/smart-invest-solutions/backend/internal/domain"
 	"github.com/smart-invest-solutions/backend/pkg/email"
+	"github.com/smart-invest-solutions/backend/pkg/utils"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -45,6 +46,7 @@ func generate6DigitOTP() (string, error) {
 // cooldown (mirroring the signup email-verification flow) so this public, unauthenticated endpoint
 // can't be spammed to flood a victim's inbox or run up email-provider costs.
 func (s *passwordResetService) SendOTP(ctx context.Context, req *domain.ForgotPasswordRequest) error {
+	req.Email = utils.NormalizeEmail(req.Email)
 	// Verify user exists (Do not leak specific errors to prevent user enumeration attacks)
 	user, err := s.userRepo.FindByEmail(ctx, req.Email)
 	if err != nil || user == nil {
@@ -55,7 +57,7 @@ func (s *passwordResetService) SendOTP(ctx context.Context, req *domain.ForgotPa
 	// Enforce 60-second rate limit cooldown before touching any existing OTP record.
 	if latest, _ := s.resetRepo.FindLatestActiveOTP(ctx, req.Email); latest != nil {
 		if remaining := 60*time.Second - time.Since(latest.CreatedAt); remaining > 0 {
-			return fmt.Errorf("please wait %s before requesting a new OTP code", remaining.Round(time.Second))
+			return &domain.CooldownError{Message: fmt.Sprintf("please wait %s before requesting a new OTP code", remaining.Round(time.Second))}
 		}
 	}
 
@@ -114,11 +116,13 @@ func (s *passwordResetService) checkOTP(ctx context.Context, email, otp string) 
 
 // VerifyOTP verifies if the provided OTP code is valid, unexpired, and unused.
 func (s *passwordResetService) VerifyOTP(ctx context.Context, req *domain.VerifyOTPRequest) error {
+	req.Email = utils.NormalizeEmail(req.Email)
 	return s.checkOTP(ctx, req.Email, req.OTP)
 }
 
 // ResetPassword verifies the OTP and updates the user's password in MongoDB.
 func (s *passwordResetService) ResetPassword(ctx context.Context, req *domain.ResetPasswordRequest) error {
+	req.Email = utils.NormalizeEmail(req.Email)
 	if req.NewPassword != req.ConfirmPassword {
 		return fmt.Errorf("new password and confirm password do not match")
 	}
@@ -145,6 +149,10 @@ func (s *passwordResetService) ResetPassword(ctx context.Context, req *domain.Re
 	if err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
 	}
+
+	// Proving ownership of the inbox is exactly what a lockout waits for — a user who just reset
+	// their password must be able to sign in with it straight away.
+	_ = s.userRepo.ClearFailedLogins(ctx, user.ID)
 
 	// Immediately delete all OTP records for this email to prevent DB storage bloat
 	_ = s.resetRepo.DeleteAllByEmail(ctx, req.Email)

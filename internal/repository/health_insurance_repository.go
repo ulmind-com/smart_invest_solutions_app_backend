@@ -328,3 +328,40 @@ func (r *healthInsuranceRepository) ReassignOwner(ctx context.Context, fromUserI
 	}
 	return result.ModifiedCount, nil
 }
+
+// CountByFamilyMemberID counts records filed against the given family member.
+func (r *healthInsuranceRepository) CountByFamilyMemberID(ctx context.Context, familyMemberID bson.ObjectID) (int64, error) {
+	n, err := r.collection.CountDocuments(ctx, bson.M{"family_member_id": familyMemberID})
+	if err != nil {
+		return 0, fmt.Errorf("failed to count records for family member: %w", err)
+	}
+	return n, nil
+}
+
+// SyncInsuredName refreshes the insured-person name cached on the family member's policies.
+func (r *healthInsuranceRepository) SyncInsuredName(ctx context.Context, familyMemberID bson.ObjectID, name string) error {
+	_, err := r.collection.UpdateMany(ctx,
+		bson.M{"family_member_id": familyMemberID},
+		bson.M{"$set": bson.M{"policy_details.primary_insured_name": name, "updated_at": time.Now().UTC()}},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to refresh insured name on policies: %w", err)
+	}
+	return nil
+}
+
+// AdvanceNextDueDate conditionally moves premium_details.next_due_date from `from` to `to`.
+func (r *healthInsuranceRepository) AdvanceNextDueDate(ctx context.Context, id bson.ObjectID, from, to time.Time) (*domain.HealthInsurance, error) {
+	filter := bson.M{"_id": id, "premium_details.next_due_date": from}
+	update := bson.M{"$set": bson.M{"premium_details.next_due_date": to, "updated_at": time.Now().UTC()}}
+	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
+
+	var updated domain.HealthInsurance
+	if err := r.collection.FindOneAndUpdate(ctx, filter, update, opts).Decode(&updated); err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, fmt.Errorf("this premium was already updated — refresh to see the latest due date")
+		}
+		return nil, fmt.Errorf("failed to update the premium schedule: %w", err)
+	}
+	return &updated, nil
+}

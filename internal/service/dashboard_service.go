@@ -11,13 +11,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// maxClientRosterFetch bounds the in-memory client fetch used to count active clients. None of
-// the existing repositories expose a dedicated "count by role + active status" query, and this
-// module intentionally introduces no new repository code — so the full client roster is fetched
-// once and filtered in memory. Revisit with a dedicated count query if the client base grows large
-// enough for this to matter.
-const maxClientRosterFetch = 1_000_000
-
 // dashboardService is a pure orchestrator: it owns no collection of its own and holds no state
 // beyond references to the repositories it aggregates data from.
 type dashboardService struct {
@@ -104,64 +97,7 @@ func (s *dashboardService) GetClientDashboard(ctx context.Context, userIDStr str
 		return nil, fmt.Errorf("failed to load client dashboard data: %w", err)
 	}
 
-	now := time.Now().UTC()
-	windowEnd := now.AddDate(0, 1, 0)
-
-	upcoming := make([]domain.UpcomingPayment, 0)
-	for _, p := range lifePolicies {
-		due := p.PremiumDetails.NextDueDate
-		if !due.Before(now) && due.Before(windowEnd) {
-			upcoming = append(upcoming, domain.UpcomingPayment{
-				Type:       "Life Insurance",
-				EntityName: p.PolicyDetails.PlanName,
-				Amount:     p.PremiumDetails.InstallmentPremium,
-				DueDate:    due,
-			})
-		}
-	}
-	for _, p := range healthPolicies {
-		due := p.PremiumDetails.NextDueDate
-		if !due.Before(now) && due.Before(windowEnd) {
-			upcoming = append(upcoming, domain.UpcomingPayment{
-				Type:       "Health Insurance",
-				EntityName: p.PolicyDetails.PlanName,
-				Amount:     p.PremiumDetails.InstallmentPremium,
-				DueDate:    due,
-			})
-		}
-	}
-	for _, fd := range fdPolicies {
-		due := fd.MaturityDate
-		if !due.Before(now) && due.Before(windowEnd) {
-			upcoming = append(upcoming, domain.UpcomingPayment{
-				Type:       "Fixed Deposit",
-				EntityName: fd.FDName,
-				Amount:     fd.MaturityAmount,
-				DueDate:    due,
-			})
-		}
-	}
-	for _, p := range generalPolicies {
-		// DateOfExpiry is stored as a free-typed "YYYY-MM-DD" string, not a time.Time (unlike every
-		// other module's date fields) — skip silently on a malformed/empty value rather than erroring
-		// the whole dashboard for one bad record.
-		due, err := time.Parse("2006-01-02", p.DateOfExpiry)
-		if err != nil {
-			continue
-		}
-		if !due.Before(now) && due.Before(windowEnd) {
-			upcoming = append(upcoming, domain.UpcomingPayment{
-				Type:       "Motor Insurance",
-				EntityName: p.VehicleNo,
-				Amount:     0,
-				DueDate:    due,
-			})
-		}
-	}
-
-	sort.Slice(upcoming, func(i, j int) bool {
-		return upcoming[i].DueDate.Before(upcoming[j].DueDate)
-	})
+	upcoming := buildUpcomingPayments(lifePolicies, healthPolicies, generalPolicies, fdPolicies, time.Now())
 
 	return &domain.ClientDashboardDTO{
 		TotalFamilyMembers:   familyTotal,
@@ -203,16 +139,9 @@ func (s *dashboardService) GetAdminDashboard(ctx context.Context, requesterRole,
 		if scopedButUnresolved {
 			return nil // fail closed, same as UserService.GetAll / AccessRequestService.GetAllRequests
 		}
-		clients, _, err := s.userRepo.FindAll(gctx, domain.RoleClient, agencyFilter, 1, maxClientRosterFetch)
-		if err != nil {
-			return err
-		}
-		for _, c := range clients {
-			if c.IsActive {
-				activeClients++
-			}
-		}
-		return nil
+		n, err := s.userRepo.CountActiveClients(gctx, agencyFilter)
+		activeClients = n
+		return err
 	})
 	g.Go(func() error {
 		if scopedButUnresolved {
@@ -287,8 +216,107 @@ func (s *dashboardService) GetAdminDashboard(ctx context.Context, requesterRole,
 		TotalActiveClients:    activeClients,
 		PendingAccessRequests: pendingRequests,
 		PolicyStats: domain.PolicyStats{
-			Mapped:   lifeMapped + healthMapped + fdMapped,
-			Unmapped: lifeUnmapped + healthUnmapped + fdUnmapped + generalTotal,
+			Mapped:        lifeMapped + healthMapped + fdMapped,
+			Unmapped:      lifeUnmapped + healthUnmapped + fdUnmapped,
+			MotorPolicies: generalTotal,
 		},
 	}, nil
+}
+
+// Dashboard windows. Dates are compared as Indian calendar days, because due dates are stored at
+// either 00:00 UTC (LIC sync) or 12:00 UTC (app forms) — comparing raw timestamps against "now"
+// made a premium due *today* vanish as soon as the clock passed that instant.
+const (
+	upcomingWindowDays      = 30
+	premiumOverdueLookback  = 90 // older unpaid premiums are treated as lapsed/stale, not "due"
+	motorExpiredLookbackDay = 30
+)
+
+var indiaTZ = time.FixedZone("IST", 5*60*60+30*60)
+
+// dayNumber turns an instant into a whole-day index on the Indian calendar.
+func dayNumber(t time.Time) int {
+	y, m, d := t.In(indiaTZ).Date()
+	return int(time.Date(y, m, d, 0, 0, 0, 0, time.UTC).Unix() / 86400)
+}
+
+// buildUpcomingPayments lists what a client must act on: unpaid premiums that are overdue (up to
+// premiumOverdueLookback days), anything due today through the next 30 days, and motor policies that
+// expired recently or expire soon. Overdue items sort first.
+func buildUpcomingPayments(
+	life []*domain.LifeInsurance,
+	health []*domain.HealthInsurance,
+	general []*domain.GeneralInsurance,
+	fds []*domain.FixedDeposit,
+	now time.Time,
+) []domain.UpcomingPayment {
+	today := dayNumber(now)
+	upcoming := make([]domain.UpcomingPayment, 0)
+
+	premiumItem := func(kind, name string, amount float64, due, coverEnds time.Time) {
+		if due.IsZero() {
+			return
+		}
+		d := dayNumber(due)
+		// A due date past the end of cover/premium term is a stale schedule, not a real demand.
+		if !coverEnds.IsZero() && d > dayNumber(coverEnds) {
+			return
+		}
+		if d < today-premiumOverdueLookback || d > today+upcomingWindowDays {
+			return
+		}
+		upcoming = append(upcoming, domain.UpcomingPayment{
+			Type: kind, EntityName: name, Amount: amount, DueDate: due, IsOverdue: d < today,
+		})
+	}
+
+	for _, p := range life {
+		name := p.PolicyDetails.PlanName
+		if insured := p.PolicyDetails.LifeInsuredName; insured != "" {
+			name = fmt.Sprintf("%s · %s", name, insured)
+		}
+		// Premiums stop after the premium paying term (or at maturity, whichever is first).
+		coverEnds := p.PolicyDetails.MaturityDate
+		if p.PolicyDetails.PPT > 0 && !p.PolicyDetails.DOC.IsZero() {
+			if pptEnd := p.PolicyDetails.DOC.AddDate(p.PolicyDetails.PPT, 0, 0); coverEnds.IsZero() || pptEnd.Before(coverEnds) {
+				coverEnds = pptEnd
+			}
+		}
+		premiumItem("Life Insurance", name, p.PremiumDetails.InstallmentPremium, p.PremiumDetails.NextDueDate, coverEnds)
+	}
+	for _, p := range health {
+		name := p.PolicyDetails.PlanName
+		if insured := p.PolicyDetails.PrimaryInsuredName; insured != "" {
+			name = fmt.Sprintf("%s · %s", name, insured)
+		}
+		premiumItem("Health Insurance", name, p.PremiumDetails.InstallmentPremium, p.PremiumDetails.NextDueDate, p.PolicyDetails.ExpiryDate)
+	}
+	for _, fd := range fds {
+		d := dayNumber(fd.MaturityDate)
+		if !fd.MaturityDate.IsZero() && d >= today && d <= today+upcomingWindowDays {
+			upcoming = append(upcoming, domain.UpcomingPayment{
+				Type: "Fixed Deposit", EntityName: fd.FDName, Amount: fd.MaturityAmount, DueDate: fd.MaturityDate,
+			})
+		}
+	}
+	for _, p := range general {
+		due, err := time.ParseInLocation("2006-01-02", p.DateOfExpiry, indiaTZ)
+		if err != nil {
+			continue
+		}
+		d := dayNumber(due)
+		if d >= today-motorExpiredLookbackDay && d <= today+upcomingWindowDays {
+			upcoming = append(upcoming, domain.UpcomingPayment{
+				Type: "Motor Insurance", EntityName: p.VehicleNo, DueDate: due, IsOverdue: d < today,
+			})
+		}
+	}
+
+	sort.SliceStable(upcoming, func(i, j int) bool {
+		if upcoming[i].IsOverdue != upcoming[j].IsOverdue {
+			return upcoming[i].IsOverdue
+		}
+		return upcoming[i].DueDate.Before(upcoming[j].DueDate)
+	})
+	return upcoming
 }

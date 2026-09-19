@@ -2,10 +2,16 @@ package domain
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
+
+// ErrUserNotFound is returned by UserRepository lookups when no account matches. Its message is
+// kept identical to the old ad-hoc string so API responses are unchanged, while callers (e.g. the
+// auth middleware) can tell "the account is gone" apart from "the database is unreachable".
+var ErrUserNotFound = errors.New("user not found")
 
 // Role constants
 const (
@@ -56,6 +62,11 @@ type CreateUserRequest struct {
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required,min=6"`
 	Phone    string `json:"phone,omitempty"`
+	// AgencyID is the Admin ID of the agency the client is signing up under (optional). Without it
+	// the signup lands unassigned and only a super admin can review it.
+	AgencyID string `json:"agency_id,omitempty" example:"ADM-7F3K9Q"`
+	// ReferralCode credits the existing client who referred this signup once it is approved.
+	ReferralCode string `json:"referral_code,omitempty" example:"AB12CD"`
 }
 
 // UpdateUserRequest represents the request payload for updating a user (Admin/Internal).
@@ -228,8 +239,10 @@ type UserRepository interface {
 	// FindAll returns a paginated user list. roleFilter and agencyIDFilter narrow the results when
 	// non-empty (agencyIDFilter matches the client's AgencyID — i.e. the admin they registered
 	// under); pass both empty for the unrestricted platform-wide list (super_admin only).
-	FindAll(ctx context.Context, roleFilter, agencyIDFilter string, page, limit int64) ([]*User, int64, error)
+	FindAll(ctx context.Context, roleFilter, agencyIDFilter, search string, page, limit int64) ([]*User, int64, error)
 	FindAllByRoles(ctx context.Context, roles []string, page, limit int64) ([]*User, int64, error)
+	// CountActiveClients counts active role=client accounts, narrowed to agencyIDFilter when set.
+	CountActiveClients(ctx context.Context, agencyIDFilter string) (int64, error)
 	Update(ctx context.Context, id bson.ObjectID, update *UpdateUserRequest) (*User, error)
 	UpdatePassword(ctx context.Context, id bson.ObjectID, hashedPassword string) error
 	UpdatePIN(ctx context.Context, id bson.ObjectID, hashedPIN string) error
@@ -266,12 +279,13 @@ type UserService interface {
 	GetSelf(ctx context.Context, id string) (*UserResponse, error)
 	// GetAll returns a paginated user list, scoped by the caller: a super_admin sees everyone; a
 	// plain admin sees only clients whose AgencyID matches their own AdminID.
-	GetAll(ctx context.Context, requesterRole, requesterID string, page, limit int64) ([]*UserResponse, int64, error)
+	// search, when non-empty, matches name, email or phone (case-insensitive substring).
+	GetAll(ctx context.Context, requesterRole, requesterID, search string, page, limit int64) ([]*UserResponse, int64, error)
 	Update(ctx context.Context, requesterRole, requesterID, id string, req *UpdateUserRequest) (*UserResponse, error)
 	UpdateProfile(ctx context.Context, id string, req *UpdateProfileRequest) (*UserResponse, error)
 	ChangePassword(ctx context.Context, id string, req *ChangePasswordRequest) error
 	ChangePIN(ctx context.Context, id string, req *ChangePINRequest) error
-	Delete(ctx context.Context, requesterRole, id string) error
+	Delete(ctx context.Context, requesterRole, requesterID, id string) error
 	DeleteMyAccount(ctx context.Context, userID string) error
 	CreateAdmin(ctx context.Context, req *CreateAdminRequest) (*CreateAdminResponse, error)
 	GetAllAdmins(ctx context.Context, page, limit int64) ([]*UserResponse, int64, error)

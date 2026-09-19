@@ -240,3 +240,29 @@ func (h *HealthInsuranceHandler) GetPoliciesByUserIDAdmin(c *gin.Context) {
 
 	response.Success(c, "Policies retrieved successfully", respData)
 }
+
+// MarkPremiumPaid records the currently due installment as paid and moves the schedule on.
+// @Summary      Mark premium paid
+// @Description  Advances next_due_date by one installment according to the payment mode.
+// @Tags         HealthInsurance
+// @Produce      json
+// @Param        id   path      string  true  "Policy ID"
+// @Success      200  {object}  response.APIResponse{data=domain.HealthInsurance}
+// @Failure      400  {object}  response.APIResponse
+// @Security     BearerAuth
+// @Router       /health-insurances/{id}/mark-paid [post]
+func (h *HealthInsuranceHandler) MarkPremiumPaid(c *gin.Context) {
+	claims, ok := middleware.GetClaims(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	policy, err := h.service.MarkPremiumPaid(c.Request.Context(), claims.Role, claims.UserID.Hex(), c.Param("id"))
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	response.Success(c, "Premium marked as paid", policy)
+}

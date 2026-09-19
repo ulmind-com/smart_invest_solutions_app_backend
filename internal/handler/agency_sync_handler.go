@@ -77,6 +77,13 @@ func (h *AgencySyncHandler) ProcessLICDueList(c *gin.Context) {
 		return
 	}
 
+	// A due list is a few hundred KB; cap it so an oversized upload can't be read wholesale into memory.
+	const maxDueListBytes = 20 << 20
+	if fileHeader.Size > maxDueListBytes {
+		response.Error(c, http.StatusBadRequest, "The PDF is larger than 20 MB — upload the due list exactly as downloaded from the LIC portal")
+		return
+	}
+
 	// Open and read file stream into memory
 	file, err := fileHeader.Open()
 	if err != nil {
@@ -85,7 +92,7 @@ func (h *AgencySyncHandler) ProcessLICDueList(c *gin.Context) {
 	}
 	defer file.Close()
 
-	fileBytes, err := io.ReadAll(file)
+	fileBytes, err := io.ReadAll(io.LimitReader(file, maxDueListBytes+1))
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "Failed to read uploaded PDF file bytes: "+err.Error())
 		return

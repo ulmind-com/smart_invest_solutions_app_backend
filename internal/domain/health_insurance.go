@@ -136,10 +136,22 @@ type HealthInsuranceRepository interface {
 	// ReassignOwner moves every policy owned by fromUserID to toUserID — used by
 	// MergeFamilyAccounts — and returns how many records were moved.
 	ReassignOwner(ctx context.Context, fromUserID, toUserID bson.ObjectID) (int64, error)
+	// AdvanceNextDueDate moves next_due_date from `from` to `to`, but only if it still equals
+	// `from` — so a double tap on "mark paid" can never skip two installments.
+	AdvanceNextDueDate(ctx context.Context, id bson.ObjectID, from, to time.Time) (*HealthInsurance, error)
+	// CountByFamilyMemberID counts records filed against a family member — a member who still has
+	// policies or deposits can't be deleted, or those records would point at nobody.
+	CountByFamilyMemberID(ctx context.Context, familyMemberID bson.ObjectID) (int64, error)
+	// SyncInsuredName refreshes the insured-person name cached on every policy of a family member
+	// after that member is renamed.
+	SyncInsuredName(ctx context.Context, familyMemberID bson.ObjectID, name string) error
 }
 
 // HealthInsuranceService defines business logic operations for health insurance policies.
 type HealthInsuranceService interface {
+	// MarkPremiumPaid records that the installment currently due was paid, moving the schedule to
+	// the next installment according to the payment mode.
+	MarkPremiumPaid(ctx context.Context, requesterRole, requesterID, idStr string) (*HealthInsurance, error)
 	CreatePolicy(ctx context.Context, requesterRole, requesterID string, dto *CreateHealthInsuranceDTO) (*HealthInsurance, error)
 	GetPolicyByID(ctx context.Context, requesterRole, requesterID, idStr string) (*HealthInsurance, error)
 	GetMyPolicies(ctx context.Context, requesterID string) (*HealthInsuranceListResponse, error)

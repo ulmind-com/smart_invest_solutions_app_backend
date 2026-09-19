@@ -107,6 +107,7 @@ type userService struct {
 	supportTicketRepo    domain.SupportTicketRepository
 	accessReqRepo        domain.AccessRequestRepository
 	verifRepo            domain.EmailVerificationRepository
+	referralRepo         domain.ReferralRepository
 	storageSvc           StorageService
 }
 
@@ -133,77 +134,74 @@ func (s *userService) SetCascadeDependencies(familyMemberRepo domain.FamilyMembe
 	s.storageSvc = storageSvc
 }
 
+// SetReferralRepository wires the referral ledger, used to credit referrers for self-service signups
+// and to carry referrals across a family merge.
+func (s *userService) SetReferralRepository(referralRepo domain.ReferralRepository) {
+	s.referralRepo = referralRepo
+}
+
 // Register creates a new user with a hashed password, setting IsEmailVerified to false and sending a 6-digit OTP email.
 func (s *userService) Register(ctx context.Context, req *domain.CreateUserRequest) (*domain.UserResponse, error) {
-	// Check if user with this email already exists
-	existing, _ := s.userRepo.FindByEmail(ctx, req.Email)
-	if existing != nil {
-		if existing.IsEmailVerified {
-			return nil, fmt.Errorf("user with email %s already exists", req.Email)
-		}
-		// If email is not verified yet, update existing record details so user can complete OTP verification
-		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-		if err != nil {
-			return nil, fmt.Errorf("failed to hash password: %w", err)
-		}
-		_ = s.userRepo.UpdatePassword(ctx, existing.ID, string(hashedPassword))
-		name := req.Name
-		phone := req.Phone
-		_, _ = s.userRepo.Update(ctx, existing.ID, &domain.UpdateUserRequest{Name: &name, Phone: &phone})
-
-		// Generate & send new 6-digit OTP
-		otpCode, _ := utils.GenerateNumericCode(6)
-		verifRecord := &domain.EmailVerification{
-			Email:     existing.Email,
-			OTP:       otpCode,
-			ExpiresAt: time.Now().UTC().Add(10 * time.Minute),
-			IsUsed:    false,
-			Attempts:  0,
-		}
-		if s.verifRepo != nil {
-			_, _ = s.verifRepo.Create(ctx, verifRecord)
-		}
-		if s.emailSvc != nil {
-			go func() {
-				if err := s.emailSvc.SendVerificationOTPEmail(context.Background(), existing.Email, existing.Name, otpCode); err != nil {
-					log.Error().Err(err).Str("email", existing.Email).Msg("failed to send verification OTP email")
-				}
-			}()
-		}
-		return existing.ToResponse(), nil
+	emailClean := utils.NormalizeEmail(req.Email)
+	name := strings.TrimSpace(req.Name)
+	phone := strings.TrimSpace(req.Phone)
+	if name == "" {
+		return nil, fmt.Errorf("name is required")
 	}
 
-	// Hash password
+	agencyID, err := resolveAgencyAdminID(ctx, s.userRepo, req.AgencyID)
+	if err != nil {
+		return nil, err
+	}
+
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	// Generate unique 6-character referral code
-	var refCode string
-	for attempt := 0; attempt < 5; attempt++ {
-		candidate, _ := utils.GenerateReferralCode(6)
-		if candidate != "" {
-			if existingRef, _ := s.userRepo.FindByReferralCode(ctx, candidate); existingRef == nil {
-				refCode = candidate
-				break
-			}
+	// Check if user with this email already exists
+	existing, _ := s.userRepo.FindByEmail(ctx, emailClean)
+	if existing != nil {
+		// Only an abandoned self-signup — a client account nobody has proved they own yet (email never
+		// verified, never activated, never merged) — may be restarted here. Anything else, above all
+		// an admin account (created without the email-verified flag), must never have its password
+		// or name rewritten by an anonymous signup request.
+		restartable := existing.Role == domain.RoleClient &&
+			!existing.IsEmailVerified &&
+			!existing.IsActive &&
+			existing.MergedIntoUserID == nil
+		if !restartable {
+			return nil, fmt.Errorf("user with email %s already exists", emailClean)
 		}
-	}
-	if refCode == "" {
-		refCode = "REF" + strconv.FormatInt(time.Now().UnixNano()%1000, 10)
+
+		if err := s.userRepo.UpdatePassword(ctx, existing.ID, string(hashedPassword)); err != nil {
+			return nil, fmt.Errorf("failed to restart registration: %w", err)
+		}
+		update := &domain.UpdateUserRequest{Name: &name, Phone: &phone}
+		if agencyID != "" {
+			update.AgencyID = &agencyID
+		}
+		updated, err := s.userRepo.Update(ctx, existing.ID, update)
+		if err != nil {
+			return nil, fmt.Errorf("failed to restart registration: %w", err)
+		}
+
+		recordPendingReferral(ctx, s.referralRepo, s.userRepo, req.ReferralCode, updated.Email)
+		s.issueVerificationOTP(ctx, updated)
+		return updated.ToResponse(), nil
 	}
 
 	// Default role is client; account is unverified (IsEmailVerified = false) and pending Admin verification (IsActive = false)
 	user := &domain.User{
-		Name:               req.Name,
-		Email:              utils.NormalizeEmail(req.Email),
+		Name:               name,
+		Email:              emailClean,
 		Password:           string(hashedPassword),
-		Phone:              req.Phone,
+		Phone:              phone,
 		Role:               domain.RoleClient,
 		IsActive:           false, // Pending Admin verification
 		IsEmailVerified:    false, // Pending OTP verification
-		ReferralCode:       refCode,
+		ReferralCode:       generateUniqueReferralCode(ctx, s.userRepo),
+		AgencyID:           agencyID,
 		AppValidityEndDate: time.Now().UTC().AddDate(1, 0, 0), // Default 1 year validity
 	}
 
@@ -212,29 +210,37 @@ func (s *userService) Register(ctx context.Context, req *domain.CreateUserReques
 		return nil, err
 	}
 
-	// Generate 6-digit numeric verification OTP
-	otpCode, err := utils.GenerateNumericCode(6)
-	if err == nil {
-		verifRecord := &domain.EmailVerification{
-			Email:     createdUser.Email,
-			OTP:       otpCode,
-			ExpiresAt: time.Now().UTC().Add(10 * time.Minute),
-			IsUsed:    false,
-			Attempts:  0,
-		}
-		if s.verifRepo != nil {
-			_, _ = s.verifRepo.Create(ctx, verifRecord)
-		}
-		if s.emailSvc != nil {
-			go func() {
-				if err := s.emailSvc.SendVerificationOTPEmail(context.Background(), createdUser.Email, createdUser.Name, otpCode); err != nil {
-					log.Error().Err(err).Str("email", createdUser.Email).Msg("failed to send verification OTP email")
-				}
-			}()
-		}
-	}
+	recordPendingReferral(ctx, s.referralRepo, s.userRepo, req.ReferralCode, createdUser.Email)
+	s.issueVerificationOTP(ctx, createdUser)
 
 	return createdUser.ToResponse(), nil
+}
+
+// issueVerificationOTP stores a fresh 6-digit email-verification code for user and emails it.
+func (s *userService) issueVerificationOTP(ctx context.Context, user *domain.User) {
+	otpCode, err := utils.GenerateNumericCode(6)
+	if err != nil {
+		log.Error().Err(err).Str("email", user.Email).Msg("failed to generate verification OTP")
+		return
+	}
+	if s.verifRepo != nil {
+		if _, err := s.verifRepo.Create(ctx, &domain.EmailVerification{
+			Email:     user.Email,
+			OTP:       otpCode,
+			ExpiresAt: time.Now().UTC().Add(10 * time.Minute),
+		}); err != nil {
+			log.Error().Err(err).Str("email", user.Email).Msg("failed to store verification OTP")
+			return
+		}
+	}
+	if s.emailSvc != nil {
+		toEmail, toName := user.Email, user.Name
+		go func() {
+			if err := s.emailSvc.SendVerificationOTPEmail(context.Background(), toEmail, toName, otpCode); err != nil {
+				log.Error().Err(err).Str("email", toEmail).Msg("failed to send verification OTP email")
+			}
+		}()
+	}
 }
 
 // Login authenticates any user (client, advisor, admin, super_admin) using User ID / Admin ID / Email + PIN / Password.
@@ -284,9 +290,20 @@ func (s *userService) Login(ctx context.Context, req *domain.UserLoginRequest) (
 		return nil, fmt.Errorf("account temporarily locked due to multiple failed login attempts. Try again in %s", remaining)
 	}
 
-	// Checked before every other state check: a merged account is a terminal state — nothing else
-	// about it (email verification, active flag) is worth surfacing once it's been folded into
-	// another account.
+	// Verify the secret before revealing anything about the account's state: a wrong password
+	// must read exactly like an unknown account, or the login form becomes a way to learn which
+	// emails are registered, pending or deactivated.
+	if !matchesSecret(user, secret) {
+		attempts, recErr := s.userRepo.RecordFailedLogin(ctx, user.ID)
+		if recErr == nil && attempts >= maxFailedLoginAttempts {
+			_ = s.userRepo.LockAccount(ctx, user.ID, time.Now().UTC().Add(accountLockDuration))
+		}
+		return nil, fmt.Errorf("invalid credentials")
+	}
+
+	_ = s.userRepo.ClearFailedLogins(ctx, user.ID)
+
+	// A merged account is a terminal state — nothing else about it is worth surfacing.
 	if err := checkMergedAccount(user); err != nil {
 		return nil, err
 	}
@@ -305,17 +322,6 @@ func (s *userService) Login(ctx context.Context, req *domain.UserLoginRequest) (
 	if err := checkAdminExpiry(user); err != nil {
 		return nil, err
 	}
-
-	// Verify secret against PIN or Password
-	if !matchesSecret(user, secret) {
-		attempts, recErr := s.userRepo.RecordFailedLogin(ctx, user.ID)
-		if recErr == nil && attempts >= maxFailedLoginAttempts {
-			_ = s.userRepo.LockAccount(ctx, user.ID, time.Now().UTC().Add(accountLockDuration))
-		}
-		return nil, fmt.Errorf("invalid credentials")
-	}
-
-	_ = s.userRepo.ClearFailedLogins(ctx, user.ID)
 
 	return s.issueToken(user)
 }
@@ -348,15 +354,6 @@ func (s *userService) AdminLogin(ctx context.Context, req *domain.AdminLoginRequ
 		return nil, fmt.Errorf("account temporarily locked due to multiple failed login attempts. Try again in %s", remaining)
 	}
 
-	if !user.IsActive {
-		return nil, fmt.Errorf("your account is pending verification by Admin. You will receive an email once approved.")
-	}
-
-	// Check if this admin account's configured expiry date has passed
-	if err := checkAdminExpiry(user); err != nil {
-		return nil, err
-	}
-
 	if !matchesSecret(user, req.PIN) {
 		attempts, recErr := s.userRepo.RecordFailedLogin(ctx, user.ID)
 		if recErr == nil && attempts >= maxFailedLoginAttempts {
@@ -366,6 +363,15 @@ func (s *userService) AdminLogin(ctx context.Context, req *domain.AdminLoginRequ
 	}
 
 	_ = s.userRepo.ClearFailedLogins(ctx, user.ID)
+
+	if !user.IsActive {
+		return nil, fmt.Errorf("your account has been deactivated. Please contact your super admin.")
+	}
+
+	// Check if this admin account's configured expiry date has passed
+	if err := checkAdminExpiry(user); err != nil {
+		return nil, err
+	}
 
 	return s.issueToken(user)
 }
@@ -496,7 +502,7 @@ func (s *userService) GetSelf(ctx context.Context, id string) (*domain.UserRespo
 // GetAll retrieves a paginated list of users, scoped to the caller: a super_admin sees everyone
 // (any role); a plain admin sees only role=client accounts whose AgencyID matches their own
 // AdminID — clients who registered under a different agency, or no agency at all, never appear.
-func (s *userService) GetAll(ctx context.Context, requesterRole, requesterID string, page, limit int64) ([]*domain.UserResponse, int64, error) {
+func (s *userService) GetAll(ctx context.Context, requesterRole, requesterID, search string, page, limit int64) ([]*domain.UserResponse, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -515,12 +521,12 @@ func (s *userService) GetAll(ctx context.Context, requesterRole, requesterID str
 		}
 	}
 
-	users, total, err := s.userRepo.FindAll(ctx, roleFilter, agencyFilter, page, limit)
+	users, total, err := s.userRepo.FindAll(ctx, roleFilter, agencyFilter, search, page, limit)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	var responses []*domain.UserResponse
+	responses := make([]*domain.UserResponse, 0, len(users))
 	for _, user := range users {
 		responses = append(responses, user.ToResponse())
 	}
@@ -540,22 +546,69 @@ func (s *userService) Update(ctx context.Context, requesterRole, requesterID, id
 		return nil, fmt.Errorf("invalid user ID format: %w", err)
 	}
 
-	existingUser, _ := s.userRepo.FindByID(ctx, objectID)
+	existingUser, err := s.userRepo.FindByID(ctx, objectID)
+	if err != nil || existingUser == nil {
+		return nil, fmt.Errorf("user not found")
+	}
 
-	if existingUser != nil {
-		agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
-		if !canAccessAgencyScopedRecord(requesterRole, agencyFilter, existingUser.AgencyID) {
-			return nil, fmt.Errorf("user not found")
+	agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
+	if !canAccessAgencyScopedRecord(requesterRole, agencyFilter, existingUser.AgencyID) {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	isStaffTarget := existingUser.Role == domain.RoleAdmin || existingUser.Role == domain.RoleSuperAdmin
+	if requesterRole != domain.RoleSuperAdmin && isStaffTarget {
+		return nil, fmt.Errorf("only a super_admin can modify an admin account")
+	}
+
+	if requesterID == id && (req.IsActive != nil || req.Role != nil) {
+		return nil, fmt.Errorf("you cannot change the role or active status of your own account")
+	}
+
+	if req.Role != nil {
+		// Admin accounts need an Admin ID, PIN and expiry date, which only CreateAdmin issues — so no
+		// one can be promoted into (or demoted out of) a staff role through this generic endpoint.
+		if isStaffTarget {
+			return nil, fmt.Errorf("an admin account's role cannot be changed here")
+		}
+		if *req.Role != domain.RoleClient && *req.Role != domain.RoleAdvisor {
+			return nil, fmt.Errorf("role must be either client or advisor — create admin accounts from Manage Admins")
 		}
 	}
 
-	if requesterRole != domain.RoleSuperAdmin {
-		if existingUser != nil && (existingUser.Role == domain.RoleAdmin || existingUser.Role == domain.RoleSuperAdmin) {
-			return nil, fmt.Errorf("only a super_admin can modify an admin account")
+	if req.AgencyID != nil {
+		// Moving a client between agencies hands their data to another admin, so it is a
+		// head-office decision; the Agency ID must also name a real agency.
+		if requesterRole != domain.RoleSuperAdmin {
+			return nil, fmt.Errorf("only a super_admin can change a client's agency")
 		}
-		if req.Role != nil && (*req.Role == domain.RoleAdmin || *req.Role == domain.RoleSuperAdmin) {
-			return nil, fmt.Errorf("only a super_admin can assign the admin or super_admin role")
+		if isStaffTarget {
+			return nil, fmt.Errorf("admin accounts do not belong to an agency")
 		}
+		resolved, err := resolveAgencyAdminID(ctx, s.userRepo, *req.AgencyID)
+		if err != nil {
+			return nil, err
+		}
+		req.AgencyID = &resolved
+	}
+
+	if req.Name != nil {
+		trimmed := strings.TrimSpace(*req.Name)
+		if trimmed == "" {
+			return nil, fmt.Errorf("name cannot be empty")
+		}
+		req.Name = &trimmed
+	}
+
+	if req.Email != nil {
+		normalized := utils.NormalizeEmail(*req.Email)
+		if normalized == "" || !strings.Contains(normalized, "@") {
+			return nil, fmt.Errorf("a valid email address is required")
+		}
+		if other, _ := s.userRepo.FindByEmail(ctx, normalized); other != nil && other.ID != objectID {
+			return nil, fmt.Errorf("another account already uses %s", normalized)
+		}
+		req.Email = &normalized
 	}
 
 	updatedUser, err := s.userRepo.Update(ctx, objectID, req)
@@ -567,9 +620,12 @@ func (s *userService) Update(ctx context.Context, requesterRole, requesterID, id
 	if existingUser != nil && req.IsActive != nil && existingUser.IsActive != *req.IsActive && s.emailSvc != nil {
 		if *req.IsActive {
 			// Account Verified / Approved
+			// Reactivation doesn't issue new credentials — the account signs in with whatever PIN or
+			// password it already has — so this is a plain "you're back" notice, never a credentials
+			// email (which used to show the literal text "[Your Registered Password]" as the PIN).
 			go func() {
-				if err := s.emailSvc.SendCredentialsEmail(context.Background(), updatedUser.Email, updatedUser.Name, "[Your Registered Password]"); err != nil {
-					log.Error().Err(err).Str("email", updatedUser.Email).Msg("failed to send credentials email")
+				if err := s.emailSvc.SendAccountActivatedEmail(context.Background(), updatedUser.Email, updatedUser.Name); err != nil {
+					log.Error().Err(err).Str("email", updatedUser.Email).Msg("failed to send account activated email")
 				}
 			}()
 		} else {
@@ -681,27 +737,56 @@ func (s *userService) ChangePIN(ctx context.Context, id string, req *domain.Chan
 	return s.userRepo.UpdatePIN(ctx, objectID, string(hashedPIN))
 }
 
-// Delete removes a user by their ID. Only a super_admin may delete an existing admin/super_admin account.
-func (s *userService) Delete(ctx context.Context, requesterRole, id string) error {
+// Delete permanently removes an account and everything filed under it. A plain admin may only
+// delete a client/advisor of their own agency; only a super_admin may delete an admin account, and
+// super_admin accounts can't be removed here at all (that would risk locking the platform out).
+func (s *userService) Delete(ctx context.Context, requesterRole, requesterID, id string) error {
 	objectID, err := bson.ObjectIDFromHex(id)
 	if err != nil {
 		return fmt.Errorf("invalid user ID format: %w", err)
 	}
-
-	if requesterRole != domain.RoleSuperAdmin {
-		target, _ := s.userRepo.FindByID(ctx, objectID)
-		if target != nil && (target.Role == domain.RoleAdmin || target.Role == domain.RoleSuperAdmin) {
-			return fmt.Errorf("only a super_admin can delete an admin account")
-		}
+	if requesterID == id {
+		return fmt.Errorf("you cannot delete your own account from here")
 	}
 
-	return s.userRepo.Delete(ctx, objectID)
+	target, err := s.userRepo.FindByID(ctx, objectID)
+	if err != nil || target == nil {
+		return fmt.Errorf("user not found")
+	}
+
+	agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
+	if !canAccessAgencyScopedRecord(requesterRole, agencyFilter, target.AgencyID) {
+		return fmt.Errorf("user not found")
+	}
+
+	if target.Role == domain.RoleSuperAdmin {
+		return fmt.Errorf("super_admin accounts cannot be deleted from here")
+	}
+	if target.Role == domain.RoleAdmin && requesterRole != domain.RoleSuperAdmin {
+		return fmt.Errorf("only a super_admin can delete an admin account")
+	}
+
+	s.cascadeWipeUserData(ctx, target)
+
+	if err := s.userRepo.Delete(ctx, objectID); err != nil {
+		return fmt.Errorf("failed to delete user account: %w", err)
+	}
+
+	log.Info().
+		Str("requester_id", requesterID).
+		Str("deleted_user_id", id).
+		Str("deleted_email", target.Email).
+		Msg("[SECURITY AUDIT] Account deleted by staff")
+
+	return nil
 }
 
 // cascadeWipeUserData purges a user's E-Vault documents (including Cloudinary assets), family members,
 // general insurance records, life insurance policies, fixed deposits, health insurance policies,
 // and support tickets. Shared by DeleteMyAccount and DeleteAdmin.
-func (s *userService) cascadeWipeUserData(ctx context.Context, objectID bson.ObjectID) {
+func (s *userService) cascadeWipeUserData(ctx context.Context, user *domain.User) {
+	objectID := user.ID
+
 	if s.documentRepo != nil {
 		docs, _, _ := s.documentRepo.FindAllByUserID(ctx, objectID, "")
 		for _, doc := range docs {
@@ -735,6 +820,15 @@ func (s *userService) cascadeWipeUserData(ctx context.Context, objectID bson.Obj
 	if s.supportTicketRepo != nil {
 		_ = s.supportTicketRepo.DeleteAllByUserID(ctx, objectID)
 	}
+
+	// Onboarding records are keyed by email. Leaving an "approved" access request behind would
+	// block this person from ever applying again ("already approved, please login").
+	if s.accessReqRepo != nil && user.Email != "" {
+		_ = s.accessReqRepo.DeleteAllByEmail(ctx, user.Email)
+	}
+	if s.verifRepo != nil && user.Email != "" {
+		_ = s.verifRepo.DeleteAllByEmail(ctx, user.Email)
+	}
 }
 
 // DeleteMyAccount permanently deletes the logged in user account and wipes all associated records and Cloudinary files.
@@ -755,7 +849,7 @@ func (s *userService) DeleteMyAccount(ctx context.Context, userIDStr string) err
 		return fmt.Errorf("admin accounts cannot be deleted via self-service; please contact a super_admin to remove your access")
 	}
 
-	s.cascadeWipeUserData(ctx, objectID)
+	s.cascadeWipeUserData(ctx, user)
 
 	// Delete user profile document from MongoDB
 	err = s.userRepo.Delete(ctx, objectID)
@@ -902,7 +996,7 @@ func (s *userService) DeleteAdmin(ctx context.Context, requesterID, targetID str
 		return fmt.Errorf("target account is not an admin account")
 	}
 
-	s.cascadeWipeUserData(ctx, objectID)
+	s.cascadeWipeUserData(ctx, target)
 
 	if err := s.userRepo.Delete(ctx, objectID); err != nil {
 		return fmt.Errorf("failed to delete admin account: %w", err)
@@ -1114,6 +1208,27 @@ func (s *userService) MergeFamilyAccounts(ctx context.Context, requesterID strin
 			return nil, fmt.Errorf("failed to move support tickets: %w", err)
 		}
 		result.TicketsMoved = n
+	}
+
+	if s.referralRepo != nil {
+		if _, err := s.referralRepo.ReassignReferrer(ctx, secondaryID, primaryID); err != nil {
+			return nil, fmt.Errorf("failed to move referral credits: %w", err)
+		}
+	}
+
+	// The surviving login keeps whichever app validity lasts longer, so referral days earned on the
+	// secondary account aren't lost with it.
+	validityBase := primary.AppValidityEndDate
+	if now := time.Now().UTC(); validityBase.Before(now) {
+		validityBase = now // ExtendValidity counts from today once the current date has lapsed
+	}
+	if secondary.AppValidityEndDate.After(validityBase) {
+		extraDays := int(secondary.AppValidityEndDate.Sub(validityBase).Hours() / 24)
+		if extraDays > 0 {
+			if err := s.userRepo.ExtendValidity(ctx, primaryID, extraDays); err != nil {
+				log.Error().Err(err).Str("primary_user_id", primaryID.Hex()).Msg("failed to carry app validity across merge")
+			}
+		}
 	}
 
 	// Retire the secondary login last, only once every record has actually moved — see the

@@ -12,6 +12,9 @@ type UpcomingPayment struct {
 	EntityName string    `json:"entity_name"`                   // Plan Name, FD Name, or Vehicle No
 	Amount     float64   `json:"amount"`                        // 0 for Motor Insurance (no premium/maturity amount on that model)
 	DueDate    time.Time `json:"due_date"`                      // next_due_date (premiums), maturity_date (FDs), or date_of_expiry (Motor)
+	// IsOverdue marks a premium whose due date has passed without the schedule moving on, or a motor
+	// policy that has already expired — the items a client most needs to act on.
+	IsOverdue bool `json:"is_overdue"`
 }
 
 // ClientDashboardDTO represents the aggregated summary view shown on a client's dashboard.
@@ -21,15 +24,19 @@ type ClientDashboardDTO struct {
 	TotalHealthPolicies  int64             `json:"total_health_policies"`
 	TotalGeneralPolicies int64             `json:"total_general_policies"`
 	TotalFixedDeposits   int64             `json:"total_fixed_deposits"`
-	UpcomingPremiums     []UpcomingPayment `json:"upcoming_premiums"` // Life/Health premiums due within the next 30 days
+	UpcomingPremiums     []UpcomingPayment `json:"upcoming_premiums"` // Overdue items first, then everything due within the next 30 days
 }
 
 // PolicyStats tracks how many financial-instrument records have been formally mapped to the
 // agency portfolio (is_mapped: true) vs not, aggregated across Life Insurance, Health Insurance,
 // General Insurance, and Fixed Deposits.
 type PolicyStats struct {
+	// Mapped / Unmapped count Life, Health and FD records by their is_mapped flag.
 	Mapped   int64 `json:"mapped"`
 	Unmapped int64 `json:"unmapped"`
+	// MotorPolicies is reported separately: motor policies have no mapping flag, so counting them
+	// as "unmapped" (as before) overstated the agency's unmapped workload.
+	MotorPolicies int64 `json:"motor_policies"`
 }
 
 // AdminDashboardDTO represents the aggregated summary view shown on the Admin/Super Admin dashboard.

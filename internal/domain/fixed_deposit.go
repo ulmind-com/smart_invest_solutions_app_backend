@@ -121,6 +121,9 @@ type FixedDepositRepository interface {
 	// ReassignOwner moves every FD owned by fromUserID to toUserID — used by
 	// MergeFamilyAccounts — and returns how many records were moved.
 	ReassignOwner(ctx context.Context, fromUserID, toUserID bson.ObjectID) (int64, error)
+	// CountByFamilyMemberID counts records filed against a family member — a member who still has
+	// policies or deposits can't be deleted, or those records would point at nobody.
+	CountByFamilyMemberID(ctx context.Context, familyMemberID bson.ObjectID) (int64, error)
 }
 
 // FixedDepositService defines business logic operations for Fixed Deposits.

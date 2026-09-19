@@ -3,6 +3,8 @@ package repository
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/smart-invest-solutions/backend/internal/domain"
@@ -52,9 +54,12 @@ func (r *documentRepository) FindAllByUserID(ctx context.Context, userID bson.Ob
 	filter := bson.M{"user_id": userID}
 
 	if searchQuery != "" {
+		// Search is a plain substring match: escape regex syntax so input like "(front)" or "C++"
+		// can't produce an invalid pattern (a 500) or a pathological one.
+		safe := regexp.QuoteMeta(strings.TrimSpace(searchQuery))
 		filter["$or"] = []bson.M{
-			{"name": bson.M{"$regex": searchQuery, "$options": "i"}},
-			{"category": bson.M{"$regex": searchQuery, "$options": "i"}},
+			{"name": bson.M{"$regex": safe, "$options": "i"}},
+			{"category": bson.M{"$regex": safe, "$options": "i"}},
 		}
 	}
 

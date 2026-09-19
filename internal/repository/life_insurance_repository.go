@@ -403,15 +403,26 @@ func (r *lifeInsuranceRepository) BulkUpdateFromSync(ctx context.Context, record
 		updateFields := bson.M{
 			"premium_details.next_due_date":       rec.CalculatedNextDueDate,
 			"premium_details.installment_premium": rec.Premium,
-			"premium_details.payment_mode":        mapModeToDomainMode(rec.Mode),
 			"updated_at":                          now,
+		}
+		// Only overwrite the payment mode with one of the four values the app understands.
+		if mode := mapModeToDomainMode(rec.Mode); mode != "" {
+			updateFields["premium_details.payment_mode"] = mode
 		}
 
 		if docTime, err := time.Parse("02/01/2006", rec.DOC); err == nil && !docTime.IsZero() {
 			updateFields["policy_details.doc"] = docTime.UTC()
 		}
 
-		filter := bson.M{"policy_details.policy_no": rec.PolicyNo}
+		// Never move a schedule backwards: re-uploading an older month's due list (or a list parsed
+		// before the client recorded a payment) must not undo a newer due date.
+		filter := bson.M{
+			"policy_details.policy_no": rec.PolicyNo,
+			"$or": bson.A{
+				bson.M{"premium_details.next_due_date": bson.M{"$lte": rec.CalculatedNextDueDate}},
+				bson.M{"premium_details.next_due_date": bson.M{"$exists": false}},
+			},
+		}
 		if !unrestricted {
 			filter["user_id"] = bson.M{"$in": agencyUserIDs}
 		}
@@ -503,9 +514,43 @@ func mapModeToDomainMode(mode string) string {
 	case "MLY", "M", "MONTHLY", "SSS":
 		return domain.PaymentModeMonthly
 	default:
-		if mode != "" {
-			return mode
-		}
-		return domain.PaymentModeYearly
+		return "" // unknown code — leave the stored mode untouched
 	}
+}
+
+// CountByFamilyMemberID counts records filed against the given family member.
+func (r *lifeInsuranceRepository) CountByFamilyMemberID(ctx context.Context, familyMemberID bson.ObjectID) (int64, error) {
+	n, err := r.collection.CountDocuments(ctx, bson.M{"family_member_id": familyMemberID})
+	if err != nil {
+		return 0, fmt.Errorf("failed to count records for family member: %w", err)
+	}
+	return n, nil
+}
+
+// SyncInsuredName refreshes the insured-person name cached on the family member's policies.
+func (r *lifeInsuranceRepository) SyncInsuredName(ctx context.Context, familyMemberID bson.ObjectID, name string) error {
+	_, err := r.collection.UpdateMany(ctx,
+		bson.M{"family_member_id": familyMemberID},
+		bson.M{"$set": bson.M{"policy_details.life_insured_name": name, "updated_at": time.Now().UTC()}},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to refresh insured name on policies: %w", err)
+	}
+	return nil
+}
+
+// AdvanceNextDueDate conditionally moves premium_details.next_due_date from `from` to `to`.
+func (r *lifeInsuranceRepository) AdvanceNextDueDate(ctx context.Context, id bson.ObjectID, from, to time.Time) (*domain.LifeInsurance, error) {
+	filter := bson.M{"_id": id, "premium_details.next_due_date": from}
+	update := bson.M{"$set": bson.M{"premium_details.next_due_date": to, "updated_at": time.Now().UTC()}}
+	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
+
+	var updated domain.LifeInsurance
+	if err := r.collection.FindOneAndUpdate(ctx, filter, update, opts).Decode(&updated); err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, fmt.Errorf("this premium was already updated — refresh to see the latest due date")
+		}
+		return nil, fmt.Errorf("failed to update the premium schedule: %w", err)
+	}
+	return &updated, nil
 }

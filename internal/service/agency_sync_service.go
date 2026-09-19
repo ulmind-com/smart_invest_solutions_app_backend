@@ -294,7 +294,7 @@ func (s *agencySyncService) LinkImportedPolicy(ctx context.Context, requesterRol
 		PremiumDetails: domain.PremiumDetails{
 			InstallmentPremium: imported.InstallmentPremium,
 			NextDueDate:        imported.NextDueDate,
-			PaymentMode:        imported.Mode,
+			PaymentMode:        linkedPaymentMode(imported.Mode),
 		},
 		IsMapped: true,
 	}
@@ -341,7 +341,15 @@ func (s *agencySyncService) DeleteImportedPolicy(ctx context.Context, requesterR
 }
 
 // extractTextFromPDF reads all text content from an in-memory PDF byte slice using ledongthuc/pdf.
-func extractTextFromPDF(fileBytes []byte) (string, error) {
+func extractTextFromPDF(fileBytes []byte) (text string, err error) {
+	// The PDF library panics on some malformed or encrypted files. Turn that into an ordinary error
+	// so the admin gets "this PDF couldn't be read" instead of a generic 500.
+	defer func() {
+		if r := recover(); r != nil {
+			text, err = "", fmt.Errorf("the PDF could not be read (it may be damaged, scanned or password-protected)")
+		}
+	}()
+
 	r, err := pdf.NewReader(bytes.NewReader(fileBytes), int64(len(fileBytes)))
 	if err != nil {
 		return "", err
@@ -540,10 +548,7 @@ func normalizeMode(mode string) string {
 	case "MLY", "M", "MONTHLY", "SSS":
 		return domain.PaymentModeMonthly
 	default:
-		if mode != "" {
-			return mode
-		}
-		return domain.PaymentModeYearly
+		return "" // unknown code; LinkImportedPolicy falls back to Yearly
 	}
 }
 
@@ -558,4 +563,12 @@ func cleanName(raw string) string {
 		return "VALUED CLIENT"
 	}
 	return name
+}
+
+// linkedPaymentMode maps an imported row's mode onto one of the four modes a life policy accepts.
+func linkedPaymentMode(mode string) string {
+	if normalized := normalizeMode(mode); normalized != "" {
+		return normalized
+	}
+	return domain.PaymentModeYearly
 }

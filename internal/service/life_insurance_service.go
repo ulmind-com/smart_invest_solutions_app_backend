@@ -103,6 +103,9 @@ func (s *lifeInsuranceService) CreatePolicy(ctx context.Context, requesterRole, 
 	if !dto.PolicyDetails.DOC.Before(dto.PolicyDetails.MaturityDate) {
 		return nil, fmt.Errorf("date of commencement must be before the maturity date")
 	}
+	if dto.PolicyDetails.PPT > dto.PolicyDetails.Term {
+		return nil, fmt.Errorf("premium paying term (%d years) cannot be longer than the policy term (%d years)", dto.PolicyDetails.PPT, dto.PolicyDetails.Term)
+	}
 
 	policy := &domain.LifeInsurance{
 		UserID:         userID,
@@ -124,7 +127,7 @@ func (s *lifeInsuranceService) CreatePolicy(ctx context.Context, requesterRole, 
 			NextDueDate:        dto.PremiumDetails.NextDueDate,
 			PaymentMode:        dto.PremiumDetails.PaymentMode,
 		},
-		IsMapped: dto.IsMapped,
+		IsMapped: dto.IsMapped && isAgencyStaff(requesterRole),
 	}
 
 	return s.repo.Create(ctx, policy)
@@ -268,6 +271,17 @@ func (s *lifeInsuranceService) UpdatePolicy(ctx context.Context, requesterRole, 
 	if !doc.Before(maturityDate) {
 		return nil, fmt.Errorf("date of commencement must be before the maturity date")
 	}
+	term := existing.PolicyDetails.Term
+	if dto.Term != nil {
+		term = *dto.Term
+	}
+	ppt := existing.PolicyDetails.PPT
+	if dto.PPT != nil {
+		ppt = *dto.PPT
+	}
+	if ppt > term {
+		return nil, fmt.Errorf("premium paying term (%d years) cannot be longer than the policy term (%d years)", ppt, term)
+	}
 
 	return s.repo.Update(ctx, id, dto)
 }
@@ -304,4 +318,38 @@ func (s *lifeInsuranceService) DeleteAllByUserID(ctx context.Context, userIDStr 
 		return fmt.Errorf("invalid user ID format: %w", err)
 	}
 	return s.repo.DeleteAllByUserID(ctx, userID)
+}
+
+// MarkPremiumPaid advances the policy to its next installment. It refuses once the premium paying
+// term (or maturity) has been reached, since there is no further premium to schedule.
+func (s *lifeInsuranceService) MarkPremiumPaid(ctx context.Context, requesterRole, requesterID, idStr string) (*domain.LifeInsurance, error) {
+	id, err := bson.ObjectIDFromHex(idStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid policy ID format: %w", err)
+	}
+
+	policy, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.checkOwnership(ctx, requesterRole, requesterID, policy.UserID); err != nil {
+		return nil, err
+	}
+
+	current := policy.PremiumDetails.NextDueDate
+	premiumsEnd := policy.PolicyDetails.MaturityDate
+	if policy.PolicyDetails.PPT > 0 && !policy.PolicyDetails.DOC.IsZero() {
+		if pptEnd := policy.PolicyDetails.DOC.AddDate(policy.PolicyDetails.PPT, 0, 0); premiumsEnd.IsZero() || pptEnd.Before(premiumsEnd) {
+			premiumsEnd = pptEnd
+		}
+	}
+	if !premiumsEnd.IsZero() && !current.IsZero() && !current.Before(premiumsEnd) {
+		return nil, fmt.Errorf("all premiums for this policy have already been paid")
+	}
+
+	next, err := nextPremiumDueDate(current, policy.PremiumDetails.PaymentMode, policy.PolicyDetails.DOC)
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.AdvanceNextDueDate(ctx, id, current, next)
 }

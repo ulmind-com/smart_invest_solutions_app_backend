@@ -59,11 +59,15 @@ type ReferralRepository interface {
 	UpdateStatus(ctx context.Context, id bson.ObjectID, status string, rewardDays int) error
 	GetByReferrerID(ctx context.Context, referrerID bson.ObjectID) ([]*ReferralRecord, error)
 	GetStatsByReferrerID(ctx context.Context, referrerID bson.ObjectID) (totalPending int64, totalCompleted int64, totalDays int64, err error)
-	GetAll(ctx context.Context, page, limit int64) ([]*ReferralRecordWithDetails, int64, error)
+	// GetAll lists the referral ledger. agencyID, when non-empty, narrows it to referrals made by
+	// clients of that agency (a plain admin's view); "" returns the platform-wide ledger.
+	GetAll(ctx context.Context, page, limit int64, agencyID string) ([]*ReferralRecordWithDetails, int64, error)
+	// ReassignReferrer moves every referral made by fromUserID to toUserID (family account merge).
+	ReassignReferrer(ctx context.Context, fromUserID, toUserID bson.ObjectID) (int64, error)
 }
 
 // ReferralService defines business logic operations for the referral scheme.
 type ReferralService interface {
 	GetMyStats(ctx context.Context, userIDStr string) (*ReferralStatsDTO, error)
-	GetAllReferrals(ctx context.Context, page, limit int64) (*ReferralListResponse, error)
+	GetAllReferrals(ctx context.Context, requesterRole, requesterID string, page, limit int64) (*ReferralListResponse, error)
 }

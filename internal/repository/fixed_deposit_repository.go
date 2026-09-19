@@ -309,3 +309,12 @@ func (r *fixedDepositRepository) ReassignOwner(ctx context.Context, fromUserID, 
 	}
 	return result.ModifiedCount, nil
 }
+
+// CountByFamilyMemberID counts records filed against the given family member.
+func (r *fixedDepositRepository) CountByFamilyMemberID(ctx context.Context, familyMemberID bson.ObjectID) (int64, error) {
+	n, err := r.collection.CountDocuments(ctx, bson.M{"family_member_id": familyMemberID})
+	if err != nil {
+		return 0, fmt.Errorf("failed to count records for family member: %w", err)
+	}
+	return n, nil
+}
