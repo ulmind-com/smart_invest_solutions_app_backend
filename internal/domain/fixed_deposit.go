@@ -27,8 +27,11 @@ type FixedDeposit struct {
 	AccountType      string        `bson:"account_type" json:"account_type"`
 	Address          string        `bson:"address" json:"address"`     // Branch / Post office address
 	IsMapped         bool          `bson:"is_mapped" json:"is_mapped"` // Admin tracking flag — admin/super_admin only can change on update
-	CreatedAt        time.Time     `bson:"created_at" json:"created_at"`
-	UpdatedAt        time.Time     `bson:"updated_at" json:"updated_at"`
+	// ManagedBy records who maintains this record — see the ManagedBy constants. Stamped at
+	// creation from the caller's role; only agency staff can change it afterwards.
+	ManagedBy string    `bson:"managed_by,omitempty" json:"managed_by,omitempty"`
+	CreatedAt time.Time `bson:"created_at" json:"created_at"`
+	UpdatedAt time.Time `bson:"updated_at" json:"updated_at"`
 }
 
 // FixedDepositWithCustomer represents a Fixed Deposit enriched with the owning customer's name
@@ -55,6 +58,7 @@ type FixedDepositWithCustomer struct {
 	AccountType      string    `bson:"account_type" json:"account_type"`
 	Address          string    `bson:"address" json:"address"`
 	IsMapped         bool      `bson:"is_mapped" json:"is_mapped"`
+	ManagedBy        string    `bson:"managed_by,omitempty" json:"managed_by,omitempty"`
 	CreatedAt        time.Time `bson:"created_at" json:"created_at"`
 	UpdatedAt        time.Time `bson:"updated_at" json:"updated_at"`
 }
@@ -99,6 +103,9 @@ type UpdateFixedDepositDTO struct {
 	AccountType      *string    `json:"account_type,omitempty"`
 	Address          *string    `json:"address,omitempty"`
 	IsMapped         *bool      `json:"is_mapped,omitempty"`
+	// ManagedBy hands a record over to the agency (or back to the client). Agency staff only —
+	// the service clears whatever a client sends.
+	ManagedBy *string `json:"managed_by,omitempty" binding:"omitempty,oneof=client agency"`
 }
 
 // FixedDepositListResponse represents a single client's list of Fixed Deposits.

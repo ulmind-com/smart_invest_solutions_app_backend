@@ -121,6 +121,8 @@ func (s *healthInsuranceService) CreatePolicy(ctx context.Context, requesterRole
 			PaymentMode:        dto.PremiumDetails.PaymentMode,
 		},
 		IsMapped: dto.IsMapped && isAgencyStaff(requesterRole),
+		// Whoever files the record maintains it — see life_insurance_service.go.
+		ManagedBy: domain.ManagedByForRole(requesterRole),
 	}
 
 	return s.repo.Create(ctx, policy)
@@ -233,8 +235,11 @@ func (s *healthInsuranceService) UpdatePolicy(ctx context.Context, requesterRole
 		return nil, err
 	}
 
-	if requesterRole != domain.RoleAdmin && requesterRole != domain.RoleSuperAdmin {
+	if !isAgencyStaff(requesterRole) {
 		dto.IsMapped = nil
+		// Who manages a record is the agency's call: a client can't hand their own record over,
+		// nor claim one the agency maintains.
+		dto.ManagedBy = nil
 	}
 
 	if dto.FamilyMemberID != nil {

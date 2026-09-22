@@ -9,16 +9,19 @@ import (
 
 // GeneralInsurance represents a vehicle/general insurance policy record associated with a user.
 type GeneralInsurance struct {
-	ID             bson.ObjectID `bson:"_id,omitempty" json:"id"`
-	UserID         bson.ObjectID `bson:"user_id" json:"user_id"`
-	VehicleNo      string        `bson:"vehicle_no" json:"vehicle_no" binding:"required"`
-	PolicyNo       string        `bson:"policy_no" json:"policy_no" binding:"required"`
-	DateOfExpiry   string        `bson:"date_of_expiry" json:"date_of_expiry" binding:"required"` // Format: YYYY-MM-DD
-	CompanyName    string        `bson:"company_name" json:"company_name" binding:"required"`
-	AdvisorName    string        `bson:"advisor_name,omitempty" json:"advisor_name,omitempty"`
-	AdvisorContact string        `bson:"advisor_contact,omitempty" json:"advisor_contact,omitempty"`
-	CreatedAt      time.Time     `bson:"created_at" json:"created_at"`
-	UpdatedAt      time.Time     `bson:"updated_at" json:"updated_at"`
+	ID           bson.ObjectID `bson:"_id,omitempty" json:"id"`
+	UserID       bson.ObjectID `bson:"user_id" json:"user_id"`
+	VehicleNo    string        `bson:"vehicle_no" json:"vehicle_no" binding:"required"`
+	PolicyNo     string        `bson:"policy_no" json:"policy_no" binding:"required"`
+	DateOfExpiry string        `bson:"date_of_expiry" json:"date_of_expiry" binding:"required"` // Format: YYYY-MM-DD
+	CompanyName  string        `bson:"company_name" json:"company_name" binding:"required"`
+	AdvisorName  string        `bson:"advisor_name,omitempty" json:"advisor_name,omitempty"`
+	// ManagedBy records who maintains this record — see the ManagedBy constants. Stamped at
+	// creation from the caller's role; only agency staff can change it afterwards.
+	ManagedBy      string    `bson:"managed_by,omitempty" json:"managed_by,omitempty"`
+	AdvisorContact string    `bson:"advisor_contact,omitempty" json:"advisor_contact,omitempty"`
+	CreatedAt      time.Time `bson:"created_at" json:"created_at"`
+	UpdatedAt      time.Time `bson:"updated_at" json:"updated_at"`
 }
 
 // CreateGeneralInsuranceDTO represents the payload for adding a new General Insurance policy.
@@ -33,6 +36,8 @@ type CreateGeneralInsuranceDTO struct {
 
 // UpdateGeneralInsuranceDTO represents the payload for updating an existing General Insurance policy.
 type UpdateGeneralInsuranceDTO struct {
+	// ManagedBy hands a record over to the agency (or back to the client). Agency staff only.
+	ManagedBy      *string `json:"managed_by,omitempty" binding:"omitempty,oneof=client agency"`
 	VehicleNo      *string `json:"vehicle_no,omitempty"`
 	PolicyNo       *string `json:"policy_no,omitempty"`
 	DateOfExpiry   *string `json:"date_of_expiry,omitempty"`
@@ -64,6 +69,7 @@ type GeneralInsuranceWithCustomer struct {
 	CompanyName    string    `bson:"company_name" json:"company_name"`
 	AdvisorName    string    `bson:"advisor_name,omitempty" json:"advisor_name,omitempty"`
 	AdvisorContact string    `bson:"advisor_contact,omitempty" json:"advisor_contact,omitempty"`
+	ManagedBy      string    `bson:"managed_by,omitempty" json:"managed_by,omitempty"`
 	CreatedAt      time.Time `bson:"created_at" json:"created_at"`
 	UpdatedAt      time.Time `bson:"updated_at" json:"updated_at"`
 }
@@ -86,7 +92,7 @@ type GeneralInsuranceRepository interface {
 
 // GeneralInsuranceService defines business logic operations for general insurances.
 type GeneralInsuranceService interface {
-	AddInsurance(ctx context.Context, userIDStr string, dto *CreateGeneralInsuranceDTO) (*GeneralInsurance, error)
+	AddInsurance(ctx context.Context, requesterRole, userIDStr string, dto *CreateGeneralInsuranceDTO) (*GeneralInsurance, error)
 	GetMyInsurances(ctx context.Context, userIDStr string) (*GeneralInsuranceListResponse, error)
 	GetInsuranceByID(ctx context.Context, requesterRole, requesterID, idStr string) (*GeneralInsurance, error)
 	UpdateInsurance(ctx context.Context, requesterRole, requesterID, idStr string, dto *UpdateGeneralInsuranceDTO) (*GeneralInsurance, error)

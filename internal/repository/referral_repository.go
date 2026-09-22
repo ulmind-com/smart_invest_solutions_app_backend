@@ -12,15 +12,17 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
+const referralRecordsCollection = "referral_records"
+
 type referralRepository struct {
 	collection *mongo.Collection
 }
 
 // NewReferralRepository initializes a new ReferralRepository.
 func NewReferralRepository(db *mongo.Database) domain.ReferralRepository {
-	col := db.Collection("referral_records")
+	col := db.Collection(referralRecordsCollection)
 
-	// Index on referrer_id and status for fast stats queries
+	// Powers both the per-referrer counts and the "my referrals" ledger.
 	_, _ = col.Indexes().CreateOne(context.Background(), mongo.IndexModel{
 		Keys: bson.D{
 			{Key: "referrer_id", Value: 1},
@@ -28,7 +30,7 @@ func NewReferralRepository(db *mongo.Database) domain.ReferralRepository {
 		},
 	})
 
-	// Index on referred_email for fast lookup on access request approval
+	// Completing a referral looks it up by the applicant's email.
 	_, _ = col.Indexes().CreateOne(context.Background(), mongo.IndexModel{
 		Keys: bson.D{{Key: "referred_email", Value: 1}},
 	})
@@ -36,12 +38,15 @@ func NewReferralRepository(db *mongo.Database) domain.ReferralRepository {
 	return &referralRepository{collection: col}
 }
 
-// Create inserts a new referral record into MongoDB.
+// Create inserts a new referral record, normalising the referred email it is keyed by.
 func (r *referralRepository) Create(ctx context.Context, record *domain.ReferralRecord) (*domain.ReferralRecord, error) {
 	now := time.Now().UTC()
 	record.CreatedAt = now
 	record.UpdatedAt = now
 	record.ReferredEmail = utils.NormalizeEmail(record.ReferredEmail)
+	if record.Status == "" {
+		record.Status = domain.ReferralStatusPending
+	}
 
 	result, err := r.collection.InsertOne(ctx, record)
 	if err != nil {
@@ -52,17 +57,16 @@ func (r *referralRepository) Create(ctx context.Context, record *domain.Referral
 	return record, nil
 }
 
-// GetPendingByReferredEmail retrieves a pending referral record matching a referred email.
+// GetPendingByReferredEmail finds the outstanding referral for an applicant, matching the email
+// case-insensitively (records written before emails were normalised may carry other casing).
 func (r *referralRepository) GetPendingByReferredEmail(ctx context.Context, email string) (*domain.ReferralRecord, error) {
-	// Case-insensitive: records written before emails were normalised may still carry the
-	// capitalisation the applicant typed.
 	filter := bson.M{
 		"referred_email": utils.EmailFilter(email)["email"],
 		"status":         domain.ReferralStatusPending,
 	}
 
 	var record domain.ReferralRecord
-	err := r.collection.FindOne(ctx, filter).Decode(&record)
+	err := r.collection.FindOne(ctx, filter, options.FindOne().SetSort(bson.D{{Key: "created_at", Value: 1}})).Decode(&record)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, nil // No pending referral found
@@ -73,96 +77,103 @@ func (r *referralRepository) GetPendingByReferredEmail(ctx context.Context, emai
 	return &record, nil
 }
 
-// UpdateStatus updates the status and reward days credited on a referral record.
-func (r *referralRepository) UpdateStatus(ctx context.Context, id bson.ObjectID, status string, rewardDays int) error {
-	filter := bson.M{"_id": id}
-	update := bson.M{
-		"$set": bson.M{
-			"status":               status,
-			"reward_days_credited": rewardDays,
-			"updated_at":           time.Now().UTC(),
-		},
+// Complete marks a pending referral as converted. The status filter makes it idempotent: a second
+// approval of the same applicant can't double-count the referral.
+func (r *referralRepository) Complete(ctx context.Context, id, referredUserID bson.ObjectID, referredName, referredPhone string) error {
+	now := time.Now().UTC()
+	set := bson.M{
+		"status":           domain.ReferralStatusCompleted,
+		"referred_user_id": referredUserID,
+		"completed_at":     now,
+		"updated_at":       now,
+	}
+	if referredName != "" {
+		set["referred_name"] = referredName
+	}
+	if referredPhone != "" {
+		set["referred_phone"] = referredPhone
 	}
 
-	result, err := r.collection.UpdateOne(ctx, filter, update)
+	result, err := r.collection.UpdateOne(ctx,
+		bson.M{"_id": id, "status": domain.ReferralStatusPending},
+		bson.M{"$set": set},
+	)
 	if err != nil {
-		return fmt.Errorf("failed to update referral record status: %w", err)
+		return fmt.Errorf("failed to complete referral record: %w", err)
 	}
 	if result.MatchedCount == 0 {
-		return fmt.Errorf("referral record not found")
+		return nil // Already completed by an earlier call — nothing to do.
 	}
-
 	return nil
 }
 
-// GetByReferrerID retrieves all referral records created by a specific referrer.
-func (r *referralRepository) GetByReferrerID(ctx context.Context, referrerID bson.ObjectID) ([]*domain.ReferralRecord, error) {
-	filter := bson.M{"referrer_id": referrerID}
-	opts := options.Find().SetSort(bson.D{{Key: "created_at", Value: -1}})
+// CountsByReferrerID returns one referrer's pending/completed split.
+func (r *referralRepository) CountsByReferrerID(ctx context.Context, referrerID bson.ObjectID) (domain.ReferralCounts, error) {
+	var counts domain.ReferralCounts
 
-	cursor, err := r.collection.Find(ctx, filter, opts)
+	pending, err := r.collection.CountDocuments(ctx, bson.M{"referrer_id": referrerID, "status": domain.ReferralStatusPending})
 	if err != nil {
-		return nil, fmt.Errorf("failed to query referral records by referrer: %w", err)
+		return counts, fmt.Errorf("failed to count pending referrals: %w", err)
 	}
-	defer cursor.Close(ctx)
-
-	var records []*domain.ReferralRecord
-	if err := cursor.All(ctx, &records); err != nil {
-		return nil, fmt.Errorf("failed to decode referral records: %w", err)
+	completed, err := r.collection.CountDocuments(ctx, bson.M{"referrer_id": referrerID, "status": domain.ReferralStatusCompleted})
+	if err != nil {
+		return counts, fmt.Errorf("failed to count completed referrals: %w", err)
 	}
 
-	if records == nil {
-		records = []*domain.ReferralRecord{}
-	}
-
-	return records, nil
+	counts.Pending, counts.Completed = pending, completed
+	return counts, nil
 }
 
-// GetStatsByReferrerID calculates referral summary metrics for a referrer.
-func (r *referralRepository) GetStatsByReferrerID(ctx context.Context, referrerID bson.ObjectID) (totalPending int64, totalCompleted int64, totalDays int64, err error) {
-	filterPending := bson.M{"referrer_id": referrerID, "status": domain.ReferralStatusPending}
-	totalPending, err = r.collection.CountDocuments(ctx, filterPending)
-	if err != nil {
-		return 0, 0, 0, fmt.Errorf("failed to count pending referrals: %w", err)
-	}
-
-	filterCompleted := bson.M{"referrer_id": referrerID, "status": domain.ReferralStatusCompleted}
-	totalCompleted, err = r.collection.CountDocuments(ctx, filterCompleted)
-	if err != nil {
-		return 0, 0, 0, fmt.Errorf("failed to count completed referrals: %w", err)
-	}
-
+// CountsByReferrer groups the whole ledger by referrer in a single aggregation, so the super
+// admin's leaderboard costs one query rather than two per admin.
+func (r *referralRepository) CountsByReferrer(ctx context.Context) (map[bson.ObjectID]domain.ReferralCounts, error) {
 	pipeline := mongo.Pipeline{
-		bson.D{{Key: "$match", Value: bson.D{{Key: "referrer_id", Value: referrerID}, {Key: "status", Value: domain.ReferralStatusCompleted}}}},
-		bson.D{{Key: "$group", Value: bson.D{{Key: "_id", Value: nil}, {Key: "total_days", Value: bson.D{{Key: "$sum", Value: "$reward_days_credited"}}}}}},
+		bson.D{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: bson.D{{Key: "referrer", Value: "$referrer_id"}, {Key: "status", Value: "$status"}}},
+			{Key: "count", Value: bson.D{{Key: "$sum", Value: 1}}},
+		}}},
 	}
 
 	cursor, err := r.collection.Aggregate(ctx, pipeline)
-	if err == nil && cursor.Next(ctx) {
-		var result struct {
-			TotalDays int64 `bson:"total_days"`
+	if err != nil {
+		return nil, fmt.Errorf("failed to group referrals by referrer: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	counts := map[bson.ObjectID]domain.ReferralCounts{}
+	for cursor.Next(ctx) {
+		var row struct {
+			ID struct {
+				Referrer bson.ObjectID `bson:"referrer"`
+				Status   string        `bson:"status"`
+			} `bson:"_id"`
+			Count int64 `bson:"count"`
 		}
-		if err := cursor.Decode(&result); err == nil {
-			totalDays = result.TotalDays
+		if err := cursor.Decode(&row); err != nil {
+			continue
 		}
-		cursor.Close(ctx)
+		entry := counts[row.ID.Referrer]
+		if row.ID.Status == domain.ReferralStatusCompleted {
+			entry.Completed += row.Count
+		} else {
+			entry.Pending += row.Count
+		}
+		counts[row.ID.Referrer] = entry
+	}
+	if err := cursor.Err(); err != nil {
+		return nil, fmt.Errorf("failed to read referral counts: %w", err)
 	}
 
-	return totalPending, totalCompleted, totalDays, nil
+	return counts, nil
 }
 
-// GetAll retrieves a paginated master list of all referral records across all clients,
-// enriched (via $lookup on users collection) with ReferrerName and ReferrerEmail for Admin tracking.
-func (r *referralRepository) GetAll(ctx context.Context, page, limit int64, agencyID string) ([]*domain.ReferralRecordWithDetails, int64, error) {
+// GetAll lists the ledger newest-first, optionally for a single referrer.
+func (r *referralRepository) GetAll(ctx context.Context, page, limit int64, referrerID *bson.ObjectID) ([]*domain.ReferralRecordWithDetails, int64, error) {
 	skip := (page - 1) * limit
 
 	filter := bson.M{}
-	if agencyID != "" {
-		ids, err := agencyClientIDs(ctx, r.collection.Database(), agencyID)
-		if err != nil {
-			return nil, 0, err
-		}
-		filter["referrer_id"] = bson.M{"$in": ids}
+	if referrerID != nil {
+		filter["referrer_id"] = *referrerID
 	}
 
 	total, err := r.collection.CountDocuments(ctx, filter)
@@ -172,11 +183,11 @@ func (r *referralRepository) GetAll(ctx context.Context, page, limit int64, agen
 
 	pipeline := mongo.Pipeline{
 		bson.D{{Key: "$match", Value: filter}},
-		bson.D{{Key: "$sort", Value: bson.D{{Key: "created_at", Value: -1}}}},
+		bson.D{{Key: "$sort", Value: bson.D{{Key: "created_at", Value: -1}, {Key: "_id", Value: -1}}}},
 		bson.D{{Key: "$skip", Value: skip}},
 		bson.D{{Key: "$limit", Value: limit}},
 		bson.D{{Key: "$lookup", Value: bson.D{
-			{Key: "from", Value: "users"},
+			{Key: "from", Value: usersCollection},
 			{Key: "localField", Value: "referrer_id"},
 			{Key: "foreignField", Value: "_id"},
 			{Key: "as", Value: "referrer"},
@@ -190,9 +201,14 @@ func (r *referralRepository) GetAll(ctx context.Context, page, limit int64, agen
 			{Key: "referrer_id", Value: 1},
 			{Key: "referrer_name", Value: "$referrer.name"},
 			{Key: "referrer_email", Value: "$referrer.email"},
+			{Key: "referrer_admin_id", Value: "$referrer.admin_id"},
+			{Key: "referrer_role", Value: "$referrer.role"},
 			{Key: "referred_email", Value: 1},
+			{Key: "referred_name", Value: 1},
+			{Key: "referred_phone", Value: 1},
+			{Key: "referred_user_id", Value: 1},
 			{Key: "status", Value: 1},
-			{Key: "reward_days_credited", Value: 1},
+			{Key: "completed_at", Value: 1},
 			{Key: "created_at", Value: 1},
 			{Key: "updated_at", Value: 1},
 		}}},
@@ -226,27 +242,4 @@ func (r *referralRepository) ReassignReferrer(ctx context.Context, fromUserID, t
 		return 0, fmt.Errorf("failed to reassign referral records: %w", err)
 	}
 	return result.ModifiedCount, nil
-}
-
-// agencyClientIDs returns the IDs of every account registered under agencyID.
-func agencyClientIDs(ctx context.Context, db *mongo.Database, agencyID string) ([]bson.ObjectID, error) {
-	cursor, err := db.Collection(usersCollection).Find(ctx,
-		bson.M{"agency_id": agencyID},
-		options.Find().SetProjection(bson.M{"_id": 1}),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve agency clients: %w", err)
-	}
-	defer cursor.Close(ctx)
-
-	ids := []bson.ObjectID{}
-	for cursor.Next(ctx) {
-		var doc struct {
-			ID bson.ObjectID `bson:"_id"`
-		}
-		if err := cursor.Decode(&doc); err == nil {
-			ids = append(ids, doc.ID)
-		}
-	}
-	return ids, nil
 }

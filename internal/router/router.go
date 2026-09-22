@@ -418,13 +418,17 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			calculators.POST("/fd", calculatorHandler.CalculateFD)
 		}
 
-		// Referral Scheme routes — Earn Extra Validity referrals & agency growth tracking
+		// Referral routes — agency staff share a referral code; every client who signs up with it is
+		// attributed to them. Clients hold no referral code, so the whole group is staff-only:
+		// an admin sees their own referrals, a super admin sees everyone's plus the leaderboard.
 		referrals := v1.Group("/referrals")
 		{
 			referrals.Use(middleware.RequireAuth(cfg, userRepo))
+			referrals.Use(middleware.RequireRole(domain.RoleAdmin))
 
 			referrals.GET("/my-stats", referralHandler.GetMyStats)
-			referrals.GET("/all", middleware.RequireRole(domain.RoleAdmin), referralHandler.GetAllReferrals)
+			referrals.GET("/all", referralHandler.GetAllReferrals)
+			referrals.GET("/summary", middleware.RequireRole(domain.RoleSuperAdmin), referralHandler.GetAdminSummary)
 		}
 	}
 

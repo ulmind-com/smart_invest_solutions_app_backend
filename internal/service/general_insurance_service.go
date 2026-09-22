@@ -23,7 +23,7 @@ func NewGeneralInsuranceService(repo domain.GeneralInsuranceRepository, userRepo
 }
 
 // AddInsurance creates a new general insurance policy record.
-func (s *generalInsuranceService) AddInsurance(ctx context.Context, userIDStr string, dto *domain.CreateGeneralInsuranceDTO) (*domain.GeneralInsurance, error) {
+func (s *generalInsuranceService) AddInsurance(ctx context.Context, requesterRole, userIDStr string, dto *domain.CreateGeneralInsuranceDTO) (*domain.GeneralInsurance, error) {
 	userID, err := bson.ObjectIDFromHex(userIDStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid user ID format: %w", err)
@@ -56,6 +56,7 @@ func (s *generalInsuranceService) AddInsurance(ctx context.Context, userIDStr st
 		CompanyName:    strings.TrimSpace(dto.CompanyName),
 		AdvisorName:    advisorName,
 		AdvisorContact: advisorContact,
+		ManagedBy:      domain.ManagedByForRole(requesterRole),
 	}
 
 	return s.repo.Create(ctx, policy)
@@ -165,6 +166,9 @@ func (s *generalInsuranceService) UpdateInsurance(ctx context.Context, requester
 			return nil, err
 		}
 		dto.DateOfExpiry = &expiry
+	}
+	if !isAgencyStaff(requesterRole) {
+		dto.ManagedBy = nil
 	}
 	if dto.VehicleNo != nil {
 		v := strings.ToUpper(strings.TrimSpace(*dto.VehicleNo))

@@ -34,6 +34,9 @@ func TestSetupRegistersRoutesWithoutConflicts(t *testing.T) {
 		"POST /api/v1/health-insurances/:id/mark-paid": false,
 		"GET /api/v1/users":                            false,
 		"PUT /api/v1/calculators/settings":             false,
+		"GET /api/v1/referrals/my-stats":               false,
+		"GET /api/v1/referrals/all":                    false,
+		"GET /api/v1/referrals/summary":                false,
 	}
 	for _, route := range r.Routes() {
 		key := route.Method + " " + route.Path

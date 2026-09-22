@@ -183,6 +183,7 @@ func (r *fixedDepositRepository) GetAll(ctx context.Context, page, limit int64, 
 			{Key: "account_type", Value: 1},
 			{Key: "address", Value: 1},
 			{Key: "is_mapped", Value: 1},
+			{Key: "managed_by", Value: 1},
 			{Key: "created_at", Value: 1},
 			{Key: "updated_at", Value: 1},
 		}}},
@@ -259,6 +260,9 @@ func (r *fixedDepositRepository) Update(ctx context.Context, id bson.ObjectID, d
 	}
 	if dto.IsMapped != nil {
 		updateFields["is_mapped"] = *dto.IsMapped
+	}
+	if dto.ManagedBy != nil {
+		updateFields["managed_by"] = domain.NormalizeManagedBy(*dto.ManagedBy)
 	}
 
 	filter := bson.M{"_id": id}

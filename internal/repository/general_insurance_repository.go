@@ -105,6 +105,9 @@ func (r *generalInsuranceRepository) Update(ctx context.Context, id, userID bson
 	if dto.AdvisorContact != nil {
 		updateFields["advisor_contact"] = *dto.AdvisorContact
 	}
+	if dto.ManagedBy != nil {
+		updateFields["managed_by"] = domain.NormalizeManagedBy(*dto.ManagedBy)
+	}
 
 	filter := bson.M{"_id": id, "user_id": userID}
 	update := bson.M{"$set": updateFields}
@@ -236,6 +239,7 @@ func (r *generalInsuranceRepository) FindAllAdmin(ctx context.Context, page, lim
 			{Key: "company_name", Value: 1},
 			{Key: "advisor_name", Value: 1},
 			{Key: "advisor_contact", Value: 1},
+			{Key: "managed_by", Value: 1},
 			{Key: "created_at", Value: 1},
 			{Key: "updated_at", Value: 1},
 		}}},

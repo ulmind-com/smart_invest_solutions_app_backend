@@ -23,7 +23,7 @@ type EmailService interface {
 	SendVerificationOTPEmail(ctx context.Context, toEmail, name, otpCode string) error
 	SendPasswordResetConfirmationEmail(ctx context.Context, toEmail string) error
 	SendAccountDeletionEmail(ctx context.Context, toEmail, name string) error
-	SendAdminCredentialsEmail(ctx context.Context, toEmail, name, adminID, password, pin string) error
+	SendAdminCredentialsEmail(ctx context.Context, toEmail, name, adminID, password, pin, referralCode string) error
 	SendAdminExpiryAlertEmail(ctx context.Context, toEmail, name string, expiryDate time.Time) error
 	SendAdminExpiryRenewedEmail(ctx context.Context, toEmail, name string, newExpiryDate time.Time) error
 	SendAccountMergedEmail(ctx context.Context, toEmail, name, primaryName string) error
@@ -337,7 +337,7 @@ func (s *ResendService) SendAccountDeletionEmail(ctx context.Context, toEmail, n
 
 // SendAdminCredentialsEmail sends an email containing Admin Portal login credentials (Admin ID, Email,
 // Password, PIN) to a newly created Admin account.
-func (s *ResendService) SendAdminCredentialsEmail(ctx context.Context, toEmail, name, adminID, password, pin string) error {
+func (s *ResendService) SendAdminCredentialsEmail(ctx context.Context, toEmail, name, adminID, password, pin, referralCode string) error {
 	// User-supplied text is interpolated into HTML below — escape it so a crafted name
 	// or reason can't inject markup (e.g. a phishing link) into an email sent from our domain.
 	name = html.EscapeString(name)
@@ -387,11 +387,18 @@ func (s *ResendService) SendAdminCredentialsEmail(ctx context.Context, toEmail, 
                 <div class="field-label">Password</div>
                 <div class="field-value">%s</div>
             </div>
-            <div class="field" style="margin-bottom: 0;">
+            <div class="field">
                 <div class="field-label">PIN</div>
                 <div class="field-value">%s</div>
             </div>
+            <div class="field" style="margin-bottom: 0;">
+                <div class="field-label">Referral code</div>
+                <div class="field-value" style="color: #38bdf8; letter-spacing: 3px;">%s</div>
+            </div>
         </div>
+
+        <p class="info">Share your referral code with prospective clients: anyone who signs up with it
+        is filed under your agency automatically, and the referral is credited to you.</p>
 
         <p class="info">⚠️ Keep these credentials confidential. For your security, please change your
         password after your first login.</p>
@@ -400,7 +407,7 @@ func (s *ResendService) SendAdminCredentialsEmail(ctx context.Context, toEmail, 
     </div>
 </body>
 </html>
-`, name, adminID, toEmail, password, pin)
+`, name, adminID, toEmail, password, pin, referralCode)
 
 	return s.sendResendRequest(ctx, subject, toEmail, htmlBody)
 }

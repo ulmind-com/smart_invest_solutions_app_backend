@@ -35,18 +35,54 @@ func normalizeReferralCode(code string) string {
 	return strings.ToUpper(strings.TrimSpace(code))
 }
 
-// recordPendingReferral files a Pending referral lead for referredEmail against the owner of
-// referralCode, so the referrer is credited once that person's account is approved. It is a no-op
-// for an empty or unknown code, a self-referral, or an email that already has a pending lead —
-// referral problems must never block someone from signing up.
-func recordPendingReferral(ctx context.Context, referralRepo domain.ReferralRepository, userRepo domain.UserRepository, referralCode, referredEmail string) {
+// referralOwner resolves a typed referral code to the staff member who owns it. It returns nil for
+// an empty or unknown code, and for a code that belongs to a non-staff account — referral codes are
+// issued to admins only, and legacy client codes (from when clients could refer) no longer count.
+func referralOwner(ctx context.Context, userRepo domain.UserRepository, referralCode string) *domain.User {
 	code := normalizeReferralCode(referralCode)
+	if code == "" {
+		return nil
+	}
+	owner, err := userRepo.FindByReferralCode(ctx, code)
+	if err != nil || owner == nil {
+		return nil
+	}
+	if owner.Role != domain.RoleAdmin && owner.Role != domain.RoleSuperAdmin {
+		return nil
+	}
+	// A retired or deactivated staff account must not keep onboarding clients: nobody would be able
+	// to sign in and manage them, and the agency link would point at a dead account.
+	if !owner.IsActive || owner.MergedIntoUserID != nil {
+		return nil
+	}
+	return owner
+}
+
+// resolveOnboardingAgency decides which agency a new signup belongs to. An explicitly typed Agency
+// ID always wins (and must be valid). Otherwise a valid advisor referral code decides it, so an
+// admin only ever has to share one code: it both credits them for the referral and files the client
+// under their agency.
+func resolveOnboardingAgency(ctx context.Context, userRepo domain.UserRepository, rawAgencyID, referralCode string) (string, error) {
+	if strings.TrimSpace(rawAgencyID) != "" {
+		return resolveAgencyAdminID(ctx, userRepo, rawAgencyID)
+	}
+	if owner := referralOwner(ctx, userRepo, referralCode); owner != nil {
+		return owner.AdminID, nil
+	}
+	return "", nil
+}
+
+// recordPendingReferral files a Pending referral against the admin who owns referralCode, so they
+// are credited once that person's account is approved. It is a no-op for an empty or unknown code,
+// a code that isn't a staff member's, a self-referral, or an email that already has a pending
+// referral — a referral problem must never block someone from signing up.
+func recordPendingReferral(ctx context.Context, referralRepo domain.ReferralRepository, userRepo domain.UserRepository, referralCode, referredEmail, referredName, referredPhone string) {
 	email := utils.NormalizeEmail(referredEmail)
-	if code == "" || email == "" || referralRepo == nil {
+	if email == "" || referralRepo == nil {
 		return
 	}
 
-	referrer, _ := userRepo.FindByReferralCode(ctx, code)
+	referrer := referralOwner(ctx, userRepo, referralCode)
 	if referrer == nil || utils.NormalizeEmail(referrer.Email) == email {
 		return
 	}
@@ -58,9 +94,26 @@ func recordPendingReferral(ctx context.Context, referralRepo domain.ReferralRepo
 	if _, err := referralRepo.Create(ctx, &domain.ReferralRecord{
 		ReferrerID:    referrer.ID,
 		ReferredEmail: email,
+		ReferredName:  strings.TrimSpace(referredName),
+		ReferredPhone: strings.TrimSpace(referredPhone),
 		Status:        domain.ReferralStatusPending,
 	}); err != nil {
-		log.Error().Err(err).Str("email", email).Msg("failed to record referral lead")
+		log.Error().Err(err).Str("email", email).Msg("failed to record referral")
+	}
+}
+
+// completeReferral converts the pending referral for an approved client, if there is one, and
+// stamps the account it produced. Nothing about it can fail the approval it follows.
+func completeReferral(ctx context.Context, referralRepo domain.ReferralRepository, email string, user *domain.UserResponse) {
+	if referralRepo == nil || user == nil {
+		return
+	}
+	pending, err := referralRepo.GetPendingByReferredEmail(ctx, email)
+	if err != nil || pending == nil {
+		return
+	}
+	if err := referralRepo.Complete(ctx, pending.ID, user.ID, user.Name, user.Phone); err != nil {
+		log.Error().Err(err).Str("email", email).Msg("failed to complete referral")
 	}
 }
 

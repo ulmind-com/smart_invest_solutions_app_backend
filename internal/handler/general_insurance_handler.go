@@ -36,7 +36,7 @@ func NewGeneralInsuranceHandler(service domain.GeneralInsuranceService) *General
 // @Security     BearerAuth
 // @Router       /general-insurances [post]
 func (h *GeneralInsuranceHandler) AddInsurance(c *gin.Context) {
-	userIDStr, ok := middleware.GetUserID(c)
+	claims, ok := middleware.GetClaims(c)
 	if !ok {
 		response.Error(c, http.StatusUnauthorized, "unauthorized")
 		return
@@ -48,7 +48,7 @@ func (h *GeneralInsuranceHandler) AddInsurance(c *gin.Context) {
 		return
 	}
 
-	policy, err := h.service.AddInsurance(c.Request.Context(), userIDStr, &dto)
+	policy, err := h.service.AddInsurance(c.Request.Context(), claims.Role, claims.UserID.Hex(), &dto)
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, err.Error())
 		return

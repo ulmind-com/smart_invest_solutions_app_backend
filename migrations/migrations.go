@@ -248,7 +248,150 @@ func GetMigrations(cfg *config.Config) []Migration {
 			Description: "Replace the placeholder advisor on motor policies with the client's agency admin",
 			Up:          backfillMotorPolicyAdvisors,
 		},
+		{
+			Version:     9,
+			Description: "Make referrals staff-only and drop client validity dates",
+			Up:          moveReferralsToStaff,
+		},
+		{
+			Version:     10,
+			Description: "Stamp who manages each existing policy, deposit and motor record",
+			Up:          backfillManagedBy,
+		},
 	}
+}
+
+// backfillManagedBy fills in the managed_by flag the client app now shows on every holding.
+//
+// Records created from here on are stamped from the role of whoever files them. For records that
+// already exist there is no stored provenance, so the agency's own mapping flag is used as the best
+// available signal: is_mapped means an admin put it in the agency portfolio, so the agency manages
+// it; everything else is treated as client-added. Motor policies have no mapping flag and can only
+// be created by clients today, so they are all client-managed. An admin can correct any record from
+// its edit form.
+func backfillManagedBy(ctx context.Context, db *mongo.Database) error {
+	mappedCollections := []string{"life_insurances", "health_insurances", "fixed_deposits"}
+
+	for _, name := range mappedCollections {
+		collection := db.Collection(name)
+
+		if _, err := collection.UpdateMany(ctx,
+			bson.M{"managed_by": bson.M{"$exists": false}, "is_mapped": true},
+			bson.M{"$set": bson.M{"managed_by": domain.ManagedByAgency}},
+		); err != nil {
+			return fmt.Errorf("failed to mark agency-managed records in %s: %w", name, err)
+		}
+
+		if _, err := collection.UpdateMany(ctx,
+			bson.M{"managed_by": bson.M{"$exists": false}},
+			bson.M{"$set": bson.M{"managed_by": domain.ManagedByClient}},
+		); err != nil {
+			return fmt.Errorf("failed to mark client-managed records in %s: %w", name, err)
+		}
+	}
+
+	if _, err := db.Collection("general_insurances").UpdateMany(ctx,
+		bson.M{"managed_by": bson.M{"$exists": false}},
+		bson.M{"$set": bson.M{"managed_by": domain.ManagedByClient}},
+	); err != nil {
+		return fmt.Errorf("failed to mark client-managed motor policies: %w", err)
+	}
+
+	return nil
+}
+
+// moveReferralsToStaff migrates the two rules that changed together:
+//
+//   - A client account no longer expires, so every app_validity_end_date is dropped. (Admin access
+//     still expires — that lives in admin_expiry_date and is untouched.)
+//   - Referral codes belong to agency staff. Client codes are removed, and every admin/super_admin
+//     without one is issued a code to share. Referral records already filed keep pointing at
+//     whoever made them, so past attribution isn't rewritten.
+func moveReferralsToStaff(ctx context.Context, db *mongo.Database) error {
+	users := db.Collection("users")
+
+	if _, err := users.UpdateMany(ctx,
+		bson.M{"app_validity_end_date": bson.M{"$exists": true}},
+		bson.M{"$unset": bson.M{"app_validity_end_date": ""}},
+	); err != nil {
+		return fmt.Errorf("failed to drop client validity dates: %w", err)
+	}
+
+	if _, err := users.UpdateMany(ctx,
+		bson.M{
+			"role":          bson.M{"$in": bson.A{domain.RoleClient, domain.RoleAdvisor}},
+			"referral_code": bson.M{"$exists": true},
+		},
+		bson.M{"$unset": bson.M{"referral_code": ""}},
+	); err != nil {
+		return fmt.Errorf("failed to remove client referral codes: %w", err)
+	}
+
+	cursor, err := users.Find(ctx, bson.M{
+		"role": bson.M{"$in": bson.A{domain.RoleAdmin, domain.RoleSuperAdmin}},
+		"$or": bson.A{
+			bson.M{"referral_code": bson.M{"$exists": false}},
+			bson.M{"referral_code": ""},
+		},
+	}, options.Find().SetProjection(bson.M{"_id": 1}))
+	if err != nil {
+		return fmt.Errorf("failed to find staff accounts without a referral code: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	for cursor.Next(ctx) {
+		var row struct {
+			ID bson.ObjectID `bson:"_id"`
+		}
+		if err := cursor.Decode(&row); err != nil {
+			continue
+		}
+
+		code, err := uniqueReferralCode(ctx, users)
+		if err != nil {
+			return err
+		}
+		if _, err := users.UpdateOne(ctx,
+			bson.M{"_id": row.ID},
+			bson.M{"$set": bson.M{"referral_code": code, "updated_at": time.Now().UTC()}},
+		); err != nil {
+			return fmt.Errorf("failed to issue a referral code to %s: %w", row.ID.Hex(), err)
+		}
+		log.Info().Str("user_id", row.ID.Hex()).Str("referral_code", code).Msg("Issued staff referral code")
+	}
+	if err := cursor.Err(); err != nil {
+		return fmt.Errorf("failed to read staff accounts: %w", err)
+	}
+
+	// Codes are looked up on every referred signup, and must stay unique. Sparse, because only
+	// staff hold one. A pre-existing duplicate would fail this — logged rather than fatal, so the
+	// server still starts and the data can be cleaned up by hand.
+	if _, err := users.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "referral_code", Value: 1}},
+		Options: options.Index().SetUnique(true).SetSparse(true),
+	}); err != nil {
+		log.Warn().Err(err).Msg("Could not create the unique index on users.referral_code — check for duplicate codes")
+	}
+
+	return nil
+}
+
+// uniqueReferralCode returns a referral code no user document holds yet.
+func uniqueReferralCode(ctx context.Context, users *mongo.Collection) (string, error) {
+	for attempt := 0; attempt < 10; attempt++ {
+		candidate, err := utils.GenerateReferralCode(6)
+		if err != nil {
+			return "", fmt.Errorf("failed to generate a referral code: %w", err)
+		}
+		count, err := users.CountDocuments(ctx, bson.M{"referral_code": candidate})
+		if err != nil {
+			return "", fmt.Errorf("failed to check referral code uniqueness: %w", err)
+		}
+		if count == 0 {
+			return candidate, nil
+		}
+	}
+	return "", fmt.Errorf("could not generate a unique referral code after 10 attempts")
 }
 
 // legacyAdvisorContact is the dummy number every motor policy used to be stamped with, whatever

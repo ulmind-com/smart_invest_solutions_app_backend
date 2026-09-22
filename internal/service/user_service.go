@@ -149,7 +149,9 @@ func (s *userService) Register(ctx context.Context, req *domain.CreateUserReques
 		return nil, fmt.Errorf("name is required")
 	}
 
-	agencyID, err := resolveAgencyAdminID(ctx, s.userRepo, req.AgencyID)
+	// A typed Agency ID wins; otherwise an advisor's referral code decides the agency, so a client
+	// who was handed only a referral code still lands in that advisor's inbox.
+	agencyID, err := resolveOnboardingAgency(ctx, s.userRepo, req.AgencyID, req.ReferralCode)
 	if err != nil {
 		return nil, err
 	}
@@ -186,23 +188,23 @@ func (s *userService) Register(ctx context.Context, req *domain.CreateUserReques
 			return nil, fmt.Errorf("failed to restart registration: %w", err)
 		}
 
-		recordPendingReferral(ctx, s.referralRepo, s.userRepo, req.ReferralCode, updated.Email)
+		recordPendingReferral(ctx, s.referralRepo, s.userRepo, req.ReferralCode, updated.Email, updated.Name, updated.Phone)
 		s.issueVerificationOTP(ctx, updated)
 		return updated.ToResponse(), nil
 	}
 
-	// Default role is client; account is unverified (IsEmailVerified = false) and pending Admin verification (IsActive = false)
+	// Default role is client; account is unverified (IsEmailVerified = false) and pending Admin
+	// verification (IsActive = false). A client account carries no referral code (referrals are a
+	// staff feature) and no validity date — once approved it stays active indefinitely.
 	user := &domain.User{
-		Name:               name,
-		Email:              emailClean,
-		Password:           string(hashedPassword),
-		Phone:              phone,
-		Role:               domain.RoleClient,
-		IsActive:           false, // Pending Admin verification
-		IsEmailVerified:    false, // Pending OTP verification
-		ReferralCode:       generateUniqueReferralCode(ctx, s.userRepo),
-		AgencyID:           agencyID,
-		AppValidityEndDate: time.Now().UTC().AddDate(1, 0, 0), // Default 1 year validity
+		Name:            name,
+		Email:           emailClean,
+		Password:        string(hashedPassword),
+		Phone:           phone,
+		Role:            domain.RoleClient,
+		IsActive:        false, // Pending Admin verification
+		IsEmailVerified: false, // Pending OTP verification
+		AgencyID:        agencyID,
 	}
 
 	createdUser, err := s.userRepo.Create(ctx, user)
@@ -210,7 +212,7 @@ func (s *userService) Register(ctx context.Context, req *domain.CreateUserReques
 		return nil, err
 	}
 
-	recordPendingReferral(ctx, s.referralRepo, s.userRepo, req.ReferralCode, createdUser.Email)
+	recordPendingReferral(ctx, s.referralRepo, s.userRepo, req.ReferralCode, createdUser.Email, createdUser.Name, createdUser.Phone)
 	s.issueVerificationOTP(ctx, createdUser)
 
 	return createdUser.ToResponse(), nil
@@ -919,7 +921,10 @@ func (s *userService) CreateAdmin(ctx context.Context, req *domain.CreateAdminRe
 
 	expiryDate := req.ExpiryDate
 	newAdmin := &domain.User{
-		Name:            req.Name,
+		Name: req.Name,
+		// Every admin gets a referral code to share: a client signing up with it is attributed to
+		// this admin and filed under their agency.
+		ReferralCode:    generateUniqueReferralCode(ctx, s.userRepo),
 		Email:           utils.NormalizeEmail(req.Email),
 		Phone:           req.Phone,
 		Password:        string(hashedPassword),
@@ -939,7 +944,7 @@ func (s *userService) CreateAdmin(ctx context.Context, req *domain.CreateAdminRe
 	// unlike the fire-and-forget pattern used for high-volume notification emails elsewhere.
 	emailSent := false
 	if s.emailSvc != nil {
-		if sendErr := s.emailSvc.SendAdminCredentialsEmail(ctx, createdAdmin.Email, createdAdmin.Name, adminID, password, pin); sendErr == nil {
+		if sendErr := s.emailSvc.SendAdminCredentialsEmail(ctx, createdAdmin.Email, createdAdmin.Name, adminID, password, pin, createdAdmin.ReferralCode); sendErr == nil {
 			emailSent = true
 		}
 	}
@@ -950,6 +955,7 @@ func (s *userService) CreateAdmin(ctx context.Context, req *domain.CreateAdminRe
 		Email:                createdAdmin.Email,
 		TemporaryPassword:    password,
 		TemporaryPIN:         pin,
+		ReferralCode:         createdAdmin.ReferralCode,
 		CredentialsEmailSent: emailSent,
 	}, nil
 }
@@ -1210,24 +1216,11 @@ func (s *userService) MergeFamilyAccounts(ctx context.Context, requesterID strin
 		result.TicketsMoved = n
 	}
 
+	// Referrals recorded against the retired account (from when clients could refer) follow the
+	// surviving login, so the ledger keeps pointing at a live account.
 	if s.referralRepo != nil {
 		if _, err := s.referralRepo.ReassignReferrer(ctx, secondaryID, primaryID); err != nil {
-			return nil, fmt.Errorf("failed to move referral credits: %w", err)
-		}
-	}
-
-	// The surviving login keeps whichever app validity lasts longer, so referral days earned on the
-	// secondary account aren't lost with it.
-	validityBase := primary.AppValidityEndDate
-	if now := time.Now().UTC(); validityBase.Before(now) {
-		validityBase = now // ExtendValidity counts from today once the current date has lapsed
-	}
-	if secondary.AppValidityEndDate.After(validityBase) {
-		extraDays := int(secondary.AppValidityEndDate.Sub(validityBase).Hours() / 24)
-		if extraDays > 0 {
-			if err := s.userRepo.ExtendValidity(ctx, primaryID, extraDays); err != nil {
-				log.Error().Err(err).Str("primary_user_id", primaryID.Hex()).Msg("failed to carry app validity across merge")
-			}
+			return nil, fmt.Errorf("failed to move referral records: %w", err)
 		}
 	}
 

@@ -33,12 +33,13 @@ type User struct {
 	IsEmailVerified bool          `bson:"is_email_verified" json:"is_email_verified"`
 	AdminID         string        `bson:"admin_id,omitempty" json:"admin_id,omitempty"` // Unique login ID, set only for admin/super_admin accounts
 	PIN             string        `bson:"pin,omitempty" json:"-"`                       // bcrypt-hashed 4-digit PIN, set only for admin/super_admin accounts
-	ReferralCode    string        `bson:"referral_code,omitempty" json:"referral_code,omitempty"`
+	// ReferralCode is the short code a staff member shares so a new client can name them at signup.
+	// Only admin/super_admin accounts hold one — clients don't refer anyone.
+	ReferralCode string `bson:"referral_code,omitempty" json:"referral_code,omitempty"`
 	// AgencyID is the AdminID (e.g. "ADM-7F3K9Q") of the admin whose Agency ID this client applied
 	// with at access-request time. Empty means unassigned — visible only to a super_admin, never to
 	// a plain admin. Never set on admin/super_admin accounts themselves.
 	AgencyID            string     `bson:"agency_id,omitempty" json:"agency_id,omitempty"`
-	AppValidityEndDate  time.Time  `bson:"app_validity_end_date,omitempty" json:"app_validity_end_date,omitempty"`
 	FailedLoginAttempts int        `bson:"failed_login_attempts" json:"-"`
 	LockedUntil         *time.Time `bson:"locked_until,omitempty" json:"-"`
 	// AdminExpiryDate is set only for role=admin accounts (never for super_admin, which never
@@ -65,7 +66,8 @@ type CreateUserRequest struct {
 	// AgencyID is the Admin ID of the agency the client is signing up under (optional). Without it
 	// the signup lands unassigned and only a super admin can review it.
 	AgencyID string `json:"agency_id,omitempty" example:"ADM-7F3K9Q"`
-	// ReferralCode credits the existing client who referred this signup once it is approved.
+	// ReferralCode is the advisor's referral code, if the client was referred by one. When no
+	// AgencyID is given, a valid code also decides which agency the signup belongs to.
 	ReferralCode string `json:"referral_code,omitempty" example:"AB12CD"`
 }
 
@@ -129,41 +131,39 @@ type LoginResponse struct {
 
 // UserResponse represents the response payload for a user (without sensitive data).
 type UserResponse struct {
-	ID                 bson.ObjectID  `json:"id"`
-	Name               string         `json:"name"`
-	Email              string         `json:"email"`
-	Phone              string         `json:"phone,omitempty"`
-	Role               string         `json:"role"`
-	IsActive           bool           `json:"is_active"`
-	IsEmailVerified    bool           `json:"is_email_verified"`
-	AdminID            string         `json:"admin_id,omitempty"`
-	ReferralCode       string         `json:"referral_code,omitempty"`
-	AgencyID           string         `json:"agency_id,omitempty"`
-	AppValidityEndDate time.Time      `json:"app_validity_end_date,omitempty"`
-	AdminExpiryDate    *time.Time     `json:"admin_expiry_date,omitempty"`
-	MergedIntoUserID   *bson.ObjectID `json:"merged_into_user_id,omitempty"`
-	CreatedAt          time.Time      `json:"created_at"`
-	UpdatedAt          time.Time      `json:"updated_at"`
+	ID               bson.ObjectID  `json:"id"`
+	Name             string         `json:"name"`
+	Email            string         `json:"email"`
+	Phone            string         `json:"phone,omitempty"`
+	Role             string         `json:"role"`
+	IsActive         bool           `json:"is_active"`
+	IsEmailVerified  bool           `json:"is_email_verified"`
+	AdminID          string         `json:"admin_id,omitempty"`
+	ReferralCode     string         `json:"referral_code,omitempty"`
+	AgencyID         string         `json:"agency_id,omitempty"`
+	AdminExpiryDate  *time.Time     `json:"admin_expiry_date,omitempty"`
+	MergedIntoUserID *bson.ObjectID `json:"merged_into_user_id,omitempty"`
+	CreatedAt        time.Time      `json:"created_at"`
+	UpdatedAt        time.Time      `json:"updated_at"`
 }
 
 // ToResponse converts a User entity to a UserResponse.
 func (u *User) ToResponse() *UserResponse {
 	return &UserResponse{
-		ID:                 u.ID,
-		Name:               u.Name,
-		Email:              u.Email,
-		Phone:              u.Phone,
-		Role:               u.Role,
-		IsActive:           u.IsActive,
-		IsEmailVerified:    u.IsEmailVerified,
-		AdminID:            u.AdminID,
-		ReferralCode:       u.ReferralCode,
-		AgencyID:           u.AgencyID,
-		AppValidityEndDate: u.AppValidityEndDate,
-		AdminExpiryDate:    u.AdminExpiryDate,
-		MergedIntoUserID:   u.MergedIntoUserID,
-		CreatedAt:          u.CreatedAt,
-		UpdatedAt:          u.UpdatedAt,
+		ID:               u.ID,
+		Name:             u.Name,
+		Email:            u.Email,
+		Phone:            u.Phone,
+		Role:             u.Role,
+		IsActive:         u.IsActive,
+		IsEmailVerified:  u.IsEmailVerified,
+		AdminID:          u.AdminID,
+		ReferralCode:     u.ReferralCode,
+		AgencyID:         u.AgencyID,
+		AdminExpiryDate:  u.AdminExpiryDate,
+		MergedIntoUserID: u.MergedIntoUserID,
+		CreatedAt:        u.CreatedAt,
+		UpdatedAt:        u.UpdatedAt,
 	}
 }
 
@@ -215,12 +215,14 @@ type MergeFamilyAccountsResult struct {
 // The plaintext TemporaryPassword and TemporaryPIN are shown here ONCE for the Super Admin's convenience
 // (e.g. in case the credentials email fails to deliver) — they are never retrievable again afterwards.
 type CreateAdminResponse struct {
-	Admin                *UserResponse `json:"admin"`
-	AdminID              string        `json:"admin_id"`
-	Email                string        `json:"email"`
-	TemporaryPassword    string        `json:"temporary_password"`
-	TemporaryPIN         string        `json:"temporary_pin"`
-	CredentialsEmailSent bool          `json:"credentials_email_sent"`
+	Admin             *UserResponse `json:"admin"`
+	AdminID           string        `json:"admin_id"`
+	Email             string        `json:"email"`
+	TemporaryPassword string        `json:"temporary_password"`
+	TemporaryPIN      string        `json:"temporary_pin"`
+	// ReferralCode is the code this admin shares with prospective clients.
+	ReferralCode         string `json:"referral_code,omitempty"`
+	CredentialsEmailSent bool   `json:"credentials_email_sent"`
 }
 
 // ImpersonateUserRequest defines the payload for a Super Admin to log in on behalf of a target user or admin.
@@ -250,7 +252,6 @@ type UserRepository interface {
 	// only by MergeFamilyAccounts, on the "secondary" side of a merge.
 	MarkMerged(ctx context.Context, id, mergedIntoID bson.ObjectID) error
 	MarkEmailVerified(ctx context.Context, id bson.ObjectID) error
-	ExtendValidity(ctx context.Context, userID bson.ObjectID, extraDays int) error
 	Delete(ctx context.Context, id bson.ObjectID) error
 	RecordFailedLogin(ctx context.Context, id bson.ObjectID) (int, error)
 	ClearFailedLogins(ctx context.Context, id bson.ObjectID) error

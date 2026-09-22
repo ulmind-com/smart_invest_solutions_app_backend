@@ -45,8 +45,11 @@ type LifeInsurance struct {
 	PolicyDetails  PolicyDetails  `bson:"policy_details" json:"policy_details"`
 	PremiumDetails PremiumDetails `bson:"premium_details" json:"premium_details"`
 	IsMapped       bool           `bson:"is_mapped" json:"is_mapped"` // Admin flag: formally mapped to their agency portfolio
-	CreatedAt      time.Time      `bson:"created_at" json:"created_at"`
-	UpdatedAt      time.Time      `bson:"updated_at" json:"updated_at"`
+	// ManagedBy records who maintains this record — see the ManagedBy constants. Stamped at
+	// creation from the caller's role; only agency staff can change it afterwards.
+	ManagedBy string    `bson:"managed_by,omitempty" json:"managed_by,omitempty"`
+	CreatedAt time.Time `bson:"created_at" json:"created_at"`
+	UpdatedAt time.Time `bson:"updated_at" json:"updated_at"`
 }
 
 // LifeInsuranceWithCustomer represents a life insurance policy enriched with the owning
@@ -69,6 +72,7 @@ type LifeInsuranceWithCustomer struct {
 	PolicyDetails  PolicyDetails  `bson:"policy_details" json:"policy_details"`
 	PremiumDetails PremiumDetails `bson:"premium_details" json:"premium_details"`
 	IsMapped       bool           `bson:"is_mapped" json:"is_mapped"`
+	ManagedBy      string         `bson:"managed_by,omitempty" json:"managed_by,omitempty"`
 	CreatedAt      time.Time      `bson:"created_at" json:"created_at"`
 	UpdatedAt      time.Time      `bson:"updated_at" json:"updated_at"`
 }
@@ -125,6 +129,9 @@ type UpdateLifeInsuranceDTO struct {
 	PaymentMode        *string    `json:"payment_mode,omitempty" binding:"omitempty,oneof=Yearly Half-Yearly Quarterly Monthly"`
 
 	IsMapped *bool `json:"is_mapped,omitempty"`
+	// ManagedBy hands a record over to the agency (or back to the client). Agency staff only —
+	// the service clears whatever a client sends.
+	ManagedBy *string `json:"managed_by,omitempty" binding:"omitempty,oneof=client agency"`
 
 	// LifeInsuredName is never client-settable (json:"-") — the service populates it
 	// automatically when FamilyMemberID changes, keeping the cached name in sync.

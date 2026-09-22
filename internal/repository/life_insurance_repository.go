@@ -212,6 +212,7 @@ func (r *lifeInsuranceRepository) GetAll(ctx context.Context, page, limit int64,
 			{Key: "policy_details", Value: 1},
 			{Key: "premium_details", Value: 1},
 			{Key: "is_mapped", Value: 1},
+			{Key: "managed_by", Value: 1},
 			{Key: "created_at", Value: 1},
 			{Key: "updated_at", Value: 1},
 		}}},
@@ -290,6 +291,9 @@ func (r *lifeInsuranceRepository) Update(ctx context.Context, id bson.ObjectID, 
 	}
 	if dto.IsMapped != nil {
 		updateFields["is_mapped"] = *dto.IsMapped
+	}
+	if dto.ManagedBy != nil {
+		updateFields["managed_by"] = domain.NormalizeManagedBy(*dto.ManagedBy)
 	}
 
 	filter := bson.M{"_id": id}

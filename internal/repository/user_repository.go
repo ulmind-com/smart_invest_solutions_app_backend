@@ -339,36 +339,6 @@ func (r *userRepository) FindByReferralCode(ctx context.Context, code string) (*
 	return &user, nil
 }
 
-// ExtendValidity extends the user's AppValidityEndDate by the specified number of extra days.
-func (r *userRepository) ExtendValidity(ctx context.Context, userID bson.ObjectID, extraDays int) error {
-	user, err := r.FindByID(ctx, userID)
-	if err != nil {
-		return err
-	}
-
-	baseDate := time.Now().UTC()
-	if !user.AppValidityEndDate.IsZero() && user.AppValidityEndDate.After(baseDate) {
-		baseDate = user.AppValidityEndDate
-	}
-
-	newValidity := baseDate.AddDate(0, 0, extraDays)
-
-	filter := bson.M{"_id": userID}
-	update := bson.M{
-		"$set": bson.M{
-			"app_validity_end_date": newValidity,
-			"updated_at":            time.Now().UTC(),
-		},
-	}
-
-	_, err = r.collection.UpdateOne(ctx, filter, update)
-	if err != nil {
-		return fmt.Errorf("failed to extend validity for user: %w", err)
-	}
-
-	return nil
-}
-
 // FindExpiringAdmins retrieves role=admin accounts that have an expiry date set at or before the
 // given cutoff — this captures admins already expired as well as those approaching expiry, sorted
 // soonest-first so the most urgent renewals surface first.

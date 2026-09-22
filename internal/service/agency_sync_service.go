@@ -296,7 +296,8 @@ func (s *agencySyncService) LinkImportedPolicy(ctx context.Context, requesterRol
 			NextDueDate:        imported.NextDueDate,
 			PaymentMode:        linkedPaymentMode(imported.Mode),
 		},
-		IsMapped: true,
+		IsMapped:  true,
+		ManagedBy: domain.ManagedByAgency,
 	}
 
 	created, err := s.lifeInsuranceRepo.Create(ctx, policy)

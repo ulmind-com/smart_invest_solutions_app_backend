@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/smart-invest-solutions/backend/internal/domain"
@@ -55,7 +54,9 @@ func (s *accessRequestService) SubmitRequest(ctx context.Context, dto *domain.Cr
 		return nil, fmt.Errorf("email address is required")
 	}
 
-	agencyID, err := s.resolveAgencyID(ctx, dto.AgencyID)
+	// An advisor's referral code also settles which agency the applicant belongs to, so a client
+	// who was given only a referral code still reaches the right admin's inbox.
+	agencyID, err := resolveOnboardingAgency(ctx, s.userRepo, dto.AgencyID, dto.AppliedReferralCode)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +82,7 @@ func (s *accessRequestService) SubmitRequest(ctx context.Context, dto *domain.Cr
 			return nil, fmt.Errorf("failed to update access request: %w", err)
 		}
 		// A resubmission can carry a referral code the first attempt didn't.
-		recordPendingReferral(ctx, s.referralRepo, s.userRepo, dto.AppliedReferralCode, emailClean)
+		recordPendingReferral(ctx, s.referralRepo, s.userRepo, dto.AppliedReferralCode, emailClean, dto.Name, dto.Phone)
 		return updatedReq, nil
 	}
 
@@ -100,8 +101,9 @@ func (s *accessRequestService) SubmitRequest(ctx context.Context, dto *domain.Cr
 		return nil, err
 	}
 
-	// Referral tracking hook: file a Pending lead against the referrer (no-op for a bad code).
-	recordPendingReferral(ctx, s.referralRepo, s.userRepo, dto.AppliedReferralCode, emailClean)
+	// Referral tracking hook: file a Pending referral against the advisor whose code was used
+	// (a no-op for a missing or unknown code).
+	recordPendingReferral(ctx, s.referralRepo, s.userRepo, dto.AppliedReferralCode, emailClean, dto.Name, dto.Phone)
 
 	return createdReq, nil
 }
@@ -173,7 +175,7 @@ func (s *accessRequestService) ApproveRequest(ctx context.Context, requesterRole
 
 	// Atomically claim the approval slot before doing anything else: if this request was already
 	// approved (including by a concurrent call that raced us here), this fails immediately and
-	// nothing below — account creation, PIN issuance, referral reward — ever runs a second time.
+	// nothing below — account creation, PIN issuance, referral attribution — ever runs a second time.
 	if _, err := s.repo.ClaimApproval(ctx, objectID, adminNotes); err != nil {
 		return nil, err
 	}
@@ -197,14 +199,9 @@ func (s *accessRequestService) ApproveRequest(ctx context.Context, requesterRole
 		}()
 	}
 
-	// Referral Reward Hook: Check if a pending referral exists for this email, complete it, and add 30 days validity
-	if s.referralRepo != nil {
-		pendingRef, _ := s.referralRepo.GetPendingByReferredEmail(ctx, accessReq.Email)
-		if pendingRef != nil {
-			_ = s.referralRepo.UpdateStatus(ctx, pendingRef.ID, domain.ReferralStatusCompleted, 30)
-			_ = s.userRepo.ExtendValidity(ctx, pendingRef.ReferrerID, 30)
-		}
-	}
+	// Referral attribution: the admin whose code this client used is now credited with a joined
+	// client. No reward is granted — the record exists so a super admin can see who brought them in.
+	completeReferral(ctx, s.referralRepo, accessReq.Email, userResp)
 
 	return userResp, nil
 }
@@ -298,13 +295,13 @@ func (s *accessRequestService) activateApprovedAccount(ctx context.Context, acce
 		Phone: accessReq.Phone,
 		// PIN only — no Password is set here, since this account never chose one; it signs in
 		// with the emailed PIN via the same interchangeable PIN/Password login check.
-		PIN:                string(hashedPIN),
-		Role:               domain.RoleClient,
-		IsActive:           true,
-		IsEmailVerified:    true,
-		ReferralCode:       generateUniqueReferralCode(ctx, s.userRepo),
-		AgencyID:           accessReq.AppliedAgencyID,
-		AppValidityEndDate: time.Now().UTC().AddDate(1, 0, 0),
+		PIN:             string(hashedPIN),
+		Role:            domain.RoleClient,
+		IsActive:        true,
+		IsEmailVerified: true,
+		// No referral code: referrals are an agency-staff feature, and no validity date either —
+		// a client account, once approved, stays active for good.
+		AgencyID: accessReq.AppliedAgencyID,
 	}
 
 	createdUser, err := s.userRepo.Create(ctx, newUser)
