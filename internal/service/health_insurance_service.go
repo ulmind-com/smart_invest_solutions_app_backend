@@ -235,6 +235,10 @@ func (s *healthInsuranceService) UpdatePolicy(ctx context.Context, requesterRole
 		return nil, err
 	}
 
+	if err := ensureClientMayModify(requesterRole, existing.ManagedBy); err != nil {
+		return nil, err
+	}
+
 	if !isAgencyStaff(requesterRole) {
 		dto.IsMapped = nil
 		// Who manages a record is the agency's call: a client can't hand their own record over,
@@ -285,6 +289,10 @@ func (s *healthInsuranceService) DeletePolicy(ctx context.Context, requesterRole
 	}
 
 	if err := s.checkOwnership(ctx, requesterRole, requesterID, existing.UserID); err != nil {
+		return err
+	}
+
+	if err := ensureClientMayModify(requesterRole, existing.ManagedBy); err != nil {
 		return err
 	}
 

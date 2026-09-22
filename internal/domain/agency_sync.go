@@ -16,6 +16,10 @@ type SyncResultDTO struct {
 	TotalPoliciesFoundInPDF int `json:"total_policies_found_in_pdf"`
 	SuccessfullyUpdatedInDB int `json:"successfully_updated_in_db"`
 	FailedToUpdateInDB      int `json:"failed_to_update_in_db"`
+	// AlreadyCurrent counts matched policies whose schedule the due list would not move forward —
+	// usually a re-upload of the same (or an older) month. They are not failures: without this
+	// number a second upload looks like a broken sync, because nothing gets "updated".
+	AlreadyCurrent int `json:"already_current"`
 	// NewlyImported counts rows that had never been seen in any previous upload — they are now
 	// sitting in the agency's policy inbox waiting to be linked to a client account.
 	NewlyImported int `json:"newly_imported"`

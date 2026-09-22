@@ -236,6 +236,10 @@ func (s *fixedDepositService) UpdateFD(ctx context.Context, requesterRole, reque
 		return nil, err
 	}
 
+	if err := ensureClientMayModify(requesterRole, existing.ManagedBy); err != nil {
+		return nil, err
+	}
+
 	if !isAgencyStaff(requesterRole) {
 		dto.IsMapped = nil
 		// Who manages a record is the agency's call: a client can't hand their own record over,
@@ -296,6 +300,10 @@ func (s *fixedDepositService) DeleteFD(ctx context.Context, requesterRole, reque
 	}
 
 	if err := s.checkOwnership(ctx, requesterRole, requesterID, existing.UserID); err != nil {
+		return err
+	}
+
+	if err := ensureClientMayModify(requesterRole, existing.ManagedBy); err != nil {
 		return err
 	}
 

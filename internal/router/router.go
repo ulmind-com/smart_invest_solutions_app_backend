@@ -144,6 +144,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			users.Use(middleware.RequireAuth(cfg, userRepo))
 
 			users.GET("/me", userHandler.GetProfile)
+			users.GET("/me/advisor", userHandler.GetMyAdvisor)
 			users.PUT("/me", userHandler.UpdateProfile)
 			users.DELETE("/me", userHandler.DeleteMyAccount)
 			users.PUT("/change-password", userHandler.ChangePassword)

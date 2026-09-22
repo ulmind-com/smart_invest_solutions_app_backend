@@ -167,6 +167,16 @@ func (u *User) ToResponse() *UserResponse {
 	}
 }
 
+// AdvisorContactDTO is the agency contact a client sees: the admin whose agency they belong to.
+// The client app names this person on every "managed by advisor" record and on their profile, so
+// "your advisor" stops being an anonymous phrase.
+type AdvisorContactDTO struct {
+	Name     string `json:"name"`
+	Email    string `json:"email,omitempty"`
+	Phone    string `json:"phone,omitempty"`
+	AgencyID string `json:"agency_id,omitempty"`
+}
+
 // CreateAdminRequest represents the payload used by a Super Admin to create a new Admin account.
 // ExpiryDate is mandatory: every admin account created this way has a fixed validity period after
 // which it can no longer log in until a Super Admin renews it (super_admin accounts never expire).
@@ -278,6 +288,9 @@ type UserService interface {
 	// GetSelf returns the caller's own profile — every role may always read their own record, so
 	// this intentionally bypasses the agency-scoping GetByID applies to admin lookups of others.
 	GetSelf(ctx context.Context, id string) (*UserResponse, error)
+	// GetMyAdvisor returns the agency contact for this account, or nil when it belongs to no agency
+	// (or the agency account has since been removed).
+	GetMyAdvisor(ctx context.Context, id string) (*AdvisorContactDTO, error)
 	// GetAll returns a paginated user list, scoped by the caller: a super_admin sees everyone; a
 	// plain admin sees only clients whose AgencyID matches their own AdminID.
 	// search, when non-empty, matches name, email or phone (case-insensitive substring).

@@ -265,6 +265,31 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 	response.Success(c, "Profile retrieved successfully", user)
 }
 
+// GetMyAdvisor returns the agency contact for the signed-in account.
+// @Summary      Get my advisor
+// @Description  The admin whose agency this account belongs to, with their name and contact details. Answers null data when the account has no agency assigned yet.
+// @Tags         Users
+// @Produce      json
+// @Success      200  {object}  response.APIResponse{data=domain.AdvisorContactDTO}  "Advisor retrieved successfully"
+// @Failure      401  {object}  response.APIResponse  "Unauthorized"
+// @Security     BearerAuth
+// @Router       /users/me/advisor [get]
+func (h *UserHandler) GetMyAdvisor(c *gin.Context) {
+	userID, ok := middleware.GetUserID(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	advisor, err := h.userService.GetMyAdvisor(c.Request.Context(), userID)
+	if err != nil {
+		response.Error(c, http.StatusNotFound, err.Error())
+		return
+	}
+
+	response.Success(c, "Advisor retrieved successfully", advisor)
+}
+
 // UpdateProfile handles updating the authenticated user's profile details.
 // @Summary      Update user profile
 // @Description  Updates authenticated user's name and contact phone number. Works for every role (client, advisor, admin, super_admin) — an admin can update their own name/phone the same way. Email is immutable and cannot be modified by anyone through this endpoint.

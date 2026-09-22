@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -177,5 +178,81 @@ func TestManagedByHelpers(t *testing.T) {
 	}
 	if domain.NormalizeManagedBy(domain.ManagedByAgency) != domain.ManagedByAgency {
 		t.Fatal("a valid value must be kept")
+	}
+}
+
+// A record the agency maintains is read-only for the client: the app shows it as "Managed by
+// advisor", so letting the client edit or delete it anyway would desync the agency's book.
+func TestClientCannotChangeAgencyManagedRecord(t *testing.T) {
+	admin := &domain.User{ID: bson.NewObjectID(), Role: domain.RoleAdmin, IsActive: true, AdminID: "ADM-AAAAAA"}
+	client := &domain.User{ID: bson.NewObjectID(), Role: domain.RoleClient, IsActive: true, AgencyID: "ADM-AAAAAA"}
+	member := &domain.FamilyMember{UserID: client.ID, Name: "Self"}
+	userRepo := newFakeUserRepo(admin, client)
+	familyRepo := newFakeFamilyRepo(member)
+	ctx := context.Background()
+
+	policy := &domain.LifeInsurance{
+		ID: bson.NewObjectID(), UserID: client.ID, FamilyMemberID: member.ID,
+		ManagedBy: domain.ManagedByAgency,
+		PolicyDetails: domain.PolicyDetails{
+			Term: 20, PPT: 15,
+			DOC:          time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC),
+			MaturityDate: time.Date(2040, 1, 1, 0, 0, 0, 0, time.UTC),
+		},
+	}
+	repo := &fakeLifeRepo{policies: map[bson.ObjectID]*domain.LifeInsurance{policy.ID: policy}}
+	svc := NewLifeInsuranceService(repo, userRepo, familyRepo)
+
+	plan := "Renamed by the client"
+	_, err := svc.UpdatePolicy(ctx, domain.RoleClient, client.ID.Hex(), policy.ID.Hex(),
+		&domain.UpdateLifeInsuranceDTO{PlanName: &plan})
+	if err == nil || !strings.Contains(err.Error(), "advisor manages this record") {
+		t.Fatalf("a client must not edit an agency-managed policy, got %v", err)
+	}
+
+	if err := svc.DeletePolicy(ctx, domain.RoleClient, client.ID.Hex(), policy.ID.Hex()); err == nil {
+		t.Fatal("a client must not delete an agency-managed policy")
+	}
+
+	// The advisor who maintains it still can.
+	if _, err := svc.UpdatePolicy(ctx, domain.RoleAdmin, admin.ID.Hex(), policy.ID.Hex(),
+		&domain.UpdateLifeInsuranceDTO{PlanName: &plan}); err != nil {
+		t.Fatalf("the agency must still be able to edit its own record: %v", err)
+	}
+
+	// And a client's own record stays theirs to change.
+	policy.ManagedBy = domain.ManagedByClient
+	if _, err := svc.UpdatePolicy(ctx, domain.RoleClient, client.ID.Hex(), policy.ID.Hex(),
+		&domain.UpdateLifeInsuranceDTO{PlanName: &plan}); err != nil {
+		t.Fatalf("a client must still be able to edit their own record: %v", err)
+	}
+}
+
+func TestGetMyAdvisorResolvesTheAgencyAdmin(t *testing.T) {
+	admin := &domain.User{
+		ID: bson.NewObjectID(), Role: domain.RoleAdmin, IsActive: true, AdminID: "ADM-AAAAAA",
+		Name: "Asha Nair", Email: "asha@agency.in", Phone: "9876500000",
+	}
+	assigned := &domain.User{ID: bson.NewObjectID(), Role: domain.RoleClient, IsActive: true, AgencyID: "ADM-AAAAAA"}
+	orphan := &domain.User{ID: bson.NewObjectID(), Role: domain.RoleClient, IsActive: true}
+	ghost := &domain.User{ID: bson.NewObjectID(), Role: domain.RoleClient, IsActive: true, AgencyID: "ADM-GONE00"}
+	repo := newFakeUserRepo(admin, assigned, orphan, ghost)
+	svc := newTestUserService(repo)
+	ctx := context.Background()
+
+	advisor, err := svc.GetMyAdvisor(ctx, assigned.ID.Hex())
+	if err != nil || advisor == nil {
+		t.Fatalf("expected an advisor, got %v (%v)", advisor, err)
+	}
+	if advisor.Name != "Asha Nair" || advisor.Phone != "9876500000" || advisor.AgencyID != "ADM-AAAAAA" {
+		t.Fatalf("unexpected advisor details: %+v", advisor)
+	}
+
+	// No agency, and an agency whose admin no longer exists, both answer "nobody yet" — not an error.
+	for _, user := range []*domain.User{orphan, ghost} {
+		advisor, err := svc.GetMyAdvisor(ctx, user.ID.Hex())
+		if err != nil || advisor != nil {
+			t.Fatalf("expected no advisor without an error, got %v (%v)", advisor, err)
+		}
 	}
 }

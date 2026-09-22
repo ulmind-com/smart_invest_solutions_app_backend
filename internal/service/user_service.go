@@ -501,6 +501,35 @@ func (s *userService) GetSelf(ctx context.Context, id string) (*domain.UserRespo
 	return user.ToResponse(), nil
 }
 
+// GetMyAdvisor resolves the admin behind the caller's Agency ID. It answers nil (not an error) for
+// an unassigned client, so the app can say "no advisor assigned yet" rather than show a failure.
+func (s *userService) GetMyAdvisor(ctx context.Context, id string) (*domain.AdvisorContactDTO, error) {
+	objectID, err := bson.ObjectIDFromHex(id)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user ID format: %w", err)
+	}
+
+	user, err := s.userRepo.FindByID(ctx, objectID)
+	if err != nil || user == nil {
+		return nil, fmt.Errorf("account not found")
+	}
+	if user.AgencyID == "" {
+		return nil, nil
+	}
+
+	advisor, err := s.userRepo.FindByAdminID(ctx, user.AgencyID)
+	if err != nil || advisor == nil {
+		return nil, nil
+	}
+
+	return &domain.AdvisorContactDTO{
+		Name:     advisor.Name,
+		Email:    advisor.Email,
+		Phone:    advisor.Phone,
+		AgencyID: advisor.AdminID,
+	}, nil
+}
+
 // GetAll retrieves a paginated list of users, scoped to the caller: a super_admin sees everyone
 // (any role); a plain admin sees only role=client accounts whose AgencyID matches their own
 // AdminID — clients who registered under a different agency, or no agency at all, never appear.

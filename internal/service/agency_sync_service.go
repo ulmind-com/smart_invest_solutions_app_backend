@@ -168,6 +168,11 @@ func (s *agencySyncService) ProcessLICDueList(ctx context.Context, requesterRole
 			result.FailedPolicies = failedPolicies
 		}
 		result.FailedToUpdateInDB = len(result.FailedPolicies)
+		// Everything matched but neither written nor failed was already up to date — the due list
+		// carried nothing newer than what the policy already had.
+		if current := len(matchedRecords) - result.SuccessfullyUpdatedInDB - result.FailedToUpdateInDB; current > 0 {
+			result.AlreadyCurrent = current
+		}
 	}
 
 	// Step 3: the running follow-up figure — how much of the book still has no client account.

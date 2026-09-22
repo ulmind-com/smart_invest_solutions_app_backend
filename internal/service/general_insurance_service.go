@@ -167,6 +167,10 @@ func (s *generalInsuranceService) UpdateInsurance(ctx context.Context, requester
 		}
 		dto.DateOfExpiry = &expiry
 	}
+	if err := ensureClientMayModify(requesterRole, existing.ManagedBy); err != nil {
+		return nil, err
+	}
+
 	if !isAgencyStaff(requesterRole) {
 		dto.ManagedBy = nil
 	}
@@ -195,6 +199,10 @@ func (s *generalInsuranceService) DeleteInsurance(ctx context.Context, requester
 	}
 
 	if err := s.checkOwnership(ctx, requesterRole, requesterID, existing.UserID); err != nil {
+		return err
+	}
+
+	if err := ensureClientMayModify(requesterRole, existing.ManagedBy); err != nil {
 		return err
 	}
 

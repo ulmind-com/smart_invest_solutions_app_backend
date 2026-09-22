@@ -132,6 +132,19 @@ func generateUniqueReferralCode(ctx context.Context, userRepo domain.UserReposit
 	return "REF" + strings.ToUpper(strconv.FormatInt(time.Now().UnixNano(), 36))
 }
 
+// ensureClientMayModify refuses a client's edit or delete of a record their agency maintains.
+// The client app shows those as "Managed by advisor"; letting the client change or remove one
+// anyway would silently desync the agency's book from what the client sees.
+func ensureClientMayModify(requesterRole, managedBy string) error {
+	if isAgencyStaff(requesterRole) {
+		return nil
+	}
+	if domain.NormalizeManagedBy(managedBy) == domain.ManagedByAgency {
+		return fmt.Errorf("your advisor manages this record — ask them to update or remove it")
+	}
+	return nil
+}
+
 // isAgencyStaff reports whether role may set agency-only flags such as is_mapped.
 func isAgencyStaff(role string) bool {
 	return role == domain.RoleAdmin || role == domain.RoleSuperAdmin
