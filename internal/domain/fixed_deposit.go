@@ -11,22 +11,25 @@ import (
 // MIS, SBI Tax Saver) owned by a client (UserID) and mapped to a specific family member as the
 // 1st Holder (FamilyMemberID).
 type FixedDeposit struct {
-	ID               bson.ObjectID `bson:"_id,omitempty" json:"id"`
-	UserID           bson.ObjectID `bson:"user_id" json:"user_id"`
-	FamilyMemberID   bson.ObjectID `bson:"family_member_id" json:"family_member_id"` // 1st Holder
-	FDNumber         string        `bson:"fd_number" json:"fd_number"`
-	FDName           string        `bson:"fd_name" json:"fd_name"`
-	CompanyName      string        `bson:"company_name" json:"company_name"` // Bank / Institution
-	PrincipalAmount  float64       `bson:"principal_amount" json:"principal_amount"`
-	MaturityAmount   float64       `bson:"maturity_amount" json:"maturity_amount"`
-	Term             int           `bson:"term_months" json:"term_months"` // Duration in months
-	OpeningDate      time.Time     `bson:"opening_date" json:"opening_date"`
-	MaturityDate     time.Time     `bson:"maturity_date" json:"maturity_date"`
-	NomineeName      string        `bson:"nominee_name" json:"nominee_name"`
-	SecondHolderName string        `bson:"second_holder_name,omitempty" json:"second_holder_name,omitempty"`
-	AccountType      string        `bson:"account_type" json:"account_type"`
-	Address          string        `bson:"address" json:"address"`     // Branch / Post office address
-	IsMapped         bool          `bson:"is_mapped" json:"is_mapped"` // Admin tracking flag — admin/super_admin only can change on update
+	ID              bson.ObjectID `bson:"_id,omitempty" json:"id"`
+	UserID          bson.ObjectID `bson:"user_id" json:"user_id"`
+	FamilyMemberID  bson.ObjectID `bson:"family_member_id" json:"family_member_id"` // 1st Holder
+	FDNumber        string        `bson:"fd_number" json:"fd_number"`
+	FDName          string        `bson:"fd_name" json:"fd_name"`
+	CompanyName     string        `bson:"company_name" json:"company_name"` // Bank / Institution
+	PrincipalAmount float64       `bson:"principal_amount" json:"principal_amount"`
+	MaturityAmount  float64       `bson:"maturity_amount" json:"maturity_amount"`
+	// MonthlyIncome is what a monthly-income scheme pays out each month (post office MIS). Zero for
+	// an ordinary deposit, where the whole return lands at maturity.
+	MonthlyIncome    float64   `bson:"monthly_income,omitempty" json:"monthly_income,omitempty"`
+	Term             int       `bson:"term_months" json:"term_months"` // Duration in months
+	OpeningDate      time.Time `bson:"opening_date" json:"opening_date"`
+	MaturityDate     time.Time `bson:"maturity_date" json:"maturity_date"`
+	NomineeName      string    `bson:"nominee_name" json:"nominee_name"`
+	SecondHolderName string    `bson:"second_holder_name,omitempty" json:"second_holder_name,omitempty"`
+	AccountType      string    `bson:"account_type" json:"account_type"`
+	Address          string    `bson:"address" json:"address"`     // Branch / Post office address
+	IsMapped         bool      `bson:"is_mapped" json:"is_mapped"` // Admin tracking flag — admin/super_admin only can change on update
 	// ManagedBy records who maintains this record — see the ManagedBy constants. Stamped at
 	// creation from the caller's role; only agency staff can change it afterwards.
 	ManagedBy string    `bson:"managed_by,omitempty" json:"managed_by,omitempty"`
@@ -50,6 +53,7 @@ type FixedDepositWithCustomer struct {
 	CompanyName      string    `bson:"company_name" json:"company_name"`
 	PrincipalAmount  float64   `bson:"principal_amount" json:"principal_amount"`
 	MaturityAmount   float64   `bson:"maturity_amount" json:"maturity_amount"`
+	MonthlyIncome    float64   `bson:"monthly_income,omitempty" json:"monthly_income,omitempty"`
 	Term             int       `bson:"term_months" json:"term_months"`
 	OpeningDate      time.Time `bson:"opening_date" json:"opening_date"`
 	MaturityDate     time.Time `bson:"maturity_date" json:"maturity_date"`
@@ -128,6 +132,12 @@ type FixedDepositRepository interface {
 	// ReassignOwner moves every FD owned by fromUserID to toUserID — used by
 	// MergeFamilyAccounts — and returns how many records were moved.
 	ReassignOwner(ctx context.Context, fromUserID, toUserID bson.ObjectID) (int64, error)
+	// GetExistingFDNumbers reports which of the given account numbers a client of this agency
+	// already holds — the postal sync uses it to tell "refresh this" from "park it in the inbox".
+	GetExistingFDNumbers(ctx context.Context, fdNumbers []string, agencyID string) (map[string]bool, error)
+	// BulkUpdateFromPostalSync refreshes the money and dates on deposits the report covers, for
+	// clients of this agency only.
+	BulkUpdateFromPostalSync(ctx context.Context, records []PostalDepositUpdate, agencyID string) (modifiedCount int64, failed []FailedSyncDeposit, err error)
 	// CountByFamilyMemberID counts records filed against a family member — a member who still has
 	// policies or deposits can't be deleted, or those records would point at nobody.
 	CountByFamilyMemberID(ctx context.Context, familyMemberID bson.ObjectID) (int64, error)
@@ -142,8 +152,22 @@ type FixedDepositService interface {
 	// Deposit list (used by the client-detail "Holdings" view) — a plain admin may only target a
 	// client under their own agency.
 	GetFDsByUserIDAdmin(ctx context.Context, requesterRole, requesterID, targetUserIDStr string) (*FixedDepositListResponse, error)
-	GetAllFDs(ctx context.Context, requesterRole, requesterID string, page, limit int64, isMapped *bool) ([]*FixedDepositWithCustomer, int64, error)
+	// GetAllFDs lists the agency's deposits. agencyID is honoured only for a super_admin — see
+	// LifeInsuranceService.GetAllPolicies for the exact rule.
+	GetAllFDs(ctx context.Context, requesterRole, requesterID string, page, limit int64, isMapped *bool, agencyID string) ([]*FixedDepositWithCustomer, int64, error)
 	UpdateFD(ctx context.Context, requesterRole, requesterID, idStr string, dto *UpdateFixedDepositDTO) (*FixedDeposit, error)
 	DeleteFD(ctx context.Context, requesterRole, requesterID, idStr string) error
 	DeleteAllByUserID(ctx context.Context, userIDStr string) error
+}
+
+// PostalDepositUpdate is the slice of a report row that may refresh a deposit already on file. The
+// client's own naming, nominee and address are never touched — only the figures the post office
+// report is authoritative about.
+type PostalDepositUpdate struct {
+	FDNumber        string
+	PrincipalAmount float64
+	MaturityAmount  float64
+	MonthlyIncome   float64
+	MaturityDate    time.Time
+	TermMonths      int
 }

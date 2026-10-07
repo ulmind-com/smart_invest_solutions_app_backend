@@ -2,6 +2,7 @@ package router
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/smart-invest-solutions/backend/internal/config"
@@ -68,12 +69,17 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	documentRepo := repository.NewDocumentRepository(db.Database)
 	lifeInsuranceRepo := repository.NewLifeInsuranceRepository(db.Database)
 	importedPolicyRepo := repository.NewImportedPolicyRepository(db.Database)
+	importedDepositRepo := repository.NewImportedDepositRepository(db.Database)
 	fixedDepositRepo := repository.NewFixedDepositRepository(db.Database)
 	healthInsuranceRepo := repository.NewHealthInsuranceRepository(db.Database)
 	supportTicketRepo := repository.NewSupportTicketRepository(db.Database)
 	productRepo := repository.NewProductRepository(db.Database)
 	calculatorRepo := repository.NewCalculatorSettingsRepository(db.Database)
 	referralRepo := repository.NewReferralRepository(db.Database)
+	clientMapRepo := repository.NewClientMapRepository(db.Database)
+	productAccessRepo := repository.NewClientProductAccessRepository(db.Database)
+	renewalRepo := repository.NewRenewalRepository(db.Database)
+	announcementRepo := repository.NewAnnouncementRepository(db.Database)
 	emailVerifRepo := repository.NewEmailVerificationRepository(db.Database)
 
 	// Initialize Services
@@ -88,6 +94,11 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	}); ok {
 		setter.SetReferralRepository(referralRepo)
 	}
+	if setter, ok := userSvcConcrete.(interface {
+		SetProductAccessRepository(domain.ClientProductAccessRepository)
+	}); ok {
+		setter.SetProductAccessRepository(productAccessRepo)
+	}
 	userService := userSvcConcrete
 
 	accessReqService := service.NewAccessRequestService(accessReqRepo, userRepo, userService, emailSvc, referralRepo)
@@ -100,12 +111,18 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	fixedDepositService := service.NewFixedDepositService(fixedDepositRepo, userRepo, familyMemberRepo)
 	healthInsuranceService := service.NewHealthInsuranceService(healthInsuranceRepo, userRepo, familyMemberRepo)
 	supportTicketService := service.NewSupportTicketService(supportTicketRepo, userRepo)
-	productService := service.NewProductService(productRepo, storageSvc)
+	// The catalog is platform-wide; this is what makes one client's Products tab differ from
+	// another's, so the product service cannot be built without it.
+	productAccessService := service.NewClientProductAccessService(productAccessRepo, userRepo, productRepo)
+	productService := service.NewProductService(productRepo, storageSvc, productAccessService, productAccessRepo)
 	dashboardService := service.NewDashboardService(userRepo, familyMemberRepo, lifeInsuranceRepo, healthInsuranceRepo, generalInsuranceRepo, fixedDepositRepo, accessReqRepo)
 	reportService := service.NewReportService(userRepo, familyMemberRepo, lifeInsuranceRepo, healthInsuranceRepo, generalInsuranceRepo, fixedDepositRepo)
-	agencySyncService := service.NewAgencySyncService(lifeInsuranceRepo, importedPolicyRepo, familyMemberRepo, userRepo)
+	agencySyncService := service.NewAgencySyncService(lifeInsuranceRepo, importedPolicyRepo, fixedDepositRepo, importedDepositRepo, familyMemberRepo, userRepo)
 	calculatorService := service.NewCalculatorService(calculatorRepo)
 	referralService := service.NewReferralService(referralRepo, userRepo)
+	clientMapService := service.NewClientMapService(clientMapRepo, userRepo)
+	renewalService := service.NewRenewalService(renewalRepo, userRepo)
+	announcementService := service.NewAnnouncementService(announcementRepo, userRepo, storageSvc)
 
 	// Initialize Handlers
 	userHandler := handler.NewUserHandler(userService, passResetService)
@@ -124,6 +141,10 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	agencySyncHandler := handler.NewAgencySyncHandler(agencySyncService)
 	calculatorHandler := handler.NewCalculatorHandler(calculatorService)
 	referralHandler := handler.NewReferralHandler(referralService)
+	clientMapHandler := handler.NewClientMapHandler(clientMapService)
+	renewalHandler := handler.NewRenewalHandler(renewalService)
+	announcementHandler := handler.NewAnnouncementHandler(announcementService)
+	productAccessHandler := handler.NewClientProductAccessHandler(productAccessService)
 
 	// API v1 routes
 	v1 := router.Group("/api/v1")
@@ -136,7 +157,13 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			users.POST("/login", userHandler.Login)
 			users.POST("/verify-email-otp", emailVerifHandler.VerifyEmailOTP)
 			users.POST("/resend-email-otp", emailVerifHandler.ResendEmailOTP)
-			users.POST("/forgot-password", userHandler.ForgotPassword)
+			// Rate limited per IP: this endpoint tells the caller whether an address is registered,
+			// which is deliberate (see domain.UnknownAccountError) but must not be usable to test
+			// addresses in bulk. Six a minute is far more than a person resetting their own password
+			// needs, and far less than enumeration needs to be worth doing.
+			users.POST("/forgot-password",
+				middleware.RateLimit(6, time.Minute),
+				userHandler.ForgotPassword)
 			users.POST("/verify-otp", userHandler.VerifyOTP)
 			users.POST("/reset-password", userHandler.ResetPassword)
 
@@ -159,6 +186,48 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 				adminOnly.GET("/:id", userHandler.GetByID)
 				adminOnly.PUT("/:id", userHandler.Update)
 				adminOnly.DELETE("/:id", userHandler.Delete)
+				// Which catalog products this one client sees. Hangs off the client rather than off
+				// /products because it is a property of the client, not of a product.
+				adminOnly.GET("/:id/product-access", productAccessHandler.Get)
+				adminOnly.PUT("/:id/product-access", productAccessHandler.Set)
+			}
+		}
+
+		// Client map — the agency's client/policy table, with the admin behind each client and
+		// whether that client is actually on the app. Its own group rather than a path under
+		// /users, which is a per-account resource: this is one read-only cross-account view.
+		clientMap := v1.Group("/client-map")
+		{
+			clientMap.Use(middleware.RequireAuth(cfg, userRepo))
+			clientMap.Use(middleware.RequireRole("admin"))
+			clientMap.GET("", clientMapHandler.GetClientMap)
+		}
+
+		// The renewal book — what is due and when, across every instrument, with the client and the
+		// admin behind each row. Read-only, and agency-scoped the same way the master lists are.
+		renewals := v1.Group("/renewals")
+		{
+			renewals.Use(middleware.RequireAuth(cfg, userRepo))
+			renewals.Use(middleware.RequireRole("admin"))
+			renewals.GET("", renewalHandler.GetRenewals)
+		}
+
+		// Screen banners. Reading what belongs on your own screen is open to every signed-in role —
+		// the audience is resolved from the caller's role, not from the request — while curating them
+		// is platform-wide and therefore super_admin only.
+		announcements := v1.Group("/announcements")
+		{
+			announcements.Use(middleware.RequireAuth(cfg, userRepo))
+
+			announcements.GET("", announcementHandler.GetMine)
+
+			superAdminAnnouncements := announcements.Group("")
+			superAdminAnnouncements.Use(middleware.RequireRole(domain.RoleSuperAdmin))
+			{
+				superAdminAnnouncements.GET("/all", announcementHandler.GetAll)
+				superAdminAnnouncements.POST("", announcementHandler.Create)
+				superAdminAnnouncements.PUT("/:id", announcementHandler.Update)
+				superAdminAnnouncements.DELETE("/:id", announcementHandler.Delete)
 			}
 		}
 
@@ -175,6 +244,9 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			{
 				protectedAdmins.POST("", userHandler.CreateAdmin)
 				protectedAdmins.GET("", userHandler.GetAllAdmins)
+				// Feeds the "generate" button on the create-admin form. A static segment beside
+				// /:id/... routes, which Gin resolves in favour of the static one.
+				protectedAdmins.GET("/next-id", userHandler.SuggestAdminID)
 				protectedAdmins.DELETE("/:id", userHandler.DeleteAdmin)
 				protectedAdmins.POST("/impersonate", userHandler.ImpersonateUser)
 				protectedAdmins.GET("/expiring", userHandler.ListExpiringAdmins)
@@ -399,10 +471,18 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			agency.POST("/sync/lic-due-list", agencySyncHandler.ProcessLICDueList)
 
 			// Policy inbox — every row imported from a due list, and the action that attaches one
-			// to a client account. Super Admin is rejected inside each handler, same as the upload.
+			// to a client account. Both roles reach these: an admin works their own book, a super
+			// admin names the agency's book they are working on via `agency_id`.
 			agency.GET("/imported-policies", agencySyncHandler.ListImportedPolicies)
 			agency.POST("/imported-policies/:id/link", agencySyncHandler.LinkImportedPolicy)
 			agency.DELETE("/imported-policies/:id", agencySyncHandler.DeleteImportedPolicy)
+
+			// Deposit side of the same idea: a Post Office report fills the deposit inbox, and
+			// linking a row creates the client's Fixed Deposit record.
+			agency.POST("/sync/postal-report", agencySyncHandler.ProcessPostalReport)
+			agency.GET("/imported-deposits", agencySyncHandler.ListImportedDeposits)
+			agency.POST("/imported-deposits/:id/link", agencySyncHandler.LinkImportedDeposit)
+			agency.DELETE("/imported-deposits/:id", agencySyncHandler.DeleteImportedDeposit)
 		}
 
 		// Financial Calculators routes — SIP, Lumpsum, and FD calculators with Admin rate settings

@@ -256,3 +256,72 @@ func TestGetMyAdvisorResolvesTheAgencyAdmin(t *testing.T) {
 		}
 	}
 }
+
+type fakeGeneralRepo struct {
+	domain.GeneralInsuranceRepository
+	created *domain.GeneralInsurance
+}
+
+func (r *fakeGeneralRepo) Create(_ context.Context, policy *domain.GeneralInsurance) (*domain.GeneralInsurance, error) {
+	policy.ID = bson.NewObjectID()
+	r.created = policy
+	return policy, nil
+}
+
+// An agency files motor cover for its clients too, so an admin can record one on a client's behalf
+// — and the advisor details come from that client's agency, not the admin's own account.
+func TestAdminCanFileMotorPolicyForTheirClient(t *testing.T) {
+	admin := &domain.User{
+		ID: bson.NewObjectID(), Role: domain.RoleAdmin, IsActive: true, AdminID: "ADM-AAAAAA",
+		Name: "Asha Nair", Phone: "9876500000",
+	}
+	client := &domain.User{ID: bson.NewObjectID(), Role: domain.RoleClient, IsActive: true, AgencyID: "ADM-AAAAAA"}
+	outsider := &domain.User{ID: bson.NewObjectID(), Role: domain.RoleClient, IsActive: true, AgencyID: "ADM-OTHER0"}
+	userRepo := newFakeUserRepo(admin, client, outsider)
+	ctx := context.Background()
+
+	dto := func(userID string) *domain.CreateGeneralInsuranceDTO {
+		return &domain.CreateGeneralInsuranceDTO{
+			UserID: userID, VehicleNo: "wb 01 ab 1234", PolicyNo: "MOT-1", CompanyName: "Bajaj",
+			DateOfExpiry: "2027-03-31",
+		}
+	}
+
+	repo := &fakeGeneralRepo{}
+	svc := NewGeneralInsuranceService(repo, userRepo)
+
+	created, err := svc.AddInsurance(ctx, domain.RoleAdmin, admin.ID.Hex(), dto(client.ID.Hex()))
+	if err != nil {
+		t.Fatalf("an admin should be able to file a motor policy for their client: %v", err)
+	}
+	if created.UserID != client.ID {
+		t.Fatalf("policy filed under the wrong account: %+v", created)
+	}
+	if created.VehicleNo != "WB 01 AB 1234" {
+		t.Fatalf("vehicle number should be normalised, got %q", created.VehicleNo)
+	}
+	if created.ManagedBy != domain.ManagedByAgency {
+		t.Fatalf("a policy filed by the agency is agency-managed, got %q", created.ManagedBy)
+	}
+	if created.AdvisorName != "Asha Nair" || created.AdvisorContact != "9876500000" {
+		t.Fatalf("advisor should default to the client's agency admin: %+v", created)
+	}
+
+	// A client of another agency is out of reach.
+	if _, err := svc.AddInsurance(ctx, domain.RoleAdmin, admin.ID.Hex(), dto(outsider.ID.Hex())); err == nil {
+		t.Fatal("a plain admin must not file a policy for another agency's client")
+	}
+
+	// And a client sending a user_id still writes only to their own portfolio.
+	ownRepo := &fakeGeneralRepo{}
+	ownSvc := NewGeneralInsuranceService(ownRepo, userRepo)
+	if _, err := ownSvc.AddInsurance(ctx, domain.RoleClient, client.ID.Hex(), dto(outsider.ID.Hex())); err != nil {
+		t.Fatalf("a client filing their own motor policy should succeed: %v", err)
+	}
+	if ownRepo.created.UserID != client.ID {
+		t.Fatal("a client's user_id must be ignored — the record is theirs")
+	}
+	if ownRepo.created.ManagedBy != domain.ManagedByClient {
+		t.Fatalf("a client's own record is self-managed, got %q", ownRepo.created.ManagedBy)
+	}
+}

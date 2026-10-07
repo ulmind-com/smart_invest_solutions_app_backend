@@ -62,6 +62,32 @@ func resolveCallerAgencyID(ctx context.Context, userRepo domain.UserRepository, 
 	return caller.AdminID
 }
 
+// resolveListingAgencyID decides which agency an agency-scoped *listing* should show.
+//
+// A plain admin always gets their own agency, whatever the request asked for — their scope is not
+// theirs to widen. A super_admin gets whatever they asked for: one agency's Agency ID, the sentinel
+// domain.ClientMapAgencyUnassigned for records whose owner belongs to no agency, or "" for the whole
+// platform. Any other role gets a filter that matches nothing rather than everything.
+//
+// The second return value reports whether the caller is allowed to see anything at all, so callers
+// can fail closed instead of having to re-derive the rule.
+func resolveListingAgencyID(ctx context.Context, userRepo domain.UserRepository, requesterRole, requesterID, requestedAgencyID string) (string, bool) {
+	switch requesterRole {
+	case domain.RoleSuperAdmin:
+		return strings.TrimSpace(requestedAgencyID), true
+	case domain.RoleAdmin:
+		own := resolveCallerAgencyID(ctx, userRepo, requesterRole, requesterID)
+		if own == "" {
+			// Fail closed: an admin whose own agency can't be resolved must never fall through to
+			// the unfiltered platform-wide view.
+			return "", false
+		}
+		return own, true
+	default:
+		return "", false
+	}
+}
+
 // canAccessAgencyScopedRecord reports whether a caller may view/act on a record tied to
 // recordAgencyID. A super_admin always can. A plain admin can only when it matches their own
 // agency — an unassigned record (recordAgencyID == "") is visible only to a super_admin.
@@ -93,6 +119,24 @@ func checkMergedAccount(user *domain.User) error {
 	return nil
 }
 
+// recordSuccessfulLogin stamps the account as having signed in — the platform's only evidence of
+// who actually has the app (surfaced on the client map). Stamping it is bookkeeping, never a reason
+// to fail a sign-in that has already been authorized, so an error is logged and swallowed.
+//
+// Called from the two real sign-in paths only. ImpersonateUser deliberately does not call it: a
+// super_admin looking into a client's account must not make a dormant client look active.
+func (s *userService) recordSuccessfulLogin(ctx context.Context, user *domain.User) {
+	if err := s.userRepo.RecordLogin(ctx, user.ID); err != nil {
+		log.Warn().Err(err).Str("user_id", user.ID.Hex()).Msg("Failed to record sign-in timestamp")
+		return
+	}
+	// Keep the response consistent with what was just written, so the app shows the right
+	// "last seen" immediately instead of the previous session's value.
+	now := time.Now().UTC()
+	user.LastLoginAt = &now
+	user.LoginCount++
+}
+
 // userService implements domain.UserService.
 type userService struct {
 	userRepo             domain.UserRepository
@@ -108,6 +152,7 @@ type userService struct {
 	accessReqRepo        domain.AccessRequestRepository
 	verifRepo            domain.EmailVerificationRepository
 	referralRepo         domain.ReferralRepository
+	productAccessRepo    domain.ClientProductAccessRepository
 	storageSvc           StorageService
 }
 
@@ -140,6 +185,12 @@ func (s *userService) SetReferralRepository(referralRepo domain.ReferralReposito
 	s.referralRepo = referralRepo
 }
 
+// SetProductAccessRepository wires the per-client catalog overrides, so an account that goes away
+// (deleted, or retired by a family merge) doesn't leave a restriction behind pointing at nobody.
+func (s *userService) SetProductAccessRepository(productAccessRepo domain.ClientProductAccessRepository) {
+	s.productAccessRepo = productAccessRepo
+}
+
 // Register creates a new user with a hashed password, setting IsEmailVerified to false and sending a 6-digit OTP email.
 func (s *userService) Register(ctx context.Context, req *domain.CreateUserRequest) (*domain.UserResponse, error) {
 	emailClean := utils.NormalizeEmail(req.Email)
@@ -151,7 +202,9 @@ func (s *userService) Register(ctx context.Context, req *domain.CreateUserReques
 
 	// A typed Agency ID wins; otherwise an advisor's referral code decides the agency, so a client
 	// who was handed only a referral code still lands in that advisor's inbox.
-	agencyID, err := resolveOnboardingAgency(ctx, s.userRepo, req.AgencyID, req.ReferralCode)
+	// The Agency ID is the one code an agency shares — it decides who manages this client and
+	// credits that admin with bringing them in. An invalid one is refused rather than ignored.
+	agencyID, err := resolveAgencyAdminID(ctx, s.userRepo, req.AgencyID)
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +241,7 @@ func (s *userService) Register(ctx context.Context, req *domain.CreateUserReques
 			return nil, fmt.Errorf("failed to restart registration: %w", err)
 		}
 
-		recordPendingReferral(ctx, s.referralRepo, s.userRepo, req.ReferralCode, updated.Email, updated.Name, updated.Phone)
+		recordPendingReferral(ctx, s.referralRepo, s.userRepo, agencyID, updated.Email, updated.Name, updated.Phone)
 		s.issueVerificationOTP(ctx, updated)
 		return updated.ToResponse(), nil
 	}
@@ -212,7 +265,7 @@ func (s *userService) Register(ctx context.Context, req *domain.CreateUserReques
 		return nil, err
 	}
 
-	recordPendingReferral(ctx, s.referralRepo, s.userRepo, req.ReferralCode, createdUser.Email, createdUser.Name, createdUser.Phone)
+	recordPendingReferral(ctx, s.referralRepo, s.userRepo, agencyID, createdUser.Email, createdUser.Name, createdUser.Phone)
 	s.issueVerificationOTP(ctx, createdUser)
 
 	return createdUser.ToResponse(), nil
@@ -325,6 +378,8 @@ func (s *userService) Login(ctx context.Context, req *domain.UserLoginRequest) (
 		return nil, err
 	}
 
+	s.recordSuccessfulLogin(ctx, user)
+
 	return s.issueToken(user)
 }
 
@@ -374,6 +429,8 @@ func (s *userService) AdminLogin(ctx context.Context, req *domain.AdminLoginRequ
 	if err := checkAdminExpiry(user); err != nil {
 		return nil, err
 	}
+
+	s.recordSuccessfulLogin(ctx, user)
 
 	return s.issueToken(user)
 }
@@ -522,12 +579,23 @@ func (s *userService) GetMyAdvisor(ctx context.Context, id string) (*domain.Advi
 		return nil, nil
 	}
 
-	return &domain.AdvisorContactDTO{
+	contact := &domain.AdvisorContactDTO{
 		Name:     advisor.Name,
 		Email:    advisor.Email,
 		Phone:    advisor.Phone,
 		AgencyID: advisor.AdminID,
-	}, nil
+	}
+
+	// Reuses the same rule login and the per-request account guard apply, so the client is never told
+	// "your advisor is active" about somebody the platform is already refusing. A super_admin agency
+	// never expires and carries no date.
+	if advisor.Role == domain.RoleAdmin && advisor.AdminExpiryDate != nil {
+		expiresAt := *advisor.AdminExpiryDate
+		contact.AccessExpiresAt = &expiresAt
+		contact.AccessExpired = expiresAt.Before(time.Now().UTC())
+	}
+
+	return contact, nil
 }
 
 // GetAll retrieves a paginated list of users, scoped to the caller: a super_admin sees everyone
@@ -852,6 +920,13 @@ func (s *userService) cascadeWipeUserData(ctx context.Context, user *domain.User
 		_ = s.supportTicketRepo.DeleteAllByUserID(ctx, objectID)
 	}
 
+	// The account's catalog restriction. Harmless to read past, but a new account could eventually
+	// be created with a reused ObjectID only if Mongo reissued one — the real reason is hygiene:
+	// nothing should outlive the account it describes.
+	if s.productAccessRepo != nil {
+		_ = s.productAccessRepo.DeleteByUserID(ctx, objectID)
+	}
+
 	// Onboarding records are keyed by email. Leaving an "approved" access request behind would
 	// block this person from ever applying again ("already approved, please login").
 	if s.accessReqRepo != nil && user.Email != "" {
@@ -900,6 +975,48 @@ func (s *userService) DeleteMyAccount(ctx context.Context, userIDStr string) err
 	return nil
 }
 
+// resolveNewAdminID settles the Admin ID a new admin account will carry.
+//
+// A Super Admin may name it — the ID is also the Agency ID clients type, so a memorable one
+// ("ADM-ASHA01") is worth more than a random one. An empty value means "generate one". Either way the
+// result is checked for uniqueness here *and* guarded by the unique index on the collection, because
+// two Super Admins creating accounts at the same moment is exactly the case a pre-check can't settle.
+//
+// Chosen at creation only: every client of this agency stores this string as their own agency_id, so
+// changing it later would quietly orphan them.
+func (s *userService) resolveNewAdminID(ctx context.Context, requested string) (string, error) {
+	if chosen, err := normalizeAdminID(requested); err != nil {
+		return "", err
+	} else if chosen != "" {
+		if taken, _ := s.userRepo.FindByAdminID(ctx, chosen); taken != nil {
+			return "", fmt.Errorf("Admin ID %s is already in use — pick another", chosen)
+		}
+		return chosen, nil
+	}
+
+	// Generated: astronomically unlikely to collide, but retried defensively rather than trusted.
+	for attempt := 0; attempt < 5; attempt++ {
+		candidate, genErr := utils.GenerateAdminID()
+		if genErr != nil {
+			return "", fmt.Errorf("failed to generate admin ID: %w", genErr)
+		}
+		if taken, _ := s.userRepo.FindByAdminID(ctx, candidate); taken == nil {
+			return candidate, nil
+		}
+	}
+	return "", fmt.Errorf("failed to generate a unique admin ID, please retry")
+}
+
+// SuggestAdminID hands the create-admin form a generated ID that is free right now, so the Super
+// Admin sees it before saving. It reserves nothing: the check that counts runs at creation.
+func (s *userService) SuggestAdminID(ctx context.Context) (*domain.SuggestedAdminIDDTO, error) {
+	adminID, err := s.resolveNewAdminID(ctx, "")
+	if err != nil {
+		return nil, err
+	}
+	return &domain.SuggestedAdminIDDTO{AdminID: adminID}, nil
+}
+
 // CreateAdmin creates a new Admin account (Super Admin only, enforced at the router level). It
 // generates a unique Admin ID, a random password, and a 4-digit PIN, then emails the credentials
 // to the new admin. The account is immediately active since a super_admin has already vetted it.
@@ -913,20 +1030,9 @@ func (s *userService) CreateAdmin(ctx context.Context, req *domain.CreateAdminRe
 		return nil, fmt.Errorf("a user with email %s already exists", req.Email)
 	}
 
-	// Generate a unique Admin ID (astronomically unlikely to collide, but retry defensively)
-	var adminID string
-	for attempt := 0; attempt < 5; attempt++ {
-		candidate, genErr := utils.GenerateAdminID()
-		if genErr != nil {
-			return nil, fmt.Errorf("failed to generate admin ID: %w", genErr)
-		}
-		if existingByID, _ := s.userRepo.FindByAdminID(ctx, candidate); existingByID == nil {
-			adminID = candidate
-			break
-		}
-	}
-	if adminID == "" {
-		return nil, fmt.Errorf("failed to generate a unique admin ID, please retry")
+	adminID, err := s.resolveNewAdminID(ctx, req.AdminID)
+	if err != nil {
+		return nil, err
 	}
 
 	password, err := utils.GenerateRandomPassword(10)
@@ -951,9 +1057,8 @@ func (s *userService) CreateAdmin(ctx context.Context, req *domain.CreateAdminRe
 	expiryDate := req.ExpiryDate
 	newAdmin := &domain.User{
 		Name: req.Name,
-		// Every admin gets a referral code to share: a client signing up with it is attributed to
-		// this admin and filed under their agency.
-		ReferralCode:    generateUniqueReferralCode(ctx, s.userRepo),
+		// The Admin ID below is also this admin's Agency ID — the single code they share with
+		// prospective clients, which both files a signup under their agency and credits them for it.
 		Email:           utils.NormalizeEmail(req.Email),
 		Phone:           req.Phone,
 		Password:        string(hashedPassword),
@@ -973,7 +1078,7 @@ func (s *userService) CreateAdmin(ctx context.Context, req *domain.CreateAdminRe
 	// unlike the fire-and-forget pattern used for high-volume notification emails elsewhere.
 	emailSent := false
 	if s.emailSvc != nil {
-		if sendErr := s.emailSvc.SendAdminCredentialsEmail(ctx, createdAdmin.Email, createdAdmin.Name, adminID, password, pin, createdAdmin.ReferralCode); sendErr == nil {
+		if sendErr := s.emailSvc.SendAdminCredentialsEmail(ctx, createdAdmin.Email, createdAdmin.Name, adminID, password, pin); sendErr == nil {
 			emailSent = true
 		}
 	}
@@ -984,7 +1089,6 @@ func (s *userService) CreateAdmin(ctx context.Context, req *domain.CreateAdminRe
 		Email:                createdAdmin.Email,
 		TemporaryPassword:    password,
 		TemporaryPIN:         pin,
-		ReferralCode:         createdAdmin.ReferralCode,
 		CredentialsEmailSent: emailSent,
 	}, nil
 }
@@ -1250,6 +1354,14 @@ func (s *userService) MergeFamilyAccounts(ctx context.Context, requesterID strin
 	if s.referralRepo != nil {
 		if _, err := s.referralRepo.ReassignReferrer(ctx, secondaryID, primaryID); err != nil {
 			return nil, fmt.Errorf("failed to move referral records: %w", err)
+		}
+	}
+
+	// The retired login's catalog restriction is dropped rather than moved: the surviving account
+	// has its own, and merging two restrictions would mean guessing which admin's choice wins.
+	if s.productAccessRepo != nil {
+		if err := s.productAccessRepo.DeleteByUserID(ctx, secondaryID); err != nil {
+			return nil, fmt.Errorf("failed to clear the retired account's product access: %w", err)
 		}
 	}
 

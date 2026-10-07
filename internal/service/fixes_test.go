@@ -61,15 +61,6 @@ func (r *fakeUserRepo) FindByAdminID(_ context.Context, adminID string) (*domain
 	return nil, domain.ErrUserNotFound
 }
 
-func (r *fakeUserRepo) FindByReferralCode(_ context.Context, code string) (*domain.User, error) {
-	for _, u := range r.users {
-		if u.ReferralCode == code {
-			return u, nil
-		}
-	}
-	return nil, domain.ErrUserNotFound
-}
-
 func (r *fakeUserRepo) UpdatePassword(_ context.Context, id bson.ObjectID, hashed string) error {
 	r.users[id].Password = hashed
 	return nil

@@ -26,6 +26,9 @@ type GeneralInsurance struct {
 
 // CreateGeneralInsuranceDTO represents the payload for adding a new General Insurance policy.
 type CreateGeneralInsuranceDTO struct {
+	// UserID files the policy under that client instead of the caller. Agency staff only — a client
+	// sending it is ignored, so nobody can write a record into someone else's portfolio.
+	UserID         string `json:"user_id,omitempty" example:"64f1a2b3c4d5e6f7a8b9c0d1"`
 	VehicleNo      string `json:"vehicle_no" binding:"required"`
 	PolicyNo       string `json:"policy_no" binding:"required"`
 	DateOfExpiry   string `json:"date_of_expiry" binding:"required"`
@@ -92,12 +95,16 @@ type GeneralInsuranceRepository interface {
 
 // GeneralInsuranceService defines business logic operations for general insurances.
 type GeneralInsuranceService interface {
-	AddInsurance(ctx context.Context, requesterRole, userIDStr string, dto *CreateGeneralInsuranceDTO) (*GeneralInsurance, error)
+	// AddInsurance files a motor policy. requesterID is the caller; dto.UserID redirects it to a
+	// client of the caller's agency when staff file it on their behalf.
+	AddInsurance(ctx context.Context, requesterRole, requesterID string, dto *CreateGeneralInsuranceDTO) (*GeneralInsurance, error)
 	GetMyInsurances(ctx context.Context, userIDStr string) (*GeneralInsuranceListResponse, error)
 	GetInsuranceByID(ctx context.Context, requesterRole, requesterID, idStr string) (*GeneralInsurance, error)
 	UpdateInsurance(ctx context.Context, requesterRole, requesterID, idStr string, dto *UpdateGeneralInsuranceDTO) (*GeneralInsurance, error)
 	DeleteInsurance(ctx context.Context, requesterRole, requesterID, idStr string) error
 	GetInsurancesByUserIDAdmin(ctx context.Context, requesterRole, requesterID, targetUserIDStr string) (*GeneralInsuranceListResponse, error)
 	DeleteAllByUserID(ctx context.Context, userIDStr string) error
-	GetAllInsurancesAdmin(ctx context.Context, requesterRole, requesterID string, page, limit int64) ([]*GeneralInsuranceWithCustomer, int64, error)
+	// GetAllInsurancesAdmin lists the agency's motor policies. agencyID is honoured only for a
+	// super_admin — see LifeInsuranceService.GetAllPolicies for the exact rule.
+	GetAllInsurancesAdmin(ctx context.Context, requesterRole, requesterID string, page, limit int64, agencyID string) ([]*GeneralInsuranceWithCustomer, int64, error)
 }

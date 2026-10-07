@@ -95,7 +95,7 @@ func (s *emailVerificationService) VerifyOTP(ctx context.Context, req *domain.Ve
 		case existingReq.Status == domain.AccessStatusRejected:
 			// A previously rejected applicant signing up again goes back into the review queue.
 			if _, err := s.accessReqRepo.UpdateDetailsAndStatus(ctx, existingReq.ID, user.Name, user.Phone,
-				"Signup email ownership verified via OTP", existingReq.AppliedReferralCode, user.AgencyID,
+				"Signup email ownership verified via OTP", user.AgencyID,
 				domain.AccessStatusPending); err != nil {
 				log.Error().Err(err).Str("email", user.Email).Msg("failed to re-queue verified signup for review")
 			}

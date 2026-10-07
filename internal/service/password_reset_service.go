@@ -42,16 +42,41 @@ func generate6DigitOTP() (string, error) {
 	return fmt.Sprintf("%06d", nBig.Int64()+100000), nil
 }
 
-// SendOTP handles generating and emailing a password reset OTP code, enforcing a 60-second resend
-// cooldown (mirroring the signup email-verification flow) so this public, unauthenticated endpoint
-// can't be spammed to flood a victim's inbox or run up email-provider costs.
+// SendOTP generates and emails a password reset OTP code.
+//
+// It enforces a 60-second resend cooldown (mirroring the signup email-verification flow) so this
+// public, unauthenticated endpoint can't be spammed to flood a victim's inbox or run up
+// email-provider costs, and the route itself is rate limited per IP.
+//
+// An address with no account is reported as such rather than answered with a generic success: see
+// domain.UnknownAccountError for why that trade-off is made deliberately. An account that exists but
+// could never sign in after a reset is reported too, because sending it a code would be a dead end.
 func (s *passwordResetService) SendOTP(ctx context.Context, req *domain.ForgotPasswordRequest) error {
 	req.Email = utils.NormalizeEmail(req.Email)
-	// Verify user exists (Do not leak specific errors to prevent user enumeration attacks)
+	if req.Email == "" {
+		return &domain.UnknownAccountError{Message: "Enter the email address your account is registered with"}
+	}
+
 	user, err := s.userRepo.FindByEmail(ctx, req.Email)
 	if err != nil || user == nil {
-		// User does not exist, but we return nil so caller receives generic success message
-		return nil
+		return &domain.UnknownAccountError{
+			Message: fmt.Sprintf("No account is registered with %s. Check the spelling, or request access to create one.", req.Email),
+		}
+	}
+
+	// A retired account can never sign in again whatever its password is, so a reset is a dead end.
+	if user.MergedIntoUserID != nil {
+		return &domain.ResetUnavailableError{
+			Message: "This account was merged into another family account. Reset the password on that account instead.",
+		}
+	}
+
+	// Login refuses an unverified client whatever the password is, so a reset wouldn't get them in.
+	// Finishing the signup OTP is the step that actually unblocks them.
+	if user.Role == domain.RoleClient && !user.IsEmailVerified {
+		return &domain.ResetUnavailableError{
+			Message: "This email hasn't been verified yet. Finish signing up with the code sent to your inbox — you'll choose your password there.",
+		}
 	}
 
 	// Enforce 60-second rate limit cooldown before touching any existing OTP record.
@@ -83,12 +108,19 @@ func (s *passwordResetService) SendOTP(ctx context.Context, req *domain.ForgotPa
 		return fmt.Errorf("failed to store OTP: %w", err)
 	}
 
-	// Send OTP email asynchronously / safely
-	go func() {
-		if err := s.emailSvc.SendOTPEmail(context.Background(), req.Email, otpCode); err != nil {
-			log.Error().Err(err).Str("email", req.Email).Msg("failed to send password reset OTP email")
-		}
-	}()
+	// Sent in the background: delivery takes seconds and the caller only needs to know the code was
+	// issued. Guarded on the service being wired, because a nil dereference in a goroutine is not a
+	// failed email — it panics the whole process, taking every other request down with it.
+	if s.emailSvc != nil {
+		email, code := req.Email, otpCode
+		go func() {
+			if err := s.emailSvc.SendOTPEmail(context.Background(), email, code); err != nil {
+				log.Error().Err(err).Str("email", email).Msg("failed to send password reset OTP email")
+			}
+		}()
+	} else {
+		log.Error().Str("email", req.Email).Msg("no email service configured — password reset OTP was stored but not sent")
+	}
 
 	return nil
 }

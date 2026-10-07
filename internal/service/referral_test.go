@@ -210,64 +210,60 @@ func (r *fakeAccessReqRepo) RevertApproval(_ context.Context, id bson.ObjectID) 
 
 /* ---------------------------------------------------------------- tests */
 
-func staffAdmin(adminID, code string) *domain.User {
+// staffAdmin builds an admin whose Admin ID is also the Agency ID they share — the platform has one
+// code, not two.
+func staffAdmin(adminID string) *domain.User {
 	return &domain.User{
-		ID:           bson.NewObjectID(),
-		Name:         "Admin " + adminID,
-		Email:        strings.ToLower(adminID) + "@agency.in",
-		Role:         domain.RoleAdmin,
-		IsActive:     true,
-		AdminID:      adminID,
-		ReferralCode: code,
+		ID:       bson.NewObjectID(),
+		Name:     "Admin " + adminID,
+		Email:    strings.ToLower(adminID) + "@agency.in",
+		Role:     domain.RoleAdmin,
+		IsActive: true,
+		AdminID:  adminID,
 	}
 }
 
-// A referral code issued to an admin also decides the agency, so an admin only has to share one code.
-func TestResolveOnboardingAgencyUsesReferralCode(t *testing.T) {
-	admin := staffAdmin("ADM-AAAAAA", "AB12CD")
-	client := &domain.User{ID: bson.NewObjectID(), Role: domain.RoleClient, Email: "c@x.in", ReferralCode: "LEGACY"}
+// The Agency ID is the only code onboarding accepts: it decides the agency, and nothing else does.
+func TestResolveAgencyAcceptsOnlyTheAgencyID(t *testing.T) {
+	admin := staffAdmin("ADM-AAAAAA")
+	client := &domain.User{ID: bson.NewObjectID(), Role: domain.RoleClient, Email: "c@x.in"}
 	repo := newFakeUserRepo(admin, client)
 	ctx := context.Background()
 
-	got, err := resolveOnboardingAgency(ctx, repo, "", "ab12cd")
+	// Case-insensitive, and canonicalised to the stored form.
+	got, err := resolveAgencyAdminID(ctx, repo, "adm-aaaaaa")
 	if err != nil || got != "ADM-AAAAAA" {
-		t.Fatalf("referral code should resolve to the admin's agency, got %q (%v)", got, err)
+		t.Fatalf("a typed Agency ID should resolve to the admin's ID, got %q (%v)", got, err)
 	}
 
-	// A legacy client code refers no one and decides no agency.
-	got, err = resolveOnboardingAgency(ctx, repo, "", "LEGACY")
+	// Nothing typed is allowed, and means unassigned.
+	got, err = resolveAgencyAdminID(ctx, repo, "  ")
 	if err != nil || got != "" {
-		t.Fatalf("a client's code must not set an agency, got %q (%v)", got, err)
+		t.Fatalf("an empty Agency ID should resolve to unassigned, got %q (%v)", got, err)
 	}
 
-	// An explicitly typed Agency ID always wins.
-	other := staffAdmin("ADM-BBBBBB", "ZZ99ZZ")
-	repo.users[other.ID] = other
-	got, err = resolveOnboardingAgency(ctx, repo, "adm-bbbbbb", "AB12CD")
-	if err != nil || got != "ADM-BBBBBB" {
-		t.Fatalf("a typed Agency ID should win, got %q (%v)", got, err)
-	}
-
-	if _, err := resolveOnboardingAgency(ctx, repo, "ADM-NOPE00", ""); err == nil {
+	// A wrong ID is refused outright rather than silently stored, so a typo never strands a signup
+	// in an agency nobody manages.
+	if _, err := resolveAgencyAdminID(ctx, repo, "ADM-NOPE00"); err == nil {
 		t.Fatal("an unknown Agency ID must be rejected")
 	}
 }
 
 func TestRecordPendingReferralOnlyCreditsStaff(t *testing.T) {
-	admin := staffAdmin("ADM-AAAAAA", "AB12CD")
-	client := &domain.User{ID: bson.NewObjectID(), Role: domain.RoleClient, Email: "c@x.in", ReferralCode: "LEGACY"}
+	admin := staffAdmin("ADM-AAAAAA")
+	client := &domain.User{ID: bson.NewObjectID(), Role: domain.RoleClient, Email: "c@x.in"}
 	userRepo := newFakeUserRepo(admin, client)
 	ctx := context.Background()
 
 	refs := &fakeReferralRepo{}
-	recordPendingReferral(ctx, refs, userRepo, "LEGACY", "new@x.in", "New Person", "9876543210")
+	recordPendingReferral(ctx, refs, userRepo, "ADM-NOBODY", "new@x.in", "New Person", "9876543210")
 	if len(refs.records) != 0 {
-		t.Fatal("a client's referral code must not create a referral record")
+		t.Fatal("an Agency ID nobody holds must not create a referral record")
 	}
 
-	recordPendingReferral(ctx, refs, userRepo, "AB12CD", "New@X.in", "New Person", "9876543210")
+	recordPendingReferral(ctx, refs, userRepo, "ADM-AAAAAA", "New@X.in", "New Person", "9876543210")
 	if len(refs.records) != 1 {
-		t.Fatalf("an admin's code should record a referral, got %d records", len(refs.records))
+		t.Fatalf("an admin's Agency ID should record a referral, got %d records", len(refs.records))
 	}
 	rec := refs.records[0]
 	if rec.ReferrerID != admin.ID || rec.ReferredEmail != "new@x.in" || rec.ReferredName != "New Person" {
@@ -275,13 +271,13 @@ func TestRecordPendingReferralOnlyCreditsStaff(t *testing.T) {
 	}
 
 	// Re-applying (e.g. a resubmitted request) must not double-count.
-	recordPendingReferral(ctx, refs, userRepo, "AB12CD", "new@x.in", "New Person", "")
+	recordPendingReferral(ctx, refs, userRepo, "ADM-AAAAAA", "new@x.in", "New Person", "")
 	if len(refs.records) != 1 {
 		t.Fatalf("a second application must not add another pending referral, got %d", len(refs.records))
 	}
 
 	// Nobody refers themselves.
-	recordPendingReferral(ctx, refs, userRepo, "AB12CD", admin.Email, admin.Name, "")
+	recordPendingReferral(ctx, refs, userRepo, "ADM-AAAAAA", admin.Email, admin.Name, "")
 	if len(refs.records) != 1 {
 		t.Fatal("a self-referral must be ignored")
 	}
@@ -289,26 +285,23 @@ func TestRecordPendingReferralOnlyCreditsStaff(t *testing.T) {
 
 // Approving a referred applicant credits the admin and stamps the account that was created.
 func TestApproveRequestCompletesReferral(t *testing.T) {
-	admin := staffAdmin("ADM-AAAAAA", "AB12CD")
+	admin := staffAdmin("ADM-AAAAAA")
 	userRepo := newFakeUserRepo(admin)
 	refs := &fakeReferralRepo{}
 	ctx := context.Background()
 
 	req := &domain.AccessRequest{
 		Name: "Riya Das", Email: "riya@x.in", Phone: "9876500000",
-		AppliedReferralCode: "AB12CD", AppliedAgencyID: admin.AdminID,
+		AppliedAgencyID: admin.AdminID,
 	}
 	reqRepo := newFakeAccessReqRepo(req)
-	recordPendingReferral(ctx, refs, userRepo, "AB12CD", req.Email, req.Name, req.Phone)
+	recordPendingReferral(ctx, refs, userRepo, admin.AdminID, req.Email, req.Name, req.Phone)
 
 	svc := NewAccessRequestService(reqRepo, userRepo, newTestUserService(userRepo), nil, refs)
 
 	created, err := svc.ApproveRequest(ctx, domain.RoleAdmin, admin.ID.Hex(), req.ID.Hex(), nil)
 	if err != nil {
 		t.Fatalf("approval failed: %v", err)
-	}
-	if created.ReferralCode != "" {
-		t.Fatal("an approved client must not be issued a referral code")
 	}
 	if created.AgencyID != admin.AdminID {
 		t.Fatalf("client should be filed under the referring admin, got %q", created.AgencyID)
@@ -327,7 +320,7 @@ func TestApproveRequestCompletesReferral(t *testing.T) {
 }
 
 func TestReferralStatsAreStaffOnly(t *testing.T) {
-	admin := staffAdmin("ADM-AAAAAA", "AB12CD")
+	admin := staffAdmin("ADM-AAAAAA")
 	client := &domain.User{ID: bson.NewObjectID(), Role: domain.RoleClient, Email: "c@x.in", IsActive: true}
 	userRepo := newFakeUserRepo(admin, client)
 	refs := &fakeReferralRepo{}
@@ -335,7 +328,7 @@ func TestReferralStatsAreStaffOnly(t *testing.T) {
 	ctx := context.Background()
 
 	if _, err := svc.GetMyStats(ctx, domain.RoleClient, client.ID.Hex()); err == nil {
-		t.Fatal("a client has no referral code and must be refused")
+		t.Fatal("a client has no Agency ID to share and must be refused")
 	}
 
 	_, _ = refs.Create(ctx, &domain.ReferralRecord{ReferrerID: admin.ID, ReferredEmail: "a@x.in"})
@@ -346,14 +339,15 @@ func TestReferralStatsAreStaffOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("admin stats failed: %v", err)
 	}
-	if stats.ReferralCode != "AB12CD" || stats.TotalPending != 1 || stats.TotalCompleted != 1 {
+	// The code an admin shares is their own Agency ID / Admin ID — there is no second value.
+	if stats.AgencyID != "ADM-AAAAAA" || stats.TotalPending != 1 || stats.TotalCompleted != 1 {
 		t.Fatalf("unexpected stats: %+v", stats)
 	}
 }
 
 func TestReferralLedgerScoping(t *testing.T) {
-	admin := staffAdmin("ADM-AAAAAA", "AB12CD")
-	other := staffAdmin("ADM-BBBBBB", "ZZ99ZZ")
+	admin := staffAdmin("ADM-AAAAAA")
+	other := staffAdmin("ADM-BBBBBB")
 	superAdmin := &domain.User{ID: bson.NewObjectID(), Role: domain.RoleSuperAdmin, Email: "s@x.in", IsActive: true, AdminID: "ADM-SUPER0"}
 	userRepo := newFakeUserRepo(admin, other, superAdmin)
 	refs := &fakeReferralRepo{}
@@ -393,8 +387,8 @@ func TestReferralLedgerScoping(t *testing.T) {
 }
 
 func TestAdminReferralSummary(t *testing.T) {
-	quiet := staffAdmin("ADM-QUIET0", "QQ11QQ")
-	busy := staffAdmin("ADM-BUSY00", "BB22BB")
+	quiet := staffAdmin("ADM-QUIET0")
+	busy := staffAdmin("ADM-BUSY00")
 	userRepo := newFakeUserRepo(quiet, busy)
 	refs := &fakeReferralRepo{}
 	ctx := context.Background()
@@ -425,15 +419,15 @@ func TestAdminReferralSummary(t *testing.T) {
 	if summary[1].AdminUserID != quiet.ID || summary[1].Total != 0 {
 		t.Fatalf("an admin with no referrals should still be listed with zeros: %+v", summary[1])
 	}
-	if summary[0].ReferralCode != "BB22BB" || summary[0].AdminID != "ADM-BUSY00" {
-		t.Fatalf("summary should carry the admin's code and ID: %+v", summary[0])
+	if summary[0].AdminID != "ADM-BUSY00" {
+		t.Fatalf("summary should carry the admin's Agency ID: %+v", summary[0])
 	}
 }
 
-// A self-service signup gets no referral code, no validity date, and lands in the agency whose
-// referral code it used.
-func TestRegisterUsesReferralCodeForAgencyAndIssuesNoCode(t *testing.T) {
-	admin := staffAdmin("ADM-AAAAAA", "AB12CD")
+// A self-service signup lands in the agency whose Agency ID it typed, and credits that admin. There
+// is no second code to supply, and a client is never issued one of their own.
+func TestRegisterFilesTheSignupUnderTheTypedAgencyID(t *testing.T) {
+	admin := staffAdmin("ADM-AAAAAA")
 	repo := newFakeUserRepo(admin)
 	refs := &fakeReferralRepo{}
 	svc := newTestUserService(repo)
@@ -444,42 +438,42 @@ func TestRegisterUsesReferralCodeForAgencyAndIssuesNoCode(t *testing.T) {
 	}
 
 	created, err := svc.Register(context.Background(), &domain.CreateUserRequest{
-		Name: "Riya", Email: "riya@x.in", Password: "secret1", Phone: "9876500000", ReferralCode: "ab12cd",
+		Name: "Riya", Email: "riya@x.in", Password: "secret1", Phone: "9876500000", AgencyID: "adm-aaaaaa",
 	})
 	if err != nil {
 		t.Fatalf("registration failed: %v", err)
 	}
-	if created.ReferralCode != "" {
-		t.Fatal("a client must not be issued a referral code")
-	}
 	if created.AgencyID != "ADM-AAAAAA" {
-		t.Fatalf("the referral code should file the signup under that admin, got %q", created.AgencyID)
+		t.Fatalf("the Agency ID should file the signup under that admin, got %q", created.AgencyID)
 	}
 	if len(refs.records) != 1 || refs.records[0].ReferrerID != admin.ID {
 		t.Fatalf("signup should record a pending referral for the admin, got %+v", refs.records)
 	}
 }
 
-// A deactivated or retired admin's code must stop onboarding clients: nobody could sign in to
+// A deactivated or retired admin's Agency ID must stop onboarding clients: nobody could sign in to
 // manage them, and the agency link would point at a dead account.
 func TestInactiveStaffCodeIsIgnored(t *testing.T) {
-	retired := staffAdmin("ADM-GONE00", "GG00GG")
+	retired := staffAdmin("ADM-GONE00")
 	retired.IsActive = false
 	mergedInto := bson.NewObjectID()
-	merged := staffAdmin("ADM-MERGE0", "MM00MM")
+	merged := staffAdmin("ADM-MERGE0")
 	merged.MergedIntoUserID = &mergedInto
 	repo := newFakeUserRepo(retired, merged)
 	refs := &fakeReferralRepo{}
 	ctx := context.Background()
 
-	for _, code := range []string{"GG00GG", "MM00MM"} {
-		agency, err := resolveOnboardingAgency(ctx, repo, "", code)
-		if err != nil || agency != "" {
-			t.Fatalf("code %s should not set an agency, got %q (%v)", code, agency, err)
-		}
-		recordPendingReferral(ctx, refs, repo, code, "new@x.in", "New", "")
+	for _, agencyID := range []string{"ADM-GONE00", "ADM-MERGE0"} {
+		recordPendingReferral(ctx, refs, repo, agencyID, "new@x.in", "New", "")
 	}
 	if len(refs.records) != 0 {
 		t.Fatalf("no referral should be recorded for inactive staff, got %d", len(refs.records))
+	}
+
+	// resolveAgencyAdminID still accepts the ID itself — a dead account is a management problem for
+	// the super admin to fix, not a reason to reject a signup that names it. What must not happen is
+	// crediting that account with a referral, which is what the loop above asserts.
+	if _, err := resolveAgencyAdminID(ctx, repo, "ADM-GONE00"); err != nil {
+		t.Fatalf("a retired admin's Agency ID should still resolve: %v", err)
 	}
 }

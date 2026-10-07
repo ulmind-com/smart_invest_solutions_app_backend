@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -116,7 +117,7 @@ func (r *fixedDepositRepository) GetAll(ctx context.Context, page, limit int64, 
 				{Key: "path", Value: "$customer"},
 				{Key: "preserveNullAndEmptyArrays", Value: true},
 			}}},
-			bson.D{{Key: "$match", Value: bson.D{{Key: "customer.agency_id", Value: agencyID}}}},
+			agencyMatchStage(agencyID),
 		)
 	}
 
@@ -321,4 +322,119 @@ func (r *fixedDepositRepository) CountByFamilyMemberID(ctx context.Context, fami
 		return 0, fmt.Errorf("failed to count records for family member: %w", err)
 	}
 	return n, nil
+}
+
+// GetExistingFDNumbers reports which account numbers are already held by a client of this agency.
+// Scoped the same way as the policy sync: an account belonging to another agency's client is
+// invisible here, so it lands in this agency's inbox rather than being silently refreshed.
+func (r *fixedDepositRepository) GetExistingFDNumbers(ctx context.Context, fdNumbers []string, agencyID string) (map[string]bool, error) {
+	existing := make(map[string]bool)
+	if len(fdNumbers) == 0 {
+		return existing, nil
+	}
+
+	filter := bson.M{"fd_number": bson.M{"$in": fdNumbers}}
+	if agencyID != "" {
+		ids, err := agencyClientIDs(ctx, r.collection.Database(), agencyID)
+		if err != nil {
+			return nil, err
+		}
+		if len(ids) == 0 {
+			return existing, nil
+		}
+		filter["user_id"] = bson.M{"$in": ids}
+	}
+
+	cursor, err := r.collection.Find(ctx, filter, options.Find().SetProjection(bson.M{"fd_number": 1}))
+	if err != nil {
+		return nil, fmt.Errorf("failed to query existing deposit numbers: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	for cursor.Next(ctx) {
+		var doc struct {
+			FDNumber string `bson:"fd_number"`
+		}
+		if err := cursor.Decode(&doc); err == nil && doc.FDNumber != "" {
+			existing[doc.FDNumber] = true
+		}
+	}
+
+	return existing, cursor.Err()
+}
+
+// BulkUpdateFromPostalSync refreshes the figures a post office report is authoritative about.
+// A field is only written when the report actually carries it, so a sparse row can never blank a
+// value the client already has.
+func (r *fixedDepositRepository) BulkUpdateFromPostalSync(ctx context.Context, records []domain.PostalDepositUpdate, agencyID string) (int64, []domain.FailedSyncDeposit, error) {
+	if len(records) == 0 {
+		return 0, nil, nil
+	}
+
+	var agencyUserIDs []bson.ObjectID
+	if agencyID != "" {
+		ids, err := agencyClientIDs(ctx, r.collection.Database(), agencyID)
+		if err != nil {
+			return 0, nil, err
+		}
+		if len(ids) == 0 {
+			failed := make([]domain.FailedSyncDeposit, len(records))
+			for i, rec := range records {
+				failed[i] = domain.FailedSyncDeposit{AccountNo: rec.FDNumber, Reason: "no client found under your agency"}
+			}
+			return 0, failed, nil
+		}
+		agencyUserIDs = ids
+	}
+
+	now := time.Now().UTC()
+	models := make([]mongo.WriteModel, 0, len(records))
+
+	for _, rec := range records {
+		updateFields := bson.M{"updated_at": now}
+		if rec.PrincipalAmount > 0 {
+			updateFields["principal_amount"] = rec.PrincipalAmount
+		}
+		if rec.MaturityAmount > 0 {
+			updateFields["maturity_amount"] = rec.MaturityAmount
+		}
+		if rec.MonthlyIncome > 0 {
+			updateFields["monthly_income"] = rec.MonthlyIncome
+		}
+		if !rec.MaturityDate.IsZero() {
+			updateFields["maturity_date"] = rec.MaturityDate
+		}
+		if rec.TermMonths > 0 {
+			updateFields["term_months"] = rec.TermMonths
+		}
+
+		filter := bson.M{"fd_number": rec.FDNumber}
+		if agencyUserIDs != nil {
+			filter["user_id"] = bson.M{"$in": agencyUserIDs}
+		}
+
+		models = append(models, mongo.NewUpdateOneModel().SetFilter(filter).SetUpdate(bson.M{"$set": updateFields}))
+	}
+
+	result, err := r.collection.BulkWrite(ctx, models, options.BulkWrite().SetOrdered(false))
+	if err != nil {
+		var bulkErr mongo.BulkWriteException
+		if errors.As(err, &bulkErr) {
+			failed := make([]domain.FailedSyncDeposit, 0, len(bulkErr.WriteErrors))
+			for _, we := range bulkErr.WriteErrors {
+				accountNo := "unknown"
+				if we.Index >= 0 && we.Index < len(records) {
+					accountNo = records[we.Index].FDNumber
+				}
+				failed = append(failed, domain.FailedSyncDeposit{AccountNo: accountNo, Reason: we.Message})
+			}
+			if result != nil {
+				return result.ModifiedCount, failed, nil
+			}
+			return 0, failed, nil
+		}
+		return 0, nil, fmt.Errorf("failed to bulk update deposits: %w", err)
+	}
+
+	return result.ModifiedCount, nil, nil
 }

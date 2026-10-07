@@ -23,10 +23,30 @@ func NewGeneralInsuranceService(repo domain.GeneralInsuranceRepository, userRepo
 }
 
 // AddInsurance creates a new general insurance policy record.
-func (s *generalInsuranceService) AddInsurance(ctx context.Context, requesterRole, userIDStr string, dto *domain.CreateGeneralInsuranceDTO) (*domain.GeneralInsurance, error) {
-	userID, err := bson.ObjectIDFromHex(userIDStr)
+func (s *generalInsuranceService) AddInsurance(ctx context.Context, requesterRole, requesterID string, dto *domain.CreateGeneralInsuranceDTO) (*domain.GeneralInsurance, error) {
+	// Staff filing on a client's behalf write to that client; everyone else writes to themselves.
+	targetIDStr := requesterID
+	if isAgencyStaff(requesterRole) && strings.TrimSpace(dto.UserID) != "" {
+		targetIDStr = strings.TrimSpace(dto.UserID)
+	}
+
+	userID, err := bson.ObjectIDFromHex(targetIDStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid user ID format: %w", err)
+	}
+
+	if targetIDStr != requesterID {
+		targetUser, err := s.userRepo.FindByID(ctx, userID)
+		if err != nil || targetUser == nil {
+			return nil, fmt.Errorf("target user not found")
+		}
+		// A plain admin may only file for a client of their own agency.
+		if requesterRole == domain.RoleAdmin {
+			agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
+			if !canAccessAgencyScopedRecord(requesterRole, agencyFilter, targetUser.AgencyID) {
+				return nil, fmt.Errorf("target user not found")
+			}
+		}
 	}
 
 	expiry, err := normalizeISODate(dto.DateOfExpiry, "date of expiry")
@@ -254,7 +274,7 @@ func (s *generalInsuranceService) DeleteAllByUserID(ctx context.Context, userIDS
 // Super Admin see at a glance which client holds which policy, vehicle, expiry date, and insurer.
 // A plain admin only ever sees policies belonging to their own agency's clients; super_admin sees
 // every agency (see resolveCallerAgencyID / canAccessAgencyScopedRecord in user_service.go).
-func (s *generalInsuranceService) GetAllInsurancesAdmin(ctx context.Context, requesterRole, requesterID string, page, limit int64) ([]*domain.GeneralInsuranceWithCustomer, int64, error) {
+func (s *generalInsuranceService) GetAllInsurancesAdmin(ctx context.Context, requesterRole, requesterID string, page, limit int64, agencyID string) ([]*domain.GeneralInsuranceWithCustomer, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -262,10 +282,10 @@ func (s *generalInsuranceService) GetAllInsurancesAdmin(ctx context.Context, req
 		limit = 10
 	}
 
-	agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
-	if requesterRole == domain.RoleAdmin && agencyFilter == "" {
-		// Fail closed, exactly like the other agency-scoped listings: an admin whose own agency
-		// can't be resolved must never fall through to the platform-wide (super_admin) view.
+	// A plain admin is pinned to their own agency; a super_admin may aim the list at one agency, at
+	// the records whose owner has no agency, or at the whole platform.
+	agencyFilter, allowed := resolveListingAgencyID(ctx, s.userRepo, requesterRole, requesterID, agencyID)
+	if !allowed {
 		return []*domain.GeneralInsuranceWithCustomer{}, 0, nil
 	}
 

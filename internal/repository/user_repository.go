@@ -42,13 +42,28 @@ func (r *userRepository) Create(ctx context.Context, user *domain.User) (*domain
 	result, err := r.collection.InsertOne(ctx, user)
 	if err != nil {
 		if mongo.IsDuplicateKeyError(err) {
-			return nil, fmt.Errorf("user with this email already exists")
+			return nil, duplicateUserError(err)
 		}
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
 	user.ID = result.InsertedID.(bson.ObjectID)
 	return user, nil
+}
+
+// duplicateUserError names the field that actually collided.
+//
+// Two unique indexes guard this collection, and reporting either as "that email is taken" would send
+// a Super Admin to the wrong field — which matters now that Admin IDs can be chosen by hand, making a
+// collision something a person can cause rather than a one-in-a-billion accident.
+func duplicateUserError(err error) error {
+	message := err.Error()
+	switch {
+	case strings.Contains(message, "admin_id"):
+		return fmt.Errorf("that Admin ID is already in use — pick another")
+	default:
+		return fmt.Errorf("user with this email already exists")
+	}
 }
 
 // FindByID retrieves a user by their ObjectID.
@@ -310,6 +325,21 @@ func (r *userRepository) ClearFailedLogins(ctx context.Context, id bson.ObjectID
 	return nil
 }
 
+// RecordLogin stamps a successful sign-in on the account: when it happened and one more on the
+// tally. Deliberately not part of ClearFailedLogins — that also runs on paths that aren't a
+// completed sign-in (a correct secret on an account still pending approval), and this is the
+// platform's record of who actually has the app.
+func (r *userRepository) RecordLogin(ctx context.Context, id bson.ObjectID) error {
+	update := bson.M{
+		"$set": bson.M{"last_login_at": time.Now().UTC()},
+		"$inc": bson.M{"login_count": 1},
+	}
+	if _, err := r.collection.UpdateOne(ctx, bson.M{"_id": id}, update); err != nil {
+		return fmt.Errorf("failed to record login: %w", err)
+	}
+	return nil
+}
+
 // LockAccount sets a lock expiry timestamp on the user account, blocking login until then.
 func (r *userRepository) LockAccount(ctx context.Context, id bson.ObjectID, until time.Time) error {
 	filter := bson.M{"_id": id}
@@ -319,24 +349,6 @@ func (r *userRepository) LockAccount(ctx context.Context, id bson.ObjectID, unti
 		return fmt.Errorf("failed to lock account: %w", err)
 	}
 	return nil
-}
-
-// FindByReferralCode retrieves a user by their unique referral code.
-func (r *userRepository) FindByReferralCode(ctx context.Context, code string) (*domain.User, error) {
-	if code == "" {
-		return nil, fmt.Errorf("referral code is required")
-	}
-
-	var user domain.User
-	err := r.collection.FindOne(ctx, bson.M{"referral_code": code}).Decode(&user)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			return nil, fmt.Errorf("user with referral code %s not found", code)
-		}
-		return nil, fmt.Errorf("failed to find user by referral code: %w", err)
-	}
-
-	return &user, nil
 }
 
 // FindExpiringAdmins retrieves role=admin accounts that have an expiry date set at or before the

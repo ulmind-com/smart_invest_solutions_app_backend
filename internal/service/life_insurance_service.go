@@ -202,7 +202,7 @@ func (s *lifeInsuranceService) GetPoliciesByUserIDAdmin(ctx context.Context, req
 // to unmapped/mapped policies and/or a specific insured family member's LIC Customer ID. A plain
 // admin only ever sees policies belonging to their own agency's clients; super_admin sees every
 // agency (see resolveCallerAgencyID / canAccessAgencyScopedRecord in user_service.go).
-func (s *lifeInsuranceService) GetAllPolicies(ctx context.Context, requesterRole, requesterID string, page, limit int64, isMapped *bool, licCustomerID string) ([]*domain.LifeInsuranceWithCustomer, int64, error) {
+func (s *lifeInsuranceService) GetAllPolicies(ctx context.Context, requesterRole, requesterID string, page, limit int64, isMapped *bool, licCustomerID, agencyID string) ([]*domain.LifeInsuranceWithCustomer, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -210,10 +210,10 @@ func (s *lifeInsuranceService) GetAllPolicies(ctx context.Context, requesterRole
 		limit = 10
 	}
 
-	agencyFilter := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
-	if requesterRole == domain.RoleAdmin && agencyFilter == "" {
-		// Fail closed, exactly like the other agency-scoped listings: an admin whose own agency
-		// can't be resolved must never fall through to the platform-wide (super_admin) view.
+	// A plain admin is pinned to their own agency; a super_admin may aim the list at one agency, at
+	// the records whose owner has no agency, or at the whole platform.
+	agencyFilter, allowed := resolveListingAgencyID(ctx, s.userRepo, requesterRole, requesterID, agencyID)
+	if !allowed {
 		return []*domain.LifeInsuranceWithCustomer{}, 0, nil
 	}
 

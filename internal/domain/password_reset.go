@@ -61,6 +61,29 @@ type PasswordResetService interface {
 	ResetPassword(ctx context.Context, req *ResetPasswordRequest) error
 }
 
+// UnknownAccountError reports that no account is registered with the address a password reset was
+// requested for.
+//
+// This is deliberately told to the caller. The alternative — answering every address with "if an
+// account exists, a code has been sent" — hides which addresses are registered, but it also leaves
+// someone who simply mistyped their email waiting for a code that will never arrive, with nothing on
+// screen to explain why. The product choice here is to say so plainly; the endpoint is rate limited
+// per IP so the answer can't be used to enumerate the user base in bulk.
+type UnknownAccountError struct {
+	Message string
+}
+
+func (e *UnknownAccountError) Error() string { return e.Message }
+
+// ResetUnavailableError reports that the account exists but a password reset cannot help it sign in
+// — so sending a code would be a dead end. Two cases reach here: an account retired by a family
+// merge, and a signup whose email was never verified (login refuses it whatever the password is).
+type ResetUnavailableError struct {
+	Message string
+}
+
+func (e *ResetUnavailableError) Error() string { return e.Message }
+
 // CooldownError reports that an action (e.g. sending another OTP) was refused only because the
 // previous one was too recent. Handlers surface it as 429 so the app can tell the user to wait
 // instead of claiming a code was sent.

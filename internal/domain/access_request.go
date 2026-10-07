@@ -16,14 +16,13 @@ const (
 
 // AccessRequest represents a client's request for platform access.
 type AccessRequest struct {
-	ID                  bson.ObjectID `bson:"_id,omitempty" json:"id"`
-	Name                string        `bson:"name" json:"name" binding:"required"`
-	Email               string        `bson:"email" json:"email" binding:"required,email"`
-	Phone               string        `bson:"phone" json:"phone" binding:"required"`
-	Notes               string        `bson:"notes,omitempty" json:"notes,omitempty"`
-	AppliedReferralCode string        `bson:"applied_referral_code,omitempty" json:"applied_referral_code,omitempty"`
-	// AppliedAgencyID is the AdminID (e.g. "ADM-7F3K9Q") the applicant supplied to say which
-	// agency/admin they want to be managed by. Validated against a real admin account at
+	ID    bson.ObjectID `bson:"_id,omitempty" json:"id"`
+	Name  string        `bson:"name" json:"name" binding:"required"`
+	Email string        `bson:"email" json:"email" binding:"required,email"`
+	Phone string        `bson:"phone" json:"phone" binding:"required"`
+	Notes string        `bson:"notes,omitempty" json:"notes,omitempty"`
+	// AppliedAgencyID is the Agency ID / Admin ID (e.g. "ADM-7F3K9Q") the applicant supplied to say
+	// which agency/admin they want to be managed by. Validated against a real admin account at
 	// submission time. Empty means unassigned — visible only to a super_admin.
 	AppliedAgencyID string    `bson:"applied_agency_id,omitempty" json:"applied_agency_id,omitempty"`
 	Status          string    `bson:"status" json:"status"` // PENDING, APPROVED, REJECTED
@@ -34,13 +33,13 @@ type AccessRequest struct {
 
 // CreateAccessRequestDTO represents the payload when a client requests access.
 type CreateAccessRequestDTO struct {
-	Name                string `json:"name" binding:"required"`
-	Email               string `json:"email" binding:"required,email"`
-	Phone               string `json:"phone" binding:"required"`
-	Notes               string `json:"notes,omitempty"`
-	AppliedReferralCode string `json:"applied_referral_code,omitempty"`
-	// AgencyID is the Agency ID (an admin's AdminID, e.g. "ADM-7F3K9Q") the applicant was given by
-	// their agent/advisor. When supplied it must match a real admin account, or submission fails.
+	Name  string `json:"name" binding:"required"`
+	Email string `json:"email" binding:"required,email"`
+	Phone string `json:"phone" binding:"required"`
+	Notes string `json:"notes,omitempty"`
+	// AgencyID is the Agency ID / Admin ID (e.g. "ADM-7F3K9Q") the applicant was given by their
+	// agent/advisor — the single code an agency shares. When supplied it must match a real admin
+	// account, or submission fails.
 	AgencyID string `json:"agency_id,omitempty" example:"ADM-7F3K9Q"`
 }
 
@@ -81,7 +80,7 @@ type AccessRequestRepository interface {
 	// DeleteAllByEmail removes every request filed for an email — part of an account's cascade
 	// delete, so the person can apply again later instead of being told they were "already approved".
 	DeleteAllByEmail(ctx context.Context, email string) error
-	UpdateDetailsAndStatus(ctx context.Context, id bson.ObjectID, name, phone, notes, appliedReferralCode, appliedAgencyID, status string) (*AccessRequest, error)
+	UpdateDetailsAndStatus(ctx context.Context, id bson.ObjectID, name, phone, notes, appliedAgencyID, status string) (*AccessRequest, error)
 }
 
 // AccessRequestService defines business logic methods for AccessRequests. Every method that takes

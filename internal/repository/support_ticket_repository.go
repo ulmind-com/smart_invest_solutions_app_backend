@@ -132,7 +132,7 @@ func (r *supportTicketRepository) GetAll(ctx context.Context, page, limit int64,
 		}}},
 	)
 	if agencyID != "" {
-		basePipeline = append(basePipeline, bson.D{{Key: "$match", Value: bson.D{{Key: "customer.agency_id", Value: agencyID}}}})
+		basePipeline = append(basePipeline, agencyMatchStage(agencyID))
 	}
 
 	countPipeline := append(mongo.Pipeline{}, basePipeline...)

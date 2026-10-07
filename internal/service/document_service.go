@@ -27,6 +27,33 @@ func NewDocumentService(repo domain.DocumentRepository, storageSvc StorageServic
 }
 
 // UploadDocument uploads a file to Cloudinary with compression and creates a Document record in MongoDB.
+// documentCategoryFallback is what an upload with no category is filed under.
+const documentCategoryFallback = "General"
+
+// maxDocumentCategoryLength caps a typed category. The client picks from a fixed list or types their
+// own ("Marriage Certificate", "Rent Agreement"), and that label is shown on a badge beside every
+// file — so it is capped at something that reads as a label rather than as a sentence, and stops a
+// crafted request from storing a page of text in the field.
+const maxDocumentCategoryLength = 40
+
+// normalizeDocumentCategory cleans a category before it is stored.
+//
+// The "Others" option on the upload form sends whatever the client typed, so this is the only place
+// that decides what a category may look like: collapsed whitespace, trimmed, capped, and defaulted
+// when blank.
+func normalizeDocumentCategory(category string) string {
+	cleaned := strings.Join(strings.Fields(category), " ")
+	if cleaned == "" {
+		return documentCategoryFallback
+	}
+	// Counted in runes, not bytes: a label in Bengali or Hindi would otherwise be cut to a third of
+	// its length, and could be cut mid-character.
+	if runes := []rune(cleaned); len(runes) > maxDocumentCategoryLength {
+		cleaned = strings.TrimSpace(string(runes[:maxDocumentCategoryLength]))
+	}
+	return cleaned
+}
+
 func (s *documentService) UploadDocument(ctx context.Context, userIDStr, name, category string, file io.Reader, filename string) (*domain.Document, error) {
 	userID, err := bson.ObjectIDFromHex(userIDStr)
 	if err != nil {
@@ -43,14 +70,10 @@ func (s *documentService) UploadDocument(ctx context.Context, userIDStr, name, c
 
 	ext := storedFileType(uploadRes, filename)
 
-	if category == "" {
-		category = "General"
-	}
-
 	doc := &domain.Document{
 		UserID:      userID,
-		Name:        name,
-		Category:    category,
+		Name:        strings.TrimSpace(name),
+		Category:    normalizeDocumentCategory(category),
 		DocumentURL: uploadRes.SecureURL,
 		PublicID:    uploadRes.PublicID,
 		FileType:    ext,
@@ -126,6 +149,17 @@ func (s *documentService) UpdateDocument(ctx context.Context, idStr, userIDStr s
 
 	if existingDoc.UserID != userID {
 		return nil, fmt.Errorf("access denied: document does not belong to you")
+	}
+
+	// A typed category reaches the update path too (switching a file to "Others"), so it is cleaned
+	// here as well rather than only on the way in.
+	if dto.Category != nil {
+		cleaned := normalizeDocumentCategory(*dto.Category)
+		dto.Category = &cleaned
+	}
+	if dto.Name != nil {
+		trimmed := strings.TrimSpace(*dto.Name)
+		dto.Name = &trimmed
 	}
 
 	oldPublicID := ""

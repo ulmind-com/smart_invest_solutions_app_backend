@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
-	"strconv"
+	"regexp"
 	"strings"
 	"time"
 
@@ -30,59 +30,87 @@ func resolveAgencyAdminID(ctx context.Context, userRepo domain.UserRepository, r
 	return owner.AdminID, nil
 }
 
-// normalizeReferralCode canonicalises a typed referral code (codes are generated upper-case).
-func normalizeReferralCode(code string) string {
-	return strings.ToUpper(strings.TrimSpace(code))
+// adminIDPattern is the shape of an Admin ID's body — the part after the "ADM-" prefix. Letters and
+// digits only, 3 to 12 of them, so an ID stays short enough to read out over the phone and long
+// enough to be distinctive.
+var adminIDPattern = regexp.MustCompile(`^[A-Z0-9]{3,12}$`)
+
+// adminIDPrefix is carried by every Admin ID on the platform, generated or hand-picked, so one
+// canonical shape reaches the client app — which validates the Agency ID a client types against it.
+const adminIDPrefix = "ADM-"
+
+// normalizeAdminID canonicalises an Admin ID a Super Admin typed by hand.
+//
+// It is forgiving about how the ID is entered — case is ignored, surrounding space and inner spaces
+// or dashes are dropped, and the "ADM-" prefix may be left off — because this value gets read out
+// over the phone and typed back by clients. What it will not do is accept a shape the client app
+// would later refuse: the Agency ID box on the signup form validates against this same prefix and
+// character set, so an ID that slipped through here would be one no client could ever type.
+//
+// An empty input returns "" with no error, meaning "generate one instead".
+func normalizeAdminID(raw string) (string, error) {
+	cleaned := strings.ToUpper(strings.TrimSpace(raw))
+	// Spaces and dashes inside the body are how people naturally break up a code they are reading
+	// out ("ADM ASHA 01"); they carry no meaning, so they go rather than becoming an error.
+	cleaned = strings.NewReplacer(" ", "", "\t", "").Replace(cleaned)
+	if cleaned == "" {
+		return "", nil
+	}
+
+	body := strings.TrimPrefix(cleaned, adminIDPrefix)
+	// A stray "ADM" with no dash, or a doubled prefix from pasting, still means the same thing.
+	body = strings.TrimPrefix(body, "ADM")
+	body = strings.TrimLeft(body, "-")
+	body = strings.ReplaceAll(body, "-", "")
+
+	if !adminIDPattern.MatchString(body) {
+		return "", fmt.Errorf("an Admin ID must be 3–12 letters or digits, optionally after %q — for example %sASHA01", adminIDPrefix, adminIDPrefix)
+	}
+
+	return adminIDPrefix + body, nil
 }
 
-// referralOwner resolves a typed referral code to the staff member who owns it. It returns nil for
-// an empty or unknown code, and for a code that belongs to a non-staff account — referral codes are
-// issued to admins only, and legacy client codes (from when clients could refer) no longer count.
-func referralOwner(ctx context.Context, userRepo domain.UserRepository, referralCode string) *domain.User {
-	code := normalizeReferralCode(referralCode)
-	if code == "" {
+// agencyOwner resolves an Agency ID / Admin ID to the staff account behind it, or nil when it names
+// nobody usable.
+//
+// A retired or deactivated staff account must not keep onboarding clients: nobody would be able to
+// sign in and manage them, and the agency link would point at a dead account.
+func agencyOwner(ctx context.Context, userRepo domain.UserRepository, agencyID string) *domain.User {
+	id := strings.ToUpper(strings.TrimSpace(agencyID))
+	if id == "" {
 		return nil
 	}
-	owner, err := userRepo.FindByReferralCode(ctx, code)
+	owner, err := userRepo.FindByAdminID(ctx, id)
 	if err != nil || owner == nil {
 		return nil
 	}
 	if owner.Role != domain.RoleAdmin && owner.Role != domain.RoleSuperAdmin {
 		return nil
 	}
-	// A retired or deactivated staff account must not keep onboarding clients: nobody would be able
-	// to sign in and manage them, and the agency link would point at a dead account.
 	if !owner.IsActive || owner.MergedIntoUserID != nil {
 		return nil
 	}
 	return owner
 }
 
-// resolveOnboardingAgency decides which agency a new signup belongs to. An explicitly typed Agency
-// ID always wins (and must be valid). Otherwise a valid advisor referral code decides it, so an
-// admin only ever has to share one code: it both credits them for the referral and files the client
-// under their agency.
-func resolveOnboardingAgency(ctx context.Context, userRepo domain.UserRepository, rawAgencyID, referralCode string) (string, error) {
-	if strings.TrimSpace(rawAgencyID) != "" {
-		return resolveAgencyAdminID(ctx, userRepo, rawAgencyID)
-	}
-	if owner := referralOwner(ctx, userRepo, referralCode); owner != nil {
-		return owner.AdminID, nil
-	}
-	return "", nil
-}
-
-// recordPendingReferral files a Pending referral against the admin who owns referralCode, so they
-// are credited once that person's account is approved. It is a no-op for an empty or unknown code,
-// a code that isn't a staff member's, a self-referral, or an email that already has a pending
-// referral — a referral problem must never block someone from signing up.
-func recordPendingReferral(ctx context.Context, referralRepo domain.ReferralRepository, userRepo domain.UserRepository, referralCode, referredEmail, referredName, referredPhone string) {
+// recordPendingReferral credits the admin whose Agency ID a new applicant signed up with, so the
+// super admin's report can show which admin brought in which clients.
+//
+// There is one code on this platform, not two: an admin's Admin ID *is* their Agency ID, and sharing
+// it both files the client under that agency and credits the admin for bringing them in. A separate
+// referral code only ever duplicated that, and left an applicant wondering which of the two boxes
+// mattered.
+//
+// It is a no-op for an empty or unknown Agency ID, an agency that is somehow the applicant's own
+// account, or an email that already has a pending referral — a bookkeeping problem must never block
+// someone from signing up.
+func recordPendingReferral(ctx context.Context, referralRepo domain.ReferralRepository, userRepo domain.UserRepository, agencyID, referredEmail, referredName, referredPhone string) {
 	email := utils.NormalizeEmail(referredEmail)
 	if email == "" || referralRepo == nil {
 		return
 	}
 
-	referrer := referralOwner(ctx, userRepo, referralCode)
+	referrer := agencyOwner(ctx, userRepo, agencyID)
 	if referrer == nil || utils.NormalizeEmail(referrer.Email) == email {
 		return
 	}
@@ -115,21 +143,6 @@ func completeReferral(ctx context.Context, referralRepo domain.ReferralRepositor
 	if err := referralRepo.Complete(ctx, pending.ID, user.ID, user.Name, user.Phone); err != nil {
 		log.Error().Err(err).Str("email", email).Msg("failed to complete referral")
 	}
-}
-
-// generateUniqueReferralCode returns a 6-character referral code no other account holds, falling
-// back to a timestamp-derived code in the (astronomically unlikely) event every attempt collides.
-func generateUniqueReferralCode(ctx context.Context, userRepo domain.UserRepository) string {
-	for attempt := 0; attempt < 5; attempt++ {
-		candidate, _ := utils.GenerateReferralCode(6)
-		if candidate == "" {
-			continue
-		}
-		if existing, _ := userRepo.FindByReferralCode(ctx, candidate); existing == nil {
-			return candidate
-		}
-	}
-	return "REF" + strings.ToUpper(strconv.FormatInt(time.Now().UnixNano(), 36))
 }
 
 // ensureClientMayModify refuses a client's edit or delete of a record their agency maintains.

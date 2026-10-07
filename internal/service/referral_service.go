@@ -53,8 +53,10 @@ func (s *referralService) GetMyStats(ctx context.Context, requesterRole, request
 		return nil, fmt.Errorf("failed to fetch referral statistics: %w", err)
 	}
 
+	// The Agency ID an admin shares *is* their Admin ID — one code, which both files the client
+	// under their agency and credits them for bringing the client in.
 	return &domain.ReferralStatsDTO{
-		ReferralCode:   user.ReferralCode,
+		AgencyID:       user.AdminID,
 		TotalPending:   counts.Pending,
 		TotalCompleted: counts.Completed,
 	}, nil
@@ -131,7 +133,6 @@ func (s *referralService) GetAdminSummary(ctx context.Context, requesterRole str
 				AdminID:        member.AdminID,
 				Name:           member.Name,
 				Email:          member.Email,
-				ReferralCode:   member.ReferralCode,
 				Role:           member.Role,
 				TotalPending:   entry.Pending,
 				TotalCompleted: entry.Completed,
@@ -161,7 +162,6 @@ func (s *referralService) GetAdminSummary(ctx context.Context, requesterRole str
 			summary.Email = referrer.Email
 			summary.Role = referrer.Role
 			summary.AdminID = referrer.AdminID
-			summary.ReferralCode = referrer.ReferralCode
 		}
 		summaries = append(summaries, summary)
 	}

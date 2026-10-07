@@ -166,7 +166,9 @@ type HealthInsuranceService interface {
 	// policy list (used by the client-detail "Holdings" view) — a plain admin may only target a
 	// client under their own agency.
 	GetPoliciesByUserIDAdmin(ctx context.Context, requesterRole, requesterID, targetUserIDStr string) (*HealthInsuranceListResponse, error)
-	GetAllPolicies(ctx context.Context, requesterRole, requesterID string, page, limit int64, isMapped *bool, licCustomerID string) ([]*HealthInsuranceWithCustomer, int64, error)
+	// GetAllPolicies lists the agency's policies. agencyID is honoured only for a super_admin — see
+	// LifeInsuranceService.GetAllPolicies for the exact rule.
+	GetAllPolicies(ctx context.Context, requesterRole, requesterID string, page, limit int64, isMapped *bool, licCustomerID, agencyID string) ([]*HealthInsuranceWithCustomer, int64, error)
 	UpdatePolicy(ctx context.Context, requesterRole, requesterID, idStr string, dto *UpdateHealthInsuranceDTO) (*HealthInsurance, error)
 	DeletePolicy(ctx context.Context, requesterRole, requesterID, idStr string) error
 	DeleteAllByUserID(ctx context.Context, userIDStr string) error

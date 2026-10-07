@@ -202,17 +202,16 @@ func (r *accessRequestRepository) DeleteAllByEmail(ctx context.Context, email st
 }
 
 // UpdateDetailsAndStatus updates the details and resets status of an existing AccessRequest.
-func (r *accessRequestRepository) UpdateDetailsAndStatus(ctx context.Context, id bson.ObjectID, name, phone, notes, appliedReferralCode, appliedAgencyID, status string) (*domain.AccessRequest, error) {
+func (r *accessRequestRepository) UpdateDetailsAndStatus(ctx context.Context, id bson.ObjectID, name, phone, notes, appliedAgencyID, status string) (*domain.AccessRequest, error) {
 	update := bson.M{
 		"$set": bson.M{
-			"name":                  name,
-			"phone":                 phone,
-			"notes":                 notes,
-			"applied_referral_code": appliedReferralCode,
-			"applied_agency_id":     appliedAgencyID,
-			"status":                status,
-			"admin_notes":           "",
-			"updated_at":            time.Now().UTC(),
+			"name":              name,
+			"phone":             phone,
+			"notes":             notes,
+			"applied_agency_id": appliedAgencyID,
+			"status":            status,
+			"admin_notes":       "",
+			"updated_at":        time.Now().UTC(),
 		},
 	}
 

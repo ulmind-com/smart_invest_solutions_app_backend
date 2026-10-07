@@ -137,7 +137,7 @@ func (r *lifeInsuranceRepository) GetAll(ctx context.Context, page, limit int64,
 				{Key: "path", Value: "$customer"},
 				{Key: "preserveNullAndEmptyArrays", Value: true},
 			}}},
-			bson.D{{Key: "$match", Value: bson.D{{Key: "customer.agency_id", Value: agencyID}}}},
+			agencyMatchStage(agencyID),
 		)
 	}
 

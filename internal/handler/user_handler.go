@@ -434,13 +434,16 @@ func (h *UserHandler) ChangePIN(c *gin.Context) {
 
 // ForgotPassword handles requesting a password reset OTP.
 // @Summary      Request password reset OTP
-// @Description  Sends a 6-digit OTP code to the registered email address if an account exists.
+// @Description  Sends a 6-digit OTP code to the address, and says plainly when no account is registered with it (404) so somebody who mistyped their email is told rather than left waiting for a code that never comes. Also refuses, with an explanation, when the account exists but a reset couldn't help it sign in — one retired by a family merge, or a signup whose email was never verified. Rate limited per IP.
 // @Tags         Authentication
 // @Accept       json
 // @Produce      json
 // @Param        request  body      domain.ForgotPasswordRequest  true  "Registered Email Address"
-// @Success      200      {object}  response.APIResponse  "If an account exists with this email, an OTP has been sent."
+// @Success      200      {object}  response.APIResponse  "A 6-digit code has been sent"
+// @Failure      400      {object}  response.APIResponse  "The account exists but cannot be reset — merged, or email never verified"
+// @Failure      404      {object}  response.APIResponse  "No account is registered with this email"
 // @Failure      422      {object}  response.APIResponse  "Validation error"
+// @Failure      429      {object}  response.APIResponse  "Resend cooldown, or too many attempts from this device"
 // @Router       /users/forgot-password [post]
 func (h *UserHandler) ForgotPassword(c *gin.Context) {
 	var req domain.ForgotPasswordRequest
@@ -449,17 +452,31 @@ func (h *UserHandler) ForgotPassword(c *gin.Context) {
 		return
 	}
 
-	// Any other failure stays silent so this endpoint never reveals whether an email is registered —
-	// but a cooldown refusal must not be reported as "sent", or the user waits for a code that
-	// never comes.
 	if err := h.passResetService.SendOTP(c.Request.Context(), &req); err != nil {
+		// Each refusal is reported for what it is, so the app can put the right thing on screen: an
+		// address to correct, an account to finish setting up, or a wait. A generic "sent" would make
+		// all three look like success and leave the user waiting for an email that never arrives.
+		var unknown *domain.UnknownAccountError
+		if errors.As(err, &unknown) {
+			response.Error(c, http.StatusNotFound, unknown.Message)
+			return
+		}
+		var unavailable *domain.ResetUnavailableError
+		if errors.As(err, &unavailable) {
+			response.Error(c, http.StatusBadRequest, unavailable.Message)
+			return
+		}
 		var cooldown *domain.CooldownError
 		if errors.As(err, &cooldown) {
 			response.Error(c, http.StatusTooManyRequests, cooldown.Message)
 			return
 		}
+		// Anything else is ours, not the caller's — and must not read as "sent".
+		response.Error(c, http.StatusInternalServerError, "Could not send the code. Please try again.")
+		return
 	}
-	response.Success(c, "If an account exists with this email, an OTP has been sent.", nil)
+
+	response.Success(c, "A 6-digit code has been sent to your email.", nil)
 }
 
 // VerifyOTP handles verifying the 6-digit OTP code.
@@ -516,13 +533,13 @@ func (h *UserHandler) ResetPassword(c *gin.Context) {
 
 // CreateAdmin handles creating a new Admin account. Super Admin only.
 // @Summary      Create Admin account (Super Admin only)
-// @Description  Creates a new Admin account from Name/Email/Phone/ExpiryDate. Auto-generates a unique Admin ID, a random password, and a 4-digit PIN, then emails the credentials to the new admin. ExpiryDate must be in the future — once it passes, the admin cannot log in until a Super Admin renews it via PUT /admins/{id}/expiry. The response also returns the plaintext password/PIN once, so the Super Admin can share them even if the email fails to deliver. Only accessible by super_admin.
+// @Description  Creates a new Admin account from Name/Email/Phone/ExpiryDate. `admin_id` is optional: supply one to choose this admin's Admin ID (which is also the Agency ID they share with clients — case-insensitive, the "ADM-" prefix may be omitted, 3–12 letters or digits, and it must be unique), or leave it out and a unique one is generated. GET /admins/next-id returns a free one for a "generate" button. A random password and 4-digit PIN are always generated, then the credentials are emailed to the new admin. ExpiryDate must be in the future — once it passes, the admin cannot log in until a Super Admin renews it via PUT /admins/{id}/expiry. The response also returns the plaintext password/PIN once, so the Super Admin can share them even if the email fails to deliver. Only accessible by super_admin.
 // @Tags         Admin Accounts
 // @Accept       json
 // @Produce      json
 // @Param        request  body      domain.CreateAdminRequest  true  "New Admin details"
 // @Success      201      {object}  response.APIResponse{data=domain.CreateAdminResponse}  "Admin account created successfully"
-// @Failure      400      {object}  response.APIResponse  "Bad request (e.g. email already in use)"
+// @Failure      400      {object}  response.APIResponse  "Bad request (e.g. email or Admin ID already in use, or a malformed Admin ID)"
 // @Failure      401      {object}  response.APIResponse  "Unauthorized"
 // @Failure      403      {object}  response.APIResponse  "Forbidden — super_admin role required"
 // @Failure      422      {object}  response.APIResponse  "Validation error"
@@ -542,6 +559,27 @@ func (h *UserHandler) CreateAdmin(c *gin.Context) {
 	}
 
 	response.Created(c, "Admin account created successfully", result)
+}
+
+// SuggestAdminID returns a generated Admin ID that no account holds yet. Super Admin only.
+// @Summary      Suggest an Admin ID (Super Admin only)
+// @Description  Returns a freshly generated Admin ID that is free right now, for the "generate" button on the create-admin form. It reserves nothing — uniqueness is settled when the account is actually created, so two Super Admins calling this at the same moment are still safe.
+// @Tags         Admin Accounts
+// @Produce      json
+// @Success      200  {object}  response.APIResponse{data=domain.SuggestedAdminIDDTO}  "Admin ID suggested successfully"
+// @Failure      401  {object}  response.APIResponse  "Unauthorized"
+// @Failure      403  {object}  response.APIResponse  "Forbidden — super_admin role required"
+// @Failure      500  {object}  response.APIResponse  "Internal server error"
+// @Security     BearerAuth
+// @Router       /admins/next-id [get]
+func (h *UserHandler) SuggestAdminID(c *gin.Context) {
+	suggestion, err := h.userService.SuggestAdminID(c.Request.Context())
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	response.Success(c, "Admin ID suggested successfully", suggestion)
 }
 
 // GetAllAdmins handles fetching all admin & super_admin accounts. Super Admin only.

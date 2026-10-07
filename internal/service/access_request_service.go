@@ -54,9 +54,9 @@ func (s *accessRequestService) SubmitRequest(ctx context.Context, dto *domain.Cr
 		return nil, fmt.Errorf("email address is required")
 	}
 
-	// An advisor's referral code also settles which agency the applicant belongs to, so a client
-	// who was given only a referral code still reaches the right admin's inbox.
-	agencyID, err := resolveOnboardingAgency(ctx, s.userRepo, dto.AgencyID, dto.AppliedReferralCode)
+	// The Agency ID is the single code an agency shares: it decides whose inbox this request lands
+	// in and credits that admin with bringing the client in.
+	agencyID, err := resolveAgencyAdminID(ctx, s.userRepo, dto.AgencyID)
 	if err != nil {
 		return nil, err
 	}
@@ -77,23 +77,22 @@ func (s *accessRequestService) SubmitRequest(ctx context.Context, dto *domain.Cr
 			return nil, fmt.Errorf("an access request for email %s was already approved. Please login directly", dto.Email)
 		}
 		// If previously REJECTED, update details & reset to PENDING instead of creating a duplicate document that fails unique index!
-		updatedReq, err := s.repo.UpdateDetailsAndStatus(ctx, existingReq.ID, dto.Name, dto.Phone, dto.Notes, normalizeReferralCode(dto.AppliedReferralCode), agencyID, domain.AccessStatusPending)
+		updatedReq, err := s.repo.UpdateDetailsAndStatus(ctx, existingReq.ID, dto.Name, dto.Phone, dto.Notes, agencyID, domain.AccessStatusPending)
 		if err != nil {
 			return nil, fmt.Errorf("failed to update access request: %w", err)
 		}
-		// A resubmission can carry a referral code the first attempt didn't.
-		recordPendingReferral(ctx, s.referralRepo, s.userRepo, dto.AppliedReferralCode, emailClean, dto.Name, dto.Phone)
+		// A resubmission can carry an Agency ID the first attempt didn't.
+		recordPendingReferral(ctx, s.referralRepo, s.userRepo, agencyID, emailClean, dto.Name, dto.Phone)
 		return updatedReq, nil
 	}
 
 	accessReq := &domain.AccessRequest{
-		Name:                dto.Name,
-		Email:               emailClean,
-		Phone:               dto.Phone,
-		Notes:               dto.Notes,
-		AppliedReferralCode: normalizeReferralCode(dto.AppliedReferralCode),
-		AppliedAgencyID:     agencyID,
-		Status:              domain.AccessStatusPending,
+		Name:            dto.Name,
+		Email:           emailClean,
+		Phone:           dto.Phone,
+		Notes:           dto.Notes,
+		AppliedAgencyID: agencyID,
+		Status:          domain.AccessStatusPending,
 	}
 
 	createdReq, err := s.repo.Create(ctx, accessReq)
@@ -101,9 +100,8 @@ func (s *accessRequestService) SubmitRequest(ctx context.Context, dto *domain.Cr
 		return nil, err
 	}
 
-	// Referral tracking hook: file a Pending referral against the advisor whose code was used
-	// (a no-op for a missing or unknown code).
-	recordPendingReferral(ctx, s.referralRepo, s.userRepo, dto.AppliedReferralCode, emailClean, dto.Name, dto.Phone)
+	// Credit the admin whose Agency ID was used (a no-op when none was given).
+	recordPendingReferral(ctx, s.referralRepo, s.userRepo, agencyID, emailClean, dto.Name, dto.Phone)
 
 	return createdReq, nil
 }

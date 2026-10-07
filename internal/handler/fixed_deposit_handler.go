@@ -65,6 +65,7 @@ func (h *FixedDepositHandler) CreateFD(c *gin.Context) {
 // @Param        page       query     int   false  "Page number — Admin only (default: 1)"
 // @Param        limit      query     int   false  "Items per page — Admin only (default: 10, max: 100)"
 // @Param        is_mapped  query     bool  false  "Filter by mapped status — Admin only"
+// @Param        agency_id  query     string  false  "Super admin only: narrow to one Agency ID, or 'unassigned' for records whose owner belongs to no agency. Ignored for a plain admin, who always sees their own agency."
 // @Success      200        {object}  response.APIResponse  "Fixed Deposits retrieved successfully"
 // @Failure      401        {object}  response.APIResponse  "Unauthorized"
 // @Security     BearerAuth
@@ -90,7 +91,7 @@ func (h *FixedDepositHandler) GetFDs(c *gin.Context) {
 			isMapped = &parsed
 		}
 
-		fds, total, err := h.service.GetAllFDs(c.Request.Context(), claims.Role, claims.UserID.Hex(), page, limit, isMapped)
+		fds, total, err := h.service.GetAllFDs(c.Request.Context(), claims.Role, claims.UserID.Hex(), page, limit, isMapped, c.Query("agency_id"))
 		if err != nil {
 			response.Error(c, http.StatusInternalServerError, err.Error())
 			return

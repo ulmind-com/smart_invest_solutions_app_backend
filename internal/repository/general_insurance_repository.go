@@ -180,7 +180,7 @@ func (r *generalInsuranceRepository) FindAllAdmin(ctx context.Context, page, lim
 				{Key: "path", Value: "$customer"},
 				{Key: "preserveNullAndEmptyArrays", Value: true},
 			}}},
-			bson.D{{Key: "$match", Value: bson.D{{Key: "customer.agency_id", Value: agencyID}}}},
+			agencyMatchStage(agencyID),
 		)
 	}
 

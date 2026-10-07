@@ -66,6 +66,7 @@ func (h *HealthInsuranceHandler) CreatePolicy(c *gin.Context) {
 // @Param        limit      query     int   false  "Items per page — Admin only (default: 10, max: 100)"
 // @Param        is_mapped        query     bool    false  "Filter by mapped status — Admin only"
 // @Param        lic_customer_id  query     string  false  "Filter to policies whose insured family member carries this exact LIC Customer ID — Admin only"
+// @Param        agency_id  query     string  false  "Super admin only: narrow to one Agency ID, or 'unassigned' for records whose owner belongs to no agency. Ignored for a plain admin, who always sees their own agency."
 // @Success      200        {object}  response.APIResponse  "Policies retrieved successfully"
 // @Failure      401        {object}  response.APIResponse  "Unauthorized"
 // @Security     BearerAuth
@@ -93,7 +94,7 @@ func (h *HealthInsuranceHandler) GetPolicies(c *gin.Context) {
 
 		licCustomerID := c.Query("lic_customer_id")
 
-		policies, total, err := h.service.GetAllPolicies(c.Request.Context(), claims.Role, claims.UserID.Hex(), page, limit, isMapped, licCustomerID)
+		policies, total, err := h.service.GetAllPolicies(c.Request.Context(), claims.Role, claims.UserID.Hex(), page, limit, isMapped, licCustomerID, c.Query("agency_id"))
 		if err != nil {
 			response.Error(c, http.StatusInternalServerError, err.Error())
 			return

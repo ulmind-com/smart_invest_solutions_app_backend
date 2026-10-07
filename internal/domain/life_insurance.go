@@ -190,7 +190,10 @@ type LifeInsuranceService interface {
 	// policy list (used by the client-detail "Holdings" view) — a plain admin may only target a
 	// client under their own agency.
 	GetPoliciesByUserIDAdmin(ctx context.Context, requesterRole, requesterID, targetUserIDStr string) (*LifeInsuranceListResponse, error)
-	GetAllPolicies(ctx context.Context, requesterRole, requesterID string, page, limit int64, isMapped *bool, licCustomerID string) ([]*LifeInsuranceWithCustomer, int64, error)
+	// GetAllPolicies lists the agency's policies. agencyID is honoured only for a super_admin — one
+	// agency's Agency ID, "unassigned" for policies whose owner belongs to no agency, or "" for the
+	// whole platform. A plain admin always sees their own agency, whatever they ask for.
+	GetAllPolicies(ctx context.Context, requesterRole, requesterID string, page, limit int64, isMapped *bool, licCustomerID, agencyID string) ([]*LifeInsuranceWithCustomer, int64, error)
 	UpdatePolicy(ctx context.Context, requesterRole, requesterID, idStr string, dto *UpdateLifeInsuranceDTO) (*LifeInsurance, error)
 	DeletePolicy(ctx context.Context, requesterRole, requesterID, idStr string) error
 	DeleteAllByUserID(ctx context.Context, userIDStr string) error

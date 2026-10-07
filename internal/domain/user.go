@@ -31,17 +31,22 @@ type User struct {
 	Role            string        `bson:"role" json:"role"` // client, advisor, admin, super_admin
 	IsActive        bool          `bson:"is_active" json:"is_active"`
 	IsEmailVerified bool          `bson:"is_email_verified" json:"is_email_verified"`
-	AdminID         string        `bson:"admin_id,omitempty" json:"admin_id,omitempty"` // Unique login ID, set only for admin/super_admin accounts
-	PIN             string        `bson:"pin,omitempty" json:"-"`                       // bcrypt-hashed 4-digit PIN, set only for admin/super_admin accounts
-	// ReferralCode is the short code a staff member shares so a new client can name them at signup.
-	// Only admin/super_admin accounts hold one — clients don't refer anyone.
-	ReferralCode string `bson:"referral_code,omitempty" json:"referral_code,omitempty"`
-	// AgencyID is the AdminID (e.g. "ADM-7F3K9Q") of the admin whose Agency ID this client applied
-	// with at access-request time. Empty means unassigned — visible only to a super_admin, never to
-	// a plain admin. Never set on admin/super_admin accounts themselves.
+	// AdminID is the account's unique login ID, set only for admin/super_admin accounts. It is also
+	// the Agency ID that staff member shares with clients — one value, two names, never two codes.
+	AdminID string `bson:"admin_id,omitempty" json:"admin_id,omitempty"`
+	PIN     string `bson:"pin,omitempty" json:"-"` // bcrypt-hashed 4-digit PIN, set only for admin/super_admin accounts
+	// AgencyID is the Agency ID / Admin ID (e.g. "ADM-7F3K9Q") of the admin this client signed up
+	// under — the AdminID of that staff account. Empty means unassigned — visible only to a
+	// super_admin, never to a plain admin. Never set on admin/super_admin accounts themselves.
 	AgencyID            string     `bson:"agency_id,omitempty" json:"agency_id,omitempty"`
 	FailedLoginAttempts int        `bson:"failed_login_attempts" json:"-"`
 	LockedUntil         *time.Time `bson:"locked_until,omitempty" json:"-"`
+	// LastLoginAt and LoginCount record that this account has actually been used from the app, and
+	// when it was last used. They are stamped on every successful sign-in (never on a super admin's
+	// impersonation, which would otherwise make a dormant client look active), and are the platform's
+	// only evidence of who has the app installed — see the AppPresence constants and the client map.
+	LastLoginAt *time.Time `bson:"last_login_at,omitempty" json:"last_login_at,omitempty"`
+	LoginCount  int        `bson:"login_count,omitempty" json:"login_count,omitempty"`
 	// AdminExpiryDate is set only for role=admin accounts (never for super_admin, which never
 	// expires). A Super Admin picks this date when creating the admin; once it passes, the admin
 	// can no longer log in until a Super Admin renews it via RenewAdminExpiry.
@@ -63,12 +68,11 @@ type CreateUserRequest struct {
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required,min=6"`
 	Phone    string `json:"phone,omitempty"`
-	// AgencyID is the Admin ID of the agency the client is signing up under (optional). Without it
-	// the signup lands unassigned and only a super admin can review it.
+	// AgencyID is the Agency ID / Admin ID of the agency the client is signing up under (optional).
+	// It is the single code an agency shares: it decides who manages the client and credits that
+	// admin with bringing them in. Without it the signup lands unassigned and only a super admin
+	// can review it.
 	AgencyID string `json:"agency_id,omitempty" example:"ADM-7F3K9Q"`
-	// ReferralCode is the advisor's referral code, if the client was referred by one. When no
-	// AgencyID is given, a valid code also decides which agency the signup belongs to.
-	ReferralCode string `json:"referral_code,omitempty" example:"AB12CD"`
 }
 
 // UpdateUserRequest represents the request payload for updating a user (Admin/Internal).
@@ -131,20 +135,24 @@ type LoginResponse struct {
 
 // UserResponse represents the response payload for a user (without sensitive data).
 type UserResponse struct {
-	ID               bson.ObjectID  `json:"id"`
-	Name             string         `json:"name"`
-	Email            string         `json:"email"`
-	Phone            string         `json:"phone,omitempty"`
-	Role             string         `json:"role"`
-	IsActive         bool           `json:"is_active"`
-	IsEmailVerified  bool           `json:"is_email_verified"`
+	ID              bson.ObjectID `json:"id"`
+	Name            string        `json:"name"`
+	Email           string        `json:"email"`
+	Phone           string        `json:"phone,omitempty"`
+	Role            string        `json:"role"`
+	IsActive        bool          `json:"is_active"`
+	IsEmailVerified bool          `json:"is_email_verified"`
+	// AdminID doubles as the Agency ID this staff member shares with clients.
 	AdminID          string         `json:"admin_id,omitempty"`
-	ReferralCode     string         `json:"referral_code,omitempty"`
 	AgencyID         string         `json:"agency_id,omitempty"`
 	AdminExpiryDate  *time.Time     `json:"admin_expiry_date,omitempty"`
 	MergedIntoUserID *bson.ObjectID `json:"merged_into_user_id,omitempty"`
-	CreatedAt        time.Time      `json:"created_at"`
-	UpdatedAt        time.Time      `json:"updated_at"`
+	// LastLoginAt is nil for an account that has never signed in — which is how staff tell a client
+	// who has the app from one who was only ever set up for them.
+	LastLoginAt *time.Time `json:"last_login_at,omitempty"`
+	LoginCount  int        `json:"login_count,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
 // ToResponse converts a User entity to a UserResponse.
@@ -158,10 +166,11 @@ func (u *User) ToResponse() *UserResponse {
 		IsActive:         u.IsActive,
 		IsEmailVerified:  u.IsEmailVerified,
 		AdminID:          u.AdminID,
-		ReferralCode:     u.ReferralCode,
 		AgencyID:         u.AgencyID,
 		AdminExpiryDate:  u.AdminExpiryDate,
 		MergedIntoUserID: u.MergedIntoUserID,
+		LastLoginAt:      u.LastLoginAt,
+		LoginCount:       u.LoginCount,
 		CreatedAt:        u.CreatedAt,
 		UpdatedAt:        u.UpdatedAt,
 	}
@@ -175,16 +184,41 @@ type AdvisorContactDTO struct {
 	Email    string `json:"email,omitempty"`
 	Phone    string `json:"phone,omitempty"`
 	AgencyID string `json:"agency_id,omitempty"`
+
+	// AccessExpired reports that this advisor's own access to the platform has lapsed, which the
+	// client is told about because it changes what they can expect: the advisor cannot sign in, so
+	// nothing on the client's portfolio will be updated by the agency until a super admin renews it.
+	//
+	// It is deliberately not treated as a problem with the *client's* account. Their data, their
+	// documents and everything they maintain themselves keep working exactly as before — this is
+	// about the updates that used to arrive from the agency quietly stopping, which is worth saying
+	// out loud rather than leaving them to wonder why a premium date never moved.
+	AccessExpired bool `json:"access_expired"`
+	// AccessExpiresAt is when that access ran out (or will). Nil for a super admin, who never expires.
+	AccessExpiresAt *time.Time `json:"access_expires_at,omitempty"`
 }
 
 // CreateAdminRequest represents the payload used by a Super Admin to create a new Admin account.
 // ExpiryDate is mandatory: every admin account created this way has a fixed validity period after
 // which it can no longer log in until a Super Admin renews it (super_admin accounts never expire).
 type CreateAdminRequest struct {
-	Name       string    `json:"name" binding:"required"`
-	Email      string    `json:"email" binding:"required,email"`
-	Phone      string    `json:"phone" binding:"required"`
+	Name  string `json:"name" binding:"required"`
+	Email string `json:"email" binding:"required,email"`
+	Phone string `json:"phone" binding:"required"`
+	// AdminID lets a Super Admin choose the account's Admin ID — which is also the Agency ID this
+	// admin shares with clients — instead of taking a generated one. Optional: leave it empty and one
+	// is generated. Case-insensitive, and the "ADM-" prefix may be omitted ("asha01" and "ADM-ASHA01"
+	// both mean ADM-ASHA01). It must be unique across every account, and is fixed once created,
+	// because every client of this agency stores it as their own agency_id.
+	AdminID    string    `json:"admin_id,omitempty" example:"ADM-ASHA01"`
 	ExpiryDate time.Time `json:"expiry_date" binding:"required" example:"2026-06-30T00:00:00Z"`
+}
+
+// SuggestedAdminIDDTO is a freshly generated Admin ID that no account holds yet — what the "generate"
+// button on the create-admin form fills itself with, so the Super Admin sees the ID before saving
+// rather than finding out afterwards.
+type SuggestedAdminIDDTO struct {
+	AdminID string `json:"admin_id" example:"ADM-7F3K9Q"`
 }
 
 // RenewAdminExpiryRequest represents the payload used by a Super Admin to push an admin account's
@@ -230,9 +264,9 @@ type CreateAdminResponse struct {
 	Email             string        `json:"email"`
 	TemporaryPassword string        `json:"temporary_password"`
 	TemporaryPIN      string        `json:"temporary_pin"`
-	// ReferralCode is the code this admin shares with prospective clients.
-	ReferralCode         string `json:"referral_code,omitempty"`
-	CredentialsEmailSent bool   `json:"credentials_email_sent"`
+	// The Admin ID above is also this admin's Agency ID — the one code they share with prospective
+	// clients, so there is no separate referral code to hand out.
+	CredentialsEmailSent bool `json:"credentials_email_sent"`
 }
 
 // ImpersonateUserRequest defines the payload for a Super Admin to log in on behalf of a target user or admin.
@@ -246,8 +280,9 @@ type UserRepository interface {
 	Create(ctx context.Context, user *User) (*User, error)
 	FindByID(ctx context.Context, id bson.ObjectID) (*User, error)
 	FindByEmail(ctx context.Context, email string) (*User, error)
+	// FindByAdminID looks an account up by its Admin ID, which is also its Agency ID — the value a
+	// client types at signup to say which agency they belong to.
 	FindByAdminID(ctx context.Context, adminID string) (*User, error)
-	FindByReferralCode(ctx context.Context, code string) (*User, error)
 	// FindAll returns a paginated user list. roleFilter and agencyIDFilter narrow the results when
 	// non-empty (agencyIDFilter matches the client's AgencyID — i.e. the admin they registered
 	// under); pass both empty for the unrestricted platform-wide list (super_admin only).
@@ -265,6 +300,10 @@ type UserRepository interface {
 	Delete(ctx context.Context, id bson.ObjectID) error
 	RecordFailedLogin(ctx context.Context, id bson.ObjectID) (int, error)
 	ClearFailedLogins(ctx context.Context, id bson.ObjectID) error
+	// RecordLogin stamps a successful sign-in: last_login_at = now, login_count + 1. This is the
+	// platform's record of who actually uses the app, so it is called only for a real sign-in —
+	// never when a super_admin impersonates someone.
+	RecordLogin(ctx context.Context, id bson.ObjectID) error
 	LockAccount(ctx context.Context, id bson.ObjectID, until time.Time) error
 	// FindExpiringAdmins returns role=admin accounts whose admin_expiry_date is set and falls at or
 	// before the given cutoff (so it captures both already-expired admins and those approaching it),
@@ -302,6 +341,9 @@ type UserService interface {
 	Delete(ctx context.Context, requesterRole, requesterID, id string) error
 	DeleteMyAccount(ctx context.Context, userID string) error
 	CreateAdmin(ctx context.Context, req *CreateAdminRequest) (*CreateAdminResponse, error)
+	// SuggestAdminID returns a generated Admin ID that is free right now. It reserves nothing — the
+	// uniqueness that counts is checked when the account is created.
+	SuggestAdminID(ctx context.Context) (*SuggestedAdminIDDTO, error)
 	GetAllAdmins(ctx context.Context, page, limit int64) ([]*UserResponse, int64, error)
 	DeleteAdmin(ctx context.Context, requesterID, targetID string) error
 	// MergeFamilyAccounts folds SecondaryUserID's entire data (family members, policies, deposits,

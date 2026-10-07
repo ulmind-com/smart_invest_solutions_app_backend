@@ -13,7 +13,7 @@ const (
 	ReferralStatusCompleted = "Completed"
 )
 
-// ReferralRecord attributes one client signup to the staff member whose referral code it used.
+// ReferralRecord attributes one client signup to the staff member whose Agency ID it used.
 // It is created Pending when the person applies and turns Completed once their account exists, so
 // a super admin can see which admin brought in which clients — and how many.
 type ReferralRecord struct {
@@ -31,10 +31,13 @@ type ReferralRecord struct {
 	UpdatedAt      time.Time      `bson:"updated_at" json:"updated_at"`
 }
 
-// ReferralStatsDTO is a staff member's own referral summary: the code they share and how their
+// ReferralStatsDTO is a staff member's own referral summary: the Agency ID they share and how their
 // referrals are doing. Referrals carry no reward — they are attribution, not a loyalty scheme.
+//
+// AgencyID is the admin's own Admin ID. There is deliberately no second code: a client typing this
+// one value is both filed under that agency and counted as that admin's referral.
 type ReferralStatsDTO struct {
-	ReferralCode   string `json:"referral_code"`
+	AgencyID       string `json:"agency_id"`
 	TotalPending   int64  `json:"total_pending"`
 	TotalCompleted int64  `json:"total_completed"`
 }
@@ -45,7 +48,8 @@ type ReferralRecordWithDetails struct {
 	ReferrerID    bson.ObjectID `bson:"referrer_id" json:"referrer_id"`
 	ReferrerName  string        `bson:"referrer_name" json:"referrer_name"`
 	ReferrerEmail string        `bson:"referrer_email" json:"referrer_email"`
-	// ReferrerAdminID is the referring staff member's Admin ID (empty for legacy client referrals).
+	// ReferrerAdminID is the referring staff member's Admin ID — the Agency ID the client signed up
+	// with (empty for legacy records whose referrer was not a staff account).
 	ReferrerAdminID string         `bson:"referrer_admin_id,omitempty" json:"referrer_admin_id,omitempty"`
 	ReferrerRole    string         `bson:"referrer_role,omitempty" json:"referrer_role,omitempty"`
 	ReferredEmail   string         `bson:"referred_email" json:"referred_email"`
@@ -70,7 +74,6 @@ type AdminReferralSummary struct {
 	AdminID        string        `json:"admin_id,omitempty"`
 	Name           string        `json:"name"`
 	Email          string        `json:"email"`
-	ReferralCode   string        `json:"referral_code,omitempty"`
 	Role           string        `json:"role"`
 	TotalPending   int64         `json:"total_pending"`
 	TotalCompleted int64         `json:"total_completed"`
@@ -101,7 +104,7 @@ type ReferralRepository interface {
 
 // ReferralService defines business logic operations for the referral scheme.
 type ReferralService interface {
-	// GetMyStats returns the calling staff member's own code and referral counts.
+	// GetMyStats returns the calling staff member's own Agency ID and referral counts.
 	GetMyStats(ctx context.Context, requesterRole, requesterID string) (*ReferralStatsDTO, error)
 	// GetAllReferrals lists the ledger: a super admin sees every referral (optionally filtered to
 	// one referrer); a plain admin only ever sees the referrals they made themselves.

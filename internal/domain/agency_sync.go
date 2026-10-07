@@ -87,15 +87,84 @@ type LICDueListHeader struct {
 }
 
 // AgencySyncService defines business logic operations for agency PDF sync engines.
+//
+// Every method takes an agencyID: the agency being acted for. A plain admin's own agency always wins,
+// whatever they pass — they have exactly one book. A super_admin has no book of their own, so they
+// name the agency they are working on behalf of, and the upload, the inbox and every link land in that
+// agency's book rather than nowhere.
 type AgencySyncService interface {
-	ProcessLICDueList(ctx context.Context, requesterRole, requesterID string, fileBytes []byte) (*SyncResultDTO, error)
+	ProcessLICDueList(ctx context.Context, requesterRole, requesterID, agencyID string, fileBytes []byte) (*SyncResultDTO, error)
 	// ListImportedPolicies returns the calling admin's policy inbox — every row ever read from
 	// their due lists, with live link status.
-	ListImportedPolicies(ctx context.Context, requesterRole, requesterID, status, search string, page, limit int64) ([]*ImportedPolicyView, int64, error)
+	ListImportedPolicies(ctx context.Context, requesterRole, requesterID, agencyID, status, search string, page, limit int64) ([]*ImportedPolicyView, int64, error)
 	// LinkImportedPolicy attaches an unclaimed inbox row to a real client account, creating the
 	// Life Insurance policy record from the PDF data plus the sum assured/nominee the admin supplies.
-	LinkImportedPolicy(ctx context.Context, requesterRole, requesterID, idStr string, dto *LinkImportedPolicyDTO) (*LifeInsurance, error)
+	LinkImportedPolicy(ctx context.Context, requesterRole, requesterID, agencyID, idStr string, dto *LinkImportedPolicyDTO) (*LifeInsurance, error)
 	// DeleteImportedPolicy removes an inbox row (e.g. the wrong file was uploaded). Only rows that
 	// are not linked to a client policy can be removed.
-	DeleteImportedPolicy(ctx context.Context, requesterRole, requesterID, idStr string) error
+	DeleteImportedPolicy(ctx context.Context, requesterRole, requesterID, agencyID, idStr string) error
+
+	// ProcessPostalReport reads a Post Office report: every account lands in the agency's deposit
+	// inbox, and accounts a client of this agency already holds are refreshed in place.
+	ProcessPostalReport(ctx context.Context, requesterRole, requesterID, agencyID, reportName string, fileBytes []byte) (*DepositSyncResultDTO, error)
+	// ListImportedDeposits returns the calling admin's deposit inbox with live link status.
+	ListImportedDeposits(ctx context.Context, requesterRole, requesterID, agencyID, status, search string, page, limit int64) ([]*ImportedDepositView, int64, error)
+	// LinkImportedDeposit attaches an unclaimed deposit to a client account, creating the Fixed
+	// Deposit record from the report plus the holder the admin picks.
+	LinkImportedDeposit(ctx context.Context, requesterRole, requesterID, agencyID, idStr string, dto *LinkImportedDepositDTO) (*FixedDeposit, error)
+	// DeleteImportedDeposit removes an inbox row that is not linked to a client deposit.
+	DeleteImportedDeposit(ctx context.Context, requesterRole, requesterID, agencyID, idStr string) error
 }
+
+// DepositSyncResultDTO summarises a Post Office report upload. It mirrors SyncResultDTO so the app
+// can present both kinds of sync the same way: what was read, what was refreshed, what is waiting
+// for a client.
+type DepositSyncResultDTO struct {
+	// ReportName is the uploaded file's own name — the only header these reports carry.
+	ReportName              string `json:"report_name,omitempty"`
+	TotalAccountsFoundInPDF int    `json:"total_accounts_found_in_pdf"`
+	SuccessfullyUpdatedInDB int    `json:"successfully_updated_in_db"`
+	// AlreadyCurrent counts matched deposits the report carried nothing newer for — a re-upload is
+	// not a failure, and without this number it would read as one.
+	AlreadyCurrent     int `json:"already_current"`
+	FailedToUpdateInDB int `json:"failed_to_update_in_db"`
+	// NewlyImported counts accounts never seen in a previous upload — now in the deposit inbox.
+	NewlyImported int `json:"newly_imported"`
+	// UnclaimedTotal is the agency's running count of inbox rows with no client account yet.
+	UnclaimedTotal int `json:"unclaimed_total"`
+	// DuplicateAccountNumbers are accounts the report itself listed more than once; the first
+	// occurrence is kept.
+	DuplicateAccountNumbers []string `json:"duplicate_account_numbers"`
+	// UnreadableAccountNumbers are rows where an account number was visible but the rest of the
+	// row could not be read — reported so nothing disappears silently.
+	UnreadableAccountNumbers []string            `json:"unreadable_account_numbers"`
+	FailedDeposits           []FailedSyncDeposit `json:"failed_deposits"`
+	UnmappedDeposits         []UnmappedDeposit   `json:"unmapped_deposits"`
+}
+
+// FailedSyncDeposit names an account that matched a client's deposit but could not be written.
+type FailedSyncDeposit struct {
+	AccountNo string `json:"account_no"`
+	Reason    string `json:"reason"`
+}
+
+// UnmappedDeposit is an account from the report that no client of this agency holds yet. It sits in
+// the inbox until an admin attaches it to an account.
+type UnmappedDeposit struct {
+	AccountNo       string    `json:"account_no"`
+	HolderName      string    `json:"holder_name"`
+	JointHolderName string    `json:"joint_holder_name,omitempty"`
+	Scheme          string    `json:"scheme"`
+	DepositAmount   float64   `json:"deposit_amount"`
+	MaturityAmount  float64   `json:"maturity_amount,omitempty"`
+	MonthlyIncome   float64   `json:"monthly_income,omitempty"`
+	IssueDate       time.Time `json:"issue_date"`
+	MaturityDate    time.Time `json:"maturity_date,omitempty"`
+}
+
+// AgencySyncKind names the report an admin is uploading. The app asks for it up front so a health
+// or motor statement is never silently fed to the LIC parser and reported as "nothing found".
+const (
+	AgencySyncKindLife     = "life"
+	AgencySyncKindDeposits = "deposits"
+)

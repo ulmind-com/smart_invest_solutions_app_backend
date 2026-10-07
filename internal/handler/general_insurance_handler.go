@@ -221,6 +221,7 @@ func (h *GeneralInsuranceHandler) GetInsurancesByUserIDAdmin(c *gin.Context) {
 // @Produce      json
 // @Param        page   query     int  false  "Page number (default: 1)"
 // @Param        limit  query     int  false  "Items per page (default: 10, max: 100)"
+// @Param        agency_id  query     string  false  "Super admin only: narrow to one Agency ID, or 'unassigned' for records whose owner belongs to no agency. Ignored for a plain admin, who always sees their own agency."
 // @Success      200    {object}  response.PaginatedResponse{data=[]domain.GeneralInsuranceWithCustomer}  "Policies retrieved successfully"
 // @Failure      401    {object}  response.APIResponse  "Unauthorized"
 // @Failure      403    {object}  response.APIResponse  "Forbidden — Admin role required"
@@ -236,7 +237,7 @@ func (h *GeneralInsuranceHandler) GetAllInsurancesAdmin(c *gin.Context) {
 	page, _ := strconv.ParseInt(c.DefaultQuery("page", "1"), 10, 64)
 	limit, _ := strconv.ParseInt(c.DefaultQuery("limit", "10"), 10, 64)
 
-	policies, total, err := h.service.GetAllInsurancesAdmin(c.Request.Context(), claims.Role, claims.UserID.Hex(), page, limit)
+	policies, total, err := h.service.GetAllInsurancesAdmin(c.Request.Context(), claims.Role, claims.UserID.Hex(), page, limit, c.Query("agency_id"))
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err.Error())
 		return

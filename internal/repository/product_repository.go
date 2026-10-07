@@ -60,18 +60,28 @@ func (r *productRepository) FindByID(ctx context.Context, id bson.ObjectID) (*do
 	return &product, nil
 }
 
-// FindAll retrieves a paginated list of products, optionally filtered by category and/or
-// is_active. isActive == nil returns products regardless of active status (used by admin);
-// callers restricting to the public catalog (clients) must pass a non-nil true.
-func (r *productRepository) FindAll(ctx context.Context, page, limit int64, category string, isActive *bool) ([]*domain.Product, int64, error) {
+// FindAll retrieves a paginated page of the catalog.
+//
+// Every narrowing — category, published status and the per-client allow-list — is part of the one
+// filter, so the total reported alongside the page counts exactly the products this caller may see.
+func (r *productRepository) FindAll(ctx context.Context, query domain.ProductQuery) ([]*domain.Product, int64, error) {
+	page, limit := query.Page, query.Limit
 	skip := (page - 1) * limit
 
 	filter := bson.M{}
-	if category != "" {
-		filter["category"] = category
+	if query.Category != "" {
+		filter["category"] = query.Category
 	}
-	if isActive != nil {
-		filter["is_active"] = *isActive
+	if query.IsActive != nil {
+		filter["is_active"] = *query.IsActive
+	}
+	if query.Restricted {
+		// A client restricted to nothing gets nothing: answered here rather than sending Mongo an
+		// empty $in, so the intent is readable instead of relying on how $in treats [].
+		if len(query.AllowedIDs) == 0 {
+			return []*domain.Product{}, 0, nil
+		}
+		filter["_id"] = bson.M{"$in": query.AllowedIDs}
 	}
 
 	total, err := r.collection.CountDocuments(ctx, filter)
@@ -100,6 +110,39 @@ func (r *productRepository) FindAll(ctx context.Context, page, limit int64, cate
 	}
 
 	return products, total, nil
+}
+
+// FindExistingIDs returns the subset of ids that still exist in the catalog.
+//
+// Only the identifiers are read back: this answers "does this still exist?" for a whole selection in
+// one query, which is what keeps saving an allow-list from turning into one lookup per product.
+func (r *productRepository) FindExistingIDs(ctx context.Context, ids []bson.ObjectID) ([]bson.ObjectID, error) {
+	if len(ids) == 0 {
+		return []bson.ObjectID{}, nil
+	}
+
+	cursor, err := r.collection.Find(
+		ctx,
+		bson.M{"_id": bson.M{"$in": ids}},
+		options.Find().SetProjection(bson.M{"_id": 1}),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify products: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var rows []struct {
+		ID bson.ObjectID `bson:"_id"`
+	}
+	if err := cursor.All(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("failed to decode product IDs: %w", err)
+	}
+
+	found := make([]bson.ObjectID, 0, len(rows))
+	for _, row := range rows {
+		found = append(found, row.ID)
+	}
+	return found, nil
 }
 
 // Update modifies an existing product. RBAC is enforced by the service layer before this is

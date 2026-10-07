@@ -148,7 +148,7 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 		isActive = &parsed
 	}
 
-	respData, err := h.service.GetAllProducts(c.Request.Context(), claims.Role, page, limit, category, isActive)
+	respData, err := h.service.GetAllProducts(c.Request.Context(), claims.Role, claims.UserID.Hex(), page, limit, category, isActive)
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, err.Error())
 		return
@@ -178,7 +178,7 @@ func (h *ProductHandler) GetByID(c *gin.Context) {
 
 	idStr := c.Param("id")
 
-	product, err := h.service.GetProductByID(c.Request.Context(), claims.Role, idStr)
+	product, err := h.service.GetProductByID(c.Request.Context(), claims.Role, claims.UserID.Hex(), idStr)
 	if err != nil {
 		response.Error(c, http.StatusNotFound, err.Error())
 		return

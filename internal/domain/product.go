@@ -73,11 +73,29 @@ type ProductListResponse struct {
 	Data  []*Product `json:"data"`
 }
 
+// ProductQuery is one page of the catalog. It is a struct rather than a parameter list because the
+// per-client visibility filter has to be applied in the database query itself: filtering a page
+// after it is read would make both the page size and the reported total wrong.
+type ProductQuery struct {
+	Page     int64
+	Limit    int64
+	Category string
+	// IsActive nil returns products regardless of status (staff); clients are always forced to true.
+	IsActive *bool
+	// Restricted true limits the catalog to AllowedIDs, which may legitimately be empty — that means
+	// this client sees no products, which is different from "no restriction".
+	Restricted bool
+	AllowedIDs []bson.ObjectID
+}
+
 // ProductRepository defines database operations for the product catalog.
 type ProductRepository interface {
 	Create(ctx context.Context, product *Product) (*Product, error)
 	FindByID(ctx context.Context, id bson.ObjectID) (*Product, error)
-	FindAll(ctx context.Context, page, limit int64, category string, isActive *bool) ([]*Product, int64, error)
+	FindAll(ctx context.Context, query ProductQuery) ([]*Product, int64, error)
+	// FindExistingIDs returns the subset of ids that still exist, in one query — used to verify an
+	// admin's selection and to drop products that have left the catalog from a stored one.
+	FindExistingIDs(ctx context.Context, ids []bson.ObjectID) ([]bson.ObjectID, error)
 	Update(ctx context.Context, id bson.ObjectID, dto *UpdateProductDTO) (*Product, error)
 	Delete(ctx context.Context, id bson.ObjectID) error
 }
@@ -85,8 +103,10 @@ type ProductRepository interface {
 // ProductService defines business logic operations for the product catalog.
 type ProductService interface {
 	CreateProduct(ctx context.Context, requesterRole string, dto *CreateProductDTO, file io.Reader, filename string) (*Product, error)
-	GetProductByID(ctx context.Context, requesterRole, idStr string) (*Product, error)
-	GetAllProducts(ctx context.Context, requesterRole string, page, limit int64, category string, isActive *bool) (*ProductListResponse, error)
+	// GetProductByID and GetAllProducts take requesterID as well as the role: what a client may see
+	// is decided per account (see ClientProductAccessService), not per role.
+	GetProductByID(ctx context.Context, requesterRole, requesterID, idStr string) (*Product, error)
+	GetAllProducts(ctx context.Context, requesterRole, requesterID string, page, limit int64, category string, isActive *bool) (*ProductListResponse, error)
 	UpdateProduct(ctx context.Context, requesterRole, idStr string, dto *UpdateProductDTO, newFile io.Reader, filename string) (*Product, error)
 	DeleteProduct(ctx context.Context, requesterRole, idStr string) error
 }

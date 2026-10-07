@@ -19,31 +19,56 @@ import (
 const licCompanyName = "Life Insurance Corporation of India"
 
 type agencySyncService struct {
-	lifeInsuranceRepo  domain.LifeInsuranceRepository
-	importedPolicyRepo domain.ImportedPolicyRepository
-	familyMemberRepo   domain.FamilyMemberRepository
-	userRepo           domain.UserRepository
+	lifeInsuranceRepo   domain.LifeInsuranceRepository
+	importedPolicyRepo  domain.ImportedPolicyRepository
+	fixedDepositRepo    domain.FixedDepositRepository
+	importedDepositRepo domain.ImportedDepositRepository
+	familyMemberRepo    domain.FamilyMemberRepository
+	userRepo            domain.UserRepository
 }
 
 // NewAgencySyncService initializes a new AgencySyncService.
 func NewAgencySyncService(
 	lifeInsuranceRepo domain.LifeInsuranceRepository,
 	importedPolicyRepo domain.ImportedPolicyRepository,
+	fixedDepositRepo domain.FixedDepositRepository,
+	importedDepositRepo domain.ImportedDepositRepository,
 	familyMemberRepo domain.FamilyMemberRepository,
 	userRepo domain.UserRepository,
 ) domain.AgencySyncService {
 	return &agencySyncService{
-		lifeInsuranceRepo:  lifeInsuranceRepo,
-		importedPolicyRepo: importedPolicyRepo,
-		familyMemberRepo:   familyMemberRepo,
-		userRepo:           userRepo,
+		lifeInsuranceRepo:   lifeInsuranceRepo,
+		importedPolicyRepo:  importedPolicyRepo,
+		fixedDepositRepo:    fixedDepositRepo,
+		importedDepositRepo: importedDepositRepo,
+		familyMemberRepo:    familyMemberRepo,
+		userRepo:            userRepo,
 	}
 }
 
-// resolveSyncAgency returns the calling admin's agency, failing closed. Agency Sync is admin-only
-// (super_admin is rejected in the handler), so an admin whose agency can't be resolved must never
-// fall through to an unscoped sync that could touch another agency's policies.
-func (s *agencySyncService) resolveSyncAgency(ctx context.Context, requesterRole, requesterID string) (string, error) {
+// resolveSyncAgency settles which agency this sync acts on, and never returns an empty one.
+//
+// Agency Sync is always *somebody's* book: a due list belongs to the agency that sells those policies,
+// and an inbox row can only be attached to a client of that same agency. So unlike a listing, there is
+// no "whole platform" mode here — an empty agency would mean writing rows nobody can ever claim.
+//
+//   - A plain admin acts on their own agency, whatever the request says. They have exactly one book,
+//     and it is not theirs to widen.
+//   - A super_admin has no book of their own, so they name the agency they are working on behalf of.
+//     It must be a real staff account; a typo is refused rather than silently creating an orphan book.
+func (s *agencySyncService) resolveSyncAgency(ctx context.Context, requesterRole, requesterID, requestedAgencyID string) (string, error) {
+	if requesterRole == domain.RoleSuperAdmin {
+		requested := strings.ToUpper(strings.TrimSpace(requestedAgencyID))
+		if requested == "" {
+			return "", fmt.Errorf("choose which agency this applies to — a super admin has no agency book of their own")
+		}
+		owner, err := s.userRepo.FindByAdminID(ctx, requested)
+		if err != nil || owner == nil || (owner.Role != domain.RoleAdmin && owner.Role != domain.RoleSuperAdmin) {
+			return "", fmt.Errorf("unknown Agency ID %s — pick an agency from the list", requested)
+		}
+		return owner.AdminID, nil
+	}
+
 	agencyID := resolveCallerAgencyID(ctx, s.userRepo, requesterRole, requesterID)
 	if agencyID == "" {
 		return "", fmt.Errorf("unable to resolve your agency — contact support")
@@ -60,12 +85,12 @@ func (s *agencySyncService) resolveSyncAgency(ctx context.Context, requesterRole
 //
 // Everything is scoped to the calling admin's own agency, so a policy number that happens to
 // coincide with another agency's client is never read or written.
-func (s *agencySyncService) ProcessLICDueList(ctx context.Context, requesterRole, requesterID string, fileBytes []byte) (*domain.SyncResultDTO, error) {
+func (s *agencySyncService) ProcessLICDueList(ctx context.Context, requesterRole, requesterID, agencyID string, fileBytes []byte) (*domain.SyncResultDTO, error) {
 	if len(fileBytes) == 0 {
 		return nil, fmt.Errorf("uploaded file is empty")
 	}
 
-	agencyID, err := s.resolveSyncAgency(ctx, requesterRole, requesterID)
+	agencyID, err := s.resolveSyncAgency(ctx, requesterRole, requesterID, agencyID)
 	if err != nil {
 		return nil, err
 	}
@@ -184,8 +209,8 @@ func (s *agencySyncService) ProcessLICDueList(ctx context.Context, requesterRole
 }
 
 // ListImportedPolicies returns the calling admin's policy inbox with live link status.
-func (s *agencySyncService) ListImportedPolicies(ctx context.Context, requesterRole, requesterID, status, search string, page, limit int64) ([]*domain.ImportedPolicyView, int64, error) {
-	agencyID, err := s.resolveSyncAgency(ctx, requesterRole, requesterID)
+func (s *agencySyncService) ListImportedPolicies(ctx context.Context, requesterRole, requesterID, agencyID, status, search string, page, limit int64) ([]*domain.ImportedPolicyView, int64, error) {
+	agencyID, err := s.resolveSyncAgency(ctx, requesterRole, requesterID, agencyID)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -212,8 +237,8 @@ func (s *agencySyncService) ListImportedPolicies(ctx context.Context, requesterR
 // Field ownership after linking: the sync owns the money and the dates (premium, payment mode,
 // next due date, DOC) and refreshes them monthly; the admin owns sum assured, nominee, plan name,
 // term and PPT, and the sync never overwrites those.
-func (s *agencySyncService) LinkImportedPolicy(ctx context.Context, requesterRole, requesterID, idStr string, dto *domain.LinkImportedPolicyDTO) (*domain.LifeInsurance, error) {
-	agencyID, err := s.resolveSyncAgency(ctx, requesterRole, requesterID)
+func (s *agencySyncService) LinkImportedPolicy(ctx context.Context, requesterRole, requesterID, agencyID, idStr string, dto *domain.LinkImportedPolicyDTO) (*domain.LifeInsurance, error) {
+	agencyID, err := s.resolveSyncAgency(ctx, requesterRole, requesterID, agencyID)
 	if err != nil {
 		return nil, err
 	}
@@ -241,7 +266,11 @@ func (s *agencySyncService) LinkImportedPolicy(ctx context.Context, requesterRol
 	if err != nil || targetUser == nil {
 		return nil, fmt.Errorf("client account not found")
 	}
-	if !canAccessAgencyScopedRecord(requesterRole, agencyID, targetUser.AgencyID) {
+	// Checked against the agency being acted for, not against the caller's role. A super_admin
+	// importing on behalf of one agency must not be able to attach that agency's row to another
+	// agency's client — the row and the client have to belong to the same book, which is the same
+	// rule an admin follows.
+	if targetUser.AgencyID == "" || targetUser.AgencyID != agencyID {
 		return nil, fmt.Errorf("client account not found")
 	}
 
@@ -316,8 +345,8 @@ func (s *agencySyncService) LinkImportedPolicy(ctx context.Context, requesterRol
 // DeleteImportedPolicy removes an inbox row — used when the wrong file was uploaded. A row that is
 // already linked to a client's policy is refused, so this can never be mistaken for a way to
 // delete the client's actual policy.
-func (s *agencySyncService) DeleteImportedPolicy(ctx context.Context, requesterRole, requesterID, idStr string) error {
-	agencyID, err := s.resolveSyncAgency(ctx, requesterRole, requesterID)
+func (s *agencySyncService) DeleteImportedPolicy(ctx context.Context, requesterRole, requesterID, agencyID, idStr string) error {
+	agencyID, err := s.resolveSyncAgency(ctx, requesterRole, requesterID, agencyID)
 	if err != nil {
 		return err
 	}

@@ -258,7 +258,65 @@ func GetMigrations(cfg *config.Config) []Migration {
 			Description: "Stamp who manages each existing policy, deposit and motor record",
 			Up:          backfillManagedBy,
 		},
+		{
+			Version:     11,
+			Description: "Index users by agency for the client map",
+			Up: func(ctx context.Context, db *mongo.Database) error {
+				// The client map scopes on role + agency before joining anything, so this compound
+				// index is what keeps a super admin's platform-wide view and an admin's own-agency
+				// view off a collection scan. The holdings collections already index user_id, which
+				// is what the map's count lookups join on.
+				_, err := db.Collection("users").Indexes().CreateOne(ctx, mongo.IndexModel{
+					Keys: bson.D{{Key: "role", Value: 1}, {Key: "agency_id", Value: 1}},
+				})
+				return err
+			},
+		},
+		{
+			Version:     12,
+			Description: "Retire the separate referral code — the Agency ID is the only code",
+			Up:          retireReferralCodes,
+		},
 	}
+}
+
+// retireReferralCodes removes the separate advisor referral code from the platform.
+//
+// An admin's Admin ID has always *been* their Agency ID, and a client typing it already filed them
+// under that admin. The referral code was a second value that did the same job, which meant two boxes
+// on the signup form where one would do, and an applicant with no way to know which mattered. From
+// here on the Agency ID is the only code: typing it files the client under that agency and credits
+// that admin with bringing them in.
+//
+// Referral records already filed are left exactly as they are — they point at the referrer's account,
+// not at a code, so past attribution survives this and the super admin's report keeps its history.
+func retireReferralCodes(ctx context.Context, db *mongo.Database) error {
+	users := db.Collection("users")
+
+	// Drop the index before the field: a unique index left behind on a field nothing writes any more
+	// is a trap for whoever next adds a column with that name.
+	if err := users.Indexes().DropOne(ctx, "referral_code_1"); err != nil {
+		// Absent on a database that never reached migration 9, which is not a problem to solve here.
+		log.Info().Err(err).Msg("No referral_code index to drop")
+	}
+
+	if _, err := users.UpdateMany(ctx,
+		bson.M{"referral_code": bson.M{"$exists": true}},
+		bson.M{"$unset": bson.M{"referral_code": ""}},
+	); err != nil {
+		return fmt.Errorf("failed to remove referral codes from accounts: %w", err)
+	}
+
+	// The code an applicant typed, stored on their access request. The Agency ID it resolved to is
+	// kept in applied_agency_id, so nothing about who the request belongs to is lost.
+	if _, err := db.Collection("access_requests").UpdateMany(ctx,
+		bson.M{"applied_referral_code": bson.M{"$exists": true}},
+		bson.M{"$unset": bson.M{"applied_referral_code": ""}},
+	); err != nil {
+		return fmt.Errorf("failed to remove applied referral codes from access requests: %w", err)
+	}
+
+	return nil
 }
 
 // backfillManagedBy fills in the managed_by flag the client app now shows on every holding.
@@ -304,9 +362,10 @@ func backfillManagedBy(ctx context.Context, db *mongo.Database) error {
 //
 //   - A client account no longer expires, so every app_validity_end_date is dropped. (Admin access
 //     still expires — that lives in admin_expiry_date and is untouched.)
-//   - Referral codes belong to agency staff. Client codes are removed, and every admin/super_admin
-//     without one is issued a code to share. Referral records already filed keep pointing at
-//     whoever made them, so past attribution isn't rewritten.
+//   - Referral codes stored on client accounts are removed. (Staff codes are no longer issued here
+//     at all — see migration 12, which retires the separate code in favour of the Agency ID.)
+//     Referral records already filed keep pointing at whoever made them, so past attribution isn't
+//     rewritten.
 func moveReferralsToStaff(ctx context.Context, db *mongo.Database) error {
 	users := db.Collection("users")
 
@@ -317,6 +376,10 @@ func moveReferralsToStaff(ctx context.Context, db *mongo.Database) error {
 		return fmt.Errorf("failed to drop client validity dates: %w", err)
 	}
 
+	// This migration used to also issue every admin a separate referral code. Migration 12 retires
+	// those codes entirely — an admin's Agency ID (their Admin ID) is now the only code anyone
+	// shares — so issuing them here would only create data the next migration deletes. Codes already
+	// issued on a database that ran this earlier are cleaned up there.
 	if _, err := users.UpdateMany(ctx,
 		bson.M{
 			"role":          bson.M{"$in": bson.A{domain.RoleClient, domain.RoleAdvisor}},
@@ -327,71 +390,7 @@ func moveReferralsToStaff(ctx context.Context, db *mongo.Database) error {
 		return fmt.Errorf("failed to remove client referral codes: %w", err)
 	}
 
-	cursor, err := users.Find(ctx, bson.M{
-		"role": bson.M{"$in": bson.A{domain.RoleAdmin, domain.RoleSuperAdmin}},
-		"$or": bson.A{
-			bson.M{"referral_code": bson.M{"$exists": false}},
-			bson.M{"referral_code": ""},
-		},
-	}, options.Find().SetProjection(bson.M{"_id": 1}))
-	if err != nil {
-		return fmt.Errorf("failed to find staff accounts without a referral code: %w", err)
-	}
-	defer cursor.Close(ctx)
-
-	for cursor.Next(ctx) {
-		var row struct {
-			ID bson.ObjectID `bson:"_id"`
-		}
-		if err := cursor.Decode(&row); err != nil {
-			continue
-		}
-
-		code, err := uniqueReferralCode(ctx, users)
-		if err != nil {
-			return err
-		}
-		if _, err := users.UpdateOne(ctx,
-			bson.M{"_id": row.ID},
-			bson.M{"$set": bson.M{"referral_code": code, "updated_at": time.Now().UTC()}},
-		); err != nil {
-			return fmt.Errorf("failed to issue a referral code to %s: %w", row.ID.Hex(), err)
-		}
-		log.Info().Str("user_id", row.ID.Hex()).Str("referral_code", code).Msg("Issued staff referral code")
-	}
-	if err := cursor.Err(); err != nil {
-		return fmt.Errorf("failed to read staff accounts: %w", err)
-	}
-
-	// Codes are looked up on every referred signup, and must stay unique. Sparse, because only
-	// staff hold one. A pre-existing duplicate would fail this — logged rather than fatal, so the
-	// server still starts and the data can be cleaned up by hand.
-	if _, err := users.Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys:    bson.D{{Key: "referral_code", Value: 1}},
-		Options: options.Index().SetUnique(true).SetSparse(true),
-	}); err != nil {
-		log.Warn().Err(err).Msg("Could not create the unique index on users.referral_code — check for duplicate codes")
-	}
-
 	return nil
-}
-
-// uniqueReferralCode returns a referral code no user document holds yet.
-func uniqueReferralCode(ctx context.Context, users *mongo.Collection) (string, error) {
-	for attempt := 0; attempt < 10; attempt++ {
-		candidate, err := utils.GenerateReferralCode(6)
-		if err != nil {
-			return "", fmt.Errorf("failed to generate a referral code: %w", err)
-		}
-		count, err := users.CountDocuments(ctx, bson.M{"referral_code": candidate})
-		if err != nil {
-			return "", fmt.Errorf("failed to check referral code uniqueness: %w", err)
-		}
-		if count == 0 {
-			return candidate, nil
-		}
-	}
-	return "", fmt.Errorf("could not generate a unique referral code after 10 attempts")
 }
 
 // legacyAdvisorContact is the dummy number every motor policy used to be stamped with, whatever

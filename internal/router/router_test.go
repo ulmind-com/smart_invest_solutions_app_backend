@@ -30,13 +30,27 @@ func TestSetupRegistersRoutesWithoutConflicts(t *testing.T) {
 	r := Setup(db, &config.Config{JWTSecret: "test", JWTExpiryHours: "1"})
 
 	want := map[string]bool{
-		"POST /api/v1/life-insurances/:id/mark-paid":   false,
-		"POST /api/v1/health-insurances/:id/mark-paid": false,
-		"GET /api/v1/users":                            false,
-		"PUT /api/v1/calculators/settings":             false,
-		"GET /api/v1/referrals/my-stats":               false,
-		"GET /api/v1/referrals/all":                    false,
-		"GET /api/v1/referrals/summary":                false,
+		"POST /api/v1/life-insurances/:id/mark-paid":     false,
+		"POST /api/v1/health-insurances/:id/mark-paid":   false,
+		"GET /api/v1/users":                              false,
+		"PUT /api/v1/calculators/settings":               false,
+		"GET /api/v1/referrals/my-stats":                 false,
+		"GET /api/v1/referrals/all":                      false,
+		"GET /api/v1/referrals/summary":                  false,
+		"POST /api/v1/agency/sync/postal-report":         false,
+		"GET /api/v1/agency/imported-deposits":           false,
+		"POST /api/v1/agency/imported-deposits/:id/link": false,
+		"GET /api/v1/users/me/advisor":                   false,
+		"GET /api/v1/client-map":                         false,
+		"GET /api/v1/renewals":                           false,
+		"GET /api/v1/announcements":                      false,
+		"GET /api/v1/announcements/all":                  false,
+		"POST /api/v1/announcements":                     false,
+		"PUT /api/v1/announcements/:id":                  false,
+		"DELETE /api/v1/announcements/:id":               false,
+		"GET /api/v1/admins/next-id":                     false,
+		"GET /api/v1/users/:id/product-access":           false,
+		"PUT /api/v1/users/:id/product-access":           false,
 	}
 	for _, route := range r.Routes() {
 		key := route.Method + " " + route.Path

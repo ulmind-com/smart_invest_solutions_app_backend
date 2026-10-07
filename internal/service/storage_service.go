@@ -10,6 +10,8 @@ import (
 	_ "image/png"
 	"io"
 	"net/http"
+	"path"
+	"strings"
 	"time"
 
 	"github.com/cloudinary/cloudinary-go/v2"
@@ -31,13 +33,31 @@ type UploadResult struct {
 	PublicID  string `json:"public_id"`
 	Bytes     int64  `json:"bytes"`
 	Format    string `json:"format"`
+	// ResourceType is what the storage provider filed this asset as — "image" or "video". It has to
+	// be kept, because deleting an asset requires naming its type: a delete sent as "image" for a
+	// video is accepted and does nothing, leaving the file behind forever.
+	ResourceType string `json:"resource_type,omitempty"`
+	// ThumbnailURL is a still frame for a video, so a banner can show something before anyone presses
+	// play. Empty for images, which are their own thumbnail.
+	ThumbnailURL string `json:"thumbnail_url,omitempty"`
 }
+
+// Resource types an upload can be filed under.
+const (
+	ResourceTypeImage = "image"
+	ResourceTypeVideo = "video"
+)
 
 // StorageService defines standard file storage operations.
 type StorageService interface {
 	UploadImage(ctx context.Context, file interface{}, folder string) (string, error)
 	UploadDocumentWithCompression(ctx context.Context, file interface{}, folder string) (*UploadResult, error)
+	// UploadMedia uploads an image or a video, detecting which from the bytes rather than trusting a
+	// filename, and reports the resource type so the asset can later be deleted correctly.
+	UploadMedia(ctx context.Context, file io.Reader, folder string) (*UploadResult, error)
 	DeleteImage(ctx context.Context, publicID string) error
+	// DeleteMedia removes an asset of a known resource type. DeleteImage can only remove images.
+	DeleteMedia(ctx context.Context, publicID, resourceType string) error
 }
 
 // CloudinaryService implements StorageService using Cloudinary.
@@ -84,7 +104,15 @@ func (u unavailableStorage) UploadDocumentWithCompression(context.Context, inter
 	return nil, fmt.Errorf("file storage is not configured on the server: %v", u.reason)
 }
 
+func (u unavailableStorage) UploadMedia(context.Context, io.Reader, string) (*UploadResult, error) {
+	return nil, fmt.Errorf("file storage is not configured on the server: %v", u.reason)
+}
+
 func (u unavailableStorage) DeleteImage(context.Context, string) error {
+	return fmt.Errorf("file storage is not configured on the server: %v", u.reason)
+}
+
+func (u unavailableStorage) DeleteMedia(context.Context, string, string) error {
 	return fmt.Errorf("file storage is not configured on the server: %v", u.reason)
 }
 
@@ -153,6 +181,126 @@ func (s *CloudinaryService) UploadDocumentWithCompression(ctx context.Context, f
 		Bytes:     int64(resp.Bytes),
 		Format:    resp.Format,
 	}, nil
+}
+
+// maxBannerVideoBytes caps an uploaded video. A screen banner is a few seconds long; anything near
+// this is a file somebody meant to trim first, and letting it through would mean a client on mobile
+// data paying for it.
+const maxBannerVideoBytes = 20 << 20 // 20 MiB
+
+// UploadMedia uploads an image or a video for display in the app.
+//
+// Two things make this different from UploadDocumentWithCompression, and both are the reason it
+// exists separately rather than as a flag:
+//
+//   - The resource type is set explicitly from the file's own bytes, and returned. Cloudinary's
+//     "auto" guesses correctly on upload, but a *delete* has to name the type — so without carrying
+//     it, removing a video would be accepted and quietly do nothing.
+//   - The image size transformation is not applied to video. On a video Cloudinary would transcode
+//     it, which is slow and lossy for no benefit here; videos get their own longer timeout instead,
+//     since even a small one takes longer to transfer than a photo.
+func (s *CloudinaryService) UploadMedia(ctx context.Context, file io.Reader, folder string) (*UploadResult, error) {
+	buf, err := io.ReadAll(file)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read the uploaded file: %w", err)
+	}
+	if len(buf) == 0 {
+		return nil, fmt.Errorf("the uploaded file is empty")
+	}
+
+	// Detected from the bytes, not from the filename: a .jpg that is really a video (or the reverse)
+	// would otherwise be filed under the wrong type and become undeletable.
+	contentType := http.DetectContentType(buf)
+	isVideo := strings.HasPrefix(contentType, "video/")
+
+	resourceType := ResourceTypeImage
+	timeout := 45 * time.Second
+	params := uploader.UploadParams{
+		Folder:   folder,
+		PublicID: uuid.New().String(),
+	}
+
+	if isVideo {
+		if len(buf) > maxBannerVideoBytes {
+			return nil, fmt.Errorf("that video is %.1f MB — please upload one under %d MB", float64(len(buf))/(1<<20), maxBannerVideoBytes>>20)
+		}
+		resourceType = ResourceTypeVideo
+		timeout = 3 * time.Minute
+	} else {
+		if !strings.HasPrefix(contentType, "image/") {
+			return nil, fmt.Errorf("that file is neither an image nor a video (detected %s)", contentType)
+		}
+		// Same cap the rest of the app applies to images, and the compression that goes with it.
+		params.Transformation = "c_limit,w_1920,h_1920,q_auto:good"
+		if len(buf) > compressionThresholdBytes {
+			if compressed, ok := compressImageBuffer(buf); ok {
+				buf = compressed
+			}
+		}
+	}
+	params.ResourceType = resourceType
+
+	uploadCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	resp, err := s.client.Upload.Upload(uploadCtx, bytes.NewReader(buf), params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to upload media: %v", err)
+	}
+
+	result := &UploadResult{
+		SecureURL:    resp.SecureURL,
+		PublicID:     resp.PublicID,
+		Bytes:        int64(resp.Bytes),
+		Format:       resp.Format,
+		ResourceType: resourceType,
+	}
+	if isVideo {
+		result.ThumbnailURL = videoPosterURL(resp.SecureURL)
+	}
+
+	return result, nil
+}
+
+// videoPosterURL turns a Cloudinary video URL into a still of its first frame, by asking for the same
+// asset as a JPEG. It costs no extra storage — the provider renders it on request — and gives a banner
+// something to show before anyone presses play. Returns "" if the URL has no extension to swap.
+func videoPosterURL(secureURL string) string {
+	ext := path.Ext(secureURL)
+	if ext == "" {
+		return ""
+	}
+	return strings.TrimSuffix(secureURL, ext) + ".jpg"
+}
+
+// DeleteMedia removes an asset, naming its resource type.
+//
+// This is the half that makes video deletion work: Cloudinary's Destroy defaults to "image", and a
+// video delete sent without the type comes back "not found" — an answer that looks like success and
+// leaves the file in storage for good.
+func (s *CloudinaryService) DeleteMedia(ctx context.Context, publicID, resourceType string) error {
+	if publicID == "" {
+		return nil
+	}
+	if resourceType == "" {
+		resourceType = ResourceTypeImage
+	}
+
+	deleteCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+
+	resp, err := s.client.Upload.Destroy(deleteCtx, uploader.DestroyParams{
+		PublicID:     publicID,
+		ResourceType: resourceType,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to delete %s from storage: %v", resourceType, err)
+	}
+	if resp.Result != "ok" && resp.Result != "not found" {
+		return fmt.Errorf("storage delete error: %s", resp.Result)
+	}
+
+	return nil
 }
 
 // compressImageBuffer re-encodes a large JPG/PNG as a JPEG no wider/taller than 1920px, aiming for
