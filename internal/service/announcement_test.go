@@ -416,6 +416,39 @@ func TestAWindowThatCouldNeverShowAnythingIsRefused(t *testing.T) {
 	}
 }
 
+func TestAOneDayBannerIsValid(t *testing.T) {
+	// The app sends the start at midday and the end at end-of-day, so a banner that starts and ends on
+	// the same date is a real one-day offer — not a backwards window. Before the end bound was sent as
+	// end-of-day, both were midday and this was refused.
+	repo := newFakeAnnouncementRepo()
+	svc, root := newAnnouncementService(t, repo, &fakeStorage{})
+
+	day := time.Date(2026, 11, 15, 0, 0, 0, 0, time.UTC)
+	start := day.Add(12 * time.Hour)
+	end := day.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
+
+	created, err := svc.Create(context.Background(), domain.RoleSuperAdmin, root.ID.Hex(),
+		&domain.CreateAnnouncementDTO{Title: "One-day offer", StartsAt: &start, EndsAt: &end},
+		domain.MediaUpload{})
+	if err != nil {
+		t.Fatalf("a same-day banner should be accepted: %v", err)
+	}
+	if created.StartsAt == nil || created.EndsAt == nil {
+		t.Fatal("both bounds should be stored")
+	}
+
+	// And it is live for the whole of that day, including the evening — the thing the end-of-day
+	// bound exists to guarantee.
+	evening := day.Add(21 * time.Hour)
+	if got := announcementStatus(created, evening); got != domain.AnnouncementStatusLive {
+		t.Errorf("at 21:00 on its only day the banner reads %q, want live", got)
+	}
+	// The following midnight is past it.
+	if got := announcementStatus(created, day.Add(25*time.Hour)); got != domain.AnnouncementStatusExpired {
+		t.Errorf("the next day it reads %q, want expired", got)
+	}
+}
+
 func TestOnlyHttpLinksAreAccepted(t *testing.T) {
 	// A banner that can carry any scheme is a way to make somebody's phone open an arbitrary deep
 	// link. Only the two web schemes are allowed through.
