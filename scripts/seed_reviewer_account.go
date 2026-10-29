@@ -286,3 +286,4 @@ func main() {
 	fmt.Println("   Role     : Client (Full App Access)")
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 }
+
