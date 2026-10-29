@@ -172,8 +172,8 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 		users := v1.Group("/users")
 		{
 			// Public routes
-			users.POST("/register", userHandler.Register)
-			users.POST("/login", userHandler.Login)
+			users.POST("/register", middleware.RateLimit(10, time.Minute), userHandler.Register)
+			users.POST("/login", middleware.RateLimit(25, time.Minute), userHandler.Login)
 			users.POST("/verify-email-otp", emailVerifHandler.VerifyEmailOTP)
 			users.POST("/resend-email-otp", emailVerifHandler.ResendEmailOTP)
 			// Rate limited per IP: this endpoint tells the caller whether an address is registered,
