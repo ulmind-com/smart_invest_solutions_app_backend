@@ -34,8 +34,9 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	router.Use(middleware.RequestLogger())
 	router.Use(middleware.CORS())
 
-	// Health check endpoint
-	router.GET("/health", func(c *gin.Context) {
+	// Health check & ping endpoints — supports both GET and HEAD so monitoring tools
+	// (UptimeRobot, Pingdom, Render health checks) that send HEAD requests never receive a 404.
+	healthCheckHandler := func(c *gin.Context) {
 		if err := db.HealthCheck(c.Request.Context()); err != nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{
 				"status":  "unhealthy",
@@ -47,12 +48,27 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			"status":  "healthy",
 			"message": "Smart Invest Solutions API is running",
 		})
-	})
+	}
+	router.GET("/health", healthCheckHandler)
+	router.HEAD("/health", healthCheckHandler)
+
+	rootHandler := func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "healthy",
+			"message": "Smart Invest Solutions API is running",
+		})
+	}
+	router.GET("/", rootHandler)
+	router.HEAD("/", rootHandler)
 
 	// Swagger Documentation UI — visit /swagger/index.html
 	url := ginSwagger.URL("/swagger/doc.json")
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler, url))
+	router.HEAD("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler, url))
 	router.GET("/swagger", func(c *gin.Context) {
+		c.Redirect(http.StatusMovedPermanently, "/swagger/index.html")
+	})
+	router.HEAD("/swagger", func(c *gin.Context) {
 		c.Redirect(http.StatusMovedPermanently, "/swagger/index.html")
 	})
 
@@ -149,6 +165,9 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	// API v1 routes
 	v1 := router.Group("/api/v1")
 	{
+		v1.GET("/health", healthCheckHandler)
+		v1.HEAD("/health", healthCheckHandler)
+
 		// User routes
 		users := v1.Group("/users")
 		{
