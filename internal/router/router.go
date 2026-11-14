@@ -174,8 +174,8 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			// Public routes
 			users.POST("/register", middleware.RateLimit(10, time.Minute), userHandler.Register)
 			users.POST("/login", middleware.RateLimit(25, time.Minute), userHandler.Login)
-			users.POST("/verify-email-otp", emailVerifHandler.VerifyEmailOTP)
-			users.POST("/resend-email-otp", emailVerifHandler.ResendEmailOTP)
+			users.POST("/verify-email-otp", middleware.RateLimit(15, time.Minute), emailVerifHandler.VerifyEmailOTP)
+			users.POST("/resend-email-otp", middleware.RateLimit(5, time.Minute), emailVerifHandler.ResendEmailOTP)
 			// Rate limited per IP: this endpoint tells the caller whether an address is registered,
 			// which is deliberate (see domain.UnknownAccountError) but must not be usable to test
 			// addresses in bulk. Six a minute is far more than a person resetting their own password
@@ -183,8 +183,8 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			users.POST("/forgot-password",
 				middleware.RateLimit(6, time.Minute),
 				userHandler.ForgotPassword)
-			users.POST("/verify-otp", userHandler.VerifyOTP)
-			users.POST("/reset-password", userHandler.ResetPassword)
+			users.POST("/verify-otp", middleware.RateLimit(15, time.Minute), userHandler.VerifyOTP)
+			users.POST("/reset-password", middleware.RateLimit(10, time.Minute), userHandler.ResetPassword)
 
 			// Protected routes (Require Login)
 			users.Use(middleware.RequireAuth(cfg, userRepo))
@@ -253,8 +253,8 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 		// Admin Account Management routes (Super Admin only)
 		admins := v1.Group("/admins")
 		{
-			// Public route — admin/super_admin login via AdminID + PIN
-			admins.POST("/login", userHandler.AdminLogin)
+			// Public route — admin/super_admin login via AdminID + PIN (rate limited to prevent brute-force attacks)
+			admins.POST("/login", middleware.RateLimit(15, time.Minute), userHandler.AdminLogin)
 
 			// Protected routes (Require Login + super_admin role)
 			protectedAdmins := admins.Group("")
@@ -278,8 +278,8 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 		// Access Request routes
 		accessReqs := v1.Group("/access-requests")
 		{
-			// Public endpoint for clients to request access
-			accessReqs.POST("", accessReqHandler.SubmitRequest)
+			// Public endpoint for clients to request access (rate limited to prevent form spam)
+			accessReqs.POST("", middleware.RateLimit(10, time.Minute), accessReqHandler.SubmitRequest)
 
 			// Admin-only endpoints for reviewing, approving & rejecting requests
 			adminReqs := accessReqs.Group("")

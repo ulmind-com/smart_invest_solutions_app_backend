@@ -3,6 +3,7 @@ package router
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -69,5 +70,55 @@ func TestSetupRegistersRoutesWithoutConflicts(t *testing.T) {
 	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/users/me", nil))
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401 without a token, got %d", rec.Code)
+	}
+}
+
+func TestAdminLoginRateLimiting(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	client, err := mongo.Connect(options.Client().
+		ApplyURI("mongodb://127.0.0.1:1").
+		SetServerSelectionTimeout(200 * time.Millisecond))
+	if err != nil {
+		t.Fatal(err)
+	}
+	db := &database.MongoDB{Client: client, Database: client.Database("router_test")}
+	r := Setup(db, &config.Config{JWTSecret: "test", JWTExpiryHours: "1"})
+
+	targetIP := "203.0.113.195:54321"
+
+	// 15 requests allowed within 1 minute window
+	for i := 1; i <= 15; i++ {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/admins/login", strings.NewReader(`{"admin_id":"ADM01","pin":"1234"}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = targetIP
+
+		r.ServeHTTP(rec, req)
+		if rec.Code == http.StatusTooManyRequests {
+			t.Fatalf("request %d was unexpectedly rate limited (429)", i)
+		}
+	}
+
+	// 16th request from the same IP must be rejected with 429 Too Many Requests
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admins/login", strings.NewReader(`{"admin_id":"ADM01","pin":"1234"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = targetIP
+
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected 16th request to return 429 Too Many Requests, got %d", rec.Code)
+	}
+
+	// Another IP should not be blocked
+	otherRec := httptest.NewRecorder()
+	otherReq := httptest.NewRequest(http.MethodPost, "/api/v1/admins/login", strings.NewReader(`{"admin_id":"ADM01","pin":"1234"}`))
+	otherReq.Header.Set("Content-Type", "application/json")
+	otherReq.RemoteAddr = "198.51.100.22:12345"
+
+	r.ServeHTTP(otherRec, otherReq)
+	if otherRec.Code == http.StatusTooManyRequests {
+		t.Fatalf("different IP was unexpectedly rate limited")
 	}
 }
