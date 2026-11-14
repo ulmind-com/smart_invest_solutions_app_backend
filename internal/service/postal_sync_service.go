@@ -30,10 +30,10 @@ func (s *agencySyncService) ProcessPostalReport(ctx context.Context, requesterRo
 
 	rawText, err := extractTextFromPDF(fileBytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract text from PDF: %w", err)
+		return nil, err
 	}
 	if strings.TrimSpace(rawText) == "" {
-		return nil, fmt.Errorf("unable to read text from PDF file or file is empty")
+		return nil, fmt.Errorf("unable to read text from PDF file (the file contains no selectable text or is a scanned image)")
 	}
 
 	parsed := parsePostalReport(rawText)

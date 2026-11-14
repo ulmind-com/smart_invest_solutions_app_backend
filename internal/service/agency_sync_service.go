@@ -97,10 +97,10 @@ func (s *agencySyncService) ProcessLICDueList(ctx context.Context, requesterRole
 
 	rawText, err := extractTextFromPDF(fileBytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract text from PDF: %w", err)
+		return nil, err
 	}
 	if strings.TrimSpace(rawText) == "" {
-		return nil, fmt.Errorf("unable to read text from PDF file or file is empty")
+		return nil, fmt.Errorf("unable to read text from PDF file (the file contains no selectable text or is a scanned image)")
 	}
 
 	header, parsedRecords, unparsedPolicyNos := parseLICDueList(rawText)
@@ -387,12 +387,15 @@ func extractTextFromPDF(fileBytes []byte) (text string, err error) {
 
 	r, err := pdf.NewReader(bytes.NewReader(fileBytes), int64(len(fileBytes)))
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("invalid or corrupted PDF file: %w", err)
+	}
+
+	numPages := r.NumPage()
+	if numPages <= 0 {
+		return "", fmt.Errorf("the PDF file contains no readable pages")
 	}
 
 	var buf bytes.Buffer
-	numPages := r.NumPage()
-
 	for pageIndex := 1; pageIndex <= numPages; pageIndex++ {
 		p := r.Page(pageIndex)
 		if p.V.IsNull() {
@@ -414,7 +417,12 @@ func extractTextFromPDF(fileBytes []byte) (text string, err error) {
 		}
 	}
 
-	return buf.String(), nil
+	extracted := strings.TrimSpace(buf.String())
+	if extracted == "" {
+		return "", fmt.Errorf("this PDF contains %d page(s) but has no selectable text (it appears to be a scanned image or photo). The sync engine requires the original digital PDF directly downloaded from the portal, not a photo or scan", numPages)
+	}
+
+	return extracted, nil
 }
 
 // licRowRegex matches one complete row of an LIC Premium Due List, in the exact column order the
@@ -446,7 +454,7 @@ var (
 	licAgentCodeRegex = regexp.MustCompile(`(?i)Agent\s*Code\s*:?\s*([A-Z]{2,4}\d{6,12})`)
 	licAgentNameRegex = regexp.MustCompile(`(?i)Agent\s*Name\s*:?\s*([A-Z][A-Za-z .]*?)\s+(?:Agent|Branch|Premium)\b`)
 	licBranchRegex    = regexp.MustCompile(`(?i)Branch\s*Code\s*:?\s*(\d{1,6})`)
-	licDueMonthRegex  = regexp.MustCompile(`(?i)(?:Due\s*(?:Month)?\s*:?\s*|For\s+)(\d{1,2}/\d{4})`)
+	licDueMonthRegex  = regexp.MustCompile(`(?i)(?:Due\s*(?:Month)?\s*[: \-]?\s*|For\s+)(\d{1,2}[/-]\d{4})`)
 	licWhitespace     = regexp.MustCompile(`\s+`)
 )
 
@@ -469,7 +477,8 @@ func parseLICDueList(rawText string) (domain.LICDueListHeader, []domain.LICParse
 		header.BranchCode = strings.TrimSpace(m[1])
 	}
 	if m := licDueMonthRegex.FindStringSubmatch(normalized); len(m) > 1 {
-		header.DueMonth = strings.TrimSpace(m[1])
+		rawDueMonth := strings.TrimSpace(m[1])
+		header.DueMonth = strings.ReplaceAll(rawDueMonth, "-", "/")
 	}
 
 	// A due list can legitimately repeat a policy number across pages; the map keeps the last read
@@ -534,6 +543,8 @@ func parseDueListDate(value string) time.Time {
 // Extract Day from DOC (DD/MM/YYYY). Extract Month & Year from FUP (MM/YYYY).
 // Combine Year, Month, Day to form CalculatedNextDueDate (UTC).
 func calculateNextDueDate(docStr, fupStr string) time.Time {
+	docStr = strings.ReplaceAll(docStr, "-", "/")
+	fupStr = strings.ReplaceAll(fupStr, "-", "/")
 	// Parse DOC for Day
 	docParts := strings.Split(docStr, "/")
 	docDay := 1
