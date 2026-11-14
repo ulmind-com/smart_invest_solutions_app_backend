@@ -22,8 +22,15 @@ func Connect(uri, dbName string) (*MongoDB, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Set client options
-	clientOptions := options.Client().ApplyURI(uri)
+	// Set client options with timeouts and connection pool limits
+	clientOptions := options.Client().
+		ApplyURI(uri).
+		SetServerSelectionTimeout(5 * time.Second).
+		SetConnectTimeout(10 * time.Second).
+		SetTimeout(15 * time.Second).
+		SetMaxPoolSize(50).
+		SetMinPoolSize(5).
+		SetMaxConnIdleTime(5 * time.Minute)
 
 	// Connect to MongoDB
 	client, err := mongo.Connect(clientOptions)
