@@ -5,6 +5,7 @@ import (
 	"math"
 
 	"github.com/smart-invest-solutions/backend/internal/domain"
+	"github.com/smart-invest-solutions/backend/pkg/utils"
 )
 
 type calculatorService struct {
@@ -153,5 +154,5 @@ func (s *calculatorService) CalculateFD(ctx context.Context, req *domain.FDReque
 }
 
 func roundToTwoDecimals(val float64) float64 {
-	return math.Round(val*100) / 100
+	return utils.RoundCurrency(val)
 }

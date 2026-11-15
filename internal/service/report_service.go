@@ -9,6 +9,7 @@ import (
 
 	"github.com/jung-kurt/gofpdf"
 	"github.com/smart-invest-solutions/backend/internal/domain"
+	"github.com/smart-invest-solutions/backend/pkg/utils"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"golang.org/x/sync/errgroup"
 )
@@ -318,29 +319,7 @@ func fitText(pdf *gofpdf.Fpdf, text string, width float64) string {
 
 // formatAmount renders rupees with Indian digit grouping, e.g. "Rs. 12,34,567".
 func formatAmount(amount float64) string {
-	rounded := int64(amount + 0.5)
-	if amount < 0 {
-		rounded = int64(amount - 0.5)
-	}
-	sign := ""
-	if rounded < 0 {
-		sign = "-"
-		rounded = -rounded
-	}
-	digits := fmt.Sprintf("%d", rounded)
-	if len(digits) > 3 {
-		head, tail := digits[:len(digits)-3], digits[len(digits)-3:]
-		var groups []string
-		for len(head) > 2 {
-			groups = append([]string{head[len(head)-2:]}, groups...)
-			head = head[:len(head)-2]
-		}
-		if head != "" {
-			groups = append([]string{head}, groups...)
-		}
-		digits = strings.Join(groups, ",") + "," + tail
-	}
-	return "Rs. " + sign + digits
+	return utils.FormatRupees(amount, false)
 }
 
 // formatDate renders a stored timestamp as an Indian calendar date, or "-" when unset.

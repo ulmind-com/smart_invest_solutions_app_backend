@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/smart-invest-solutions/backend/internal/domain"
+	"github.com/smart-invest-solutions/backend/pkg/utils"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -307,6 +308,8 @@ func summarizeRenewals(rows []*domain.RenewalRow) *domain.RenewalSummary {
 			summary.Unassigned++
 		}
 	}
+	summary.AmountOverdue = utils.RoundCurrency(summary.AmountOverdue)
+	summary.AmountDueIn30 = utils.RoundCurrency(summary.AmountDueIn30)
 	return summary
 }
 

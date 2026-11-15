@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/smart-invest-solutions/backend/pkg/utils"
 )
 
 // PostalParsedRecord is one account read from a Post Office report ("POSTAL REPORT"): the agency's
@@ -222,14 +224,14 @@ func parsePostalDate(value string) time.Time {
 	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
 }
 
-// parsePostalAmount reads an amount printed with or without Indian digit grouping.
+// parsePostalAmount reads an amount printed with or without Indian digit grouping, rounded to paisa.
 func parsePostalAmount(value string) float64 {
 	cleaned := strings.ReplaceAll(strings.TrimSpace(value), ",", "")
 	amount, err := strconv.ParseFloat(cleaned, 64)
 	if err != nil {
 		return 0
 	}
-	return amount
+	return utils.RoundCurrency(amount)
 }
 
 // postalTermMonths is how long the deposit runs, taken from the dates on the report (the scheme

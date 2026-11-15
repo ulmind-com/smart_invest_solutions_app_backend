@@ -11,6 +11,7 @@ import (
 
 	"github.com/ledongthuc/pdf"
 	"github.com/smart-invest-solutions/backend/internal/domain"
+	"github.com/smart-invest-solutions/backend/pkg/utils"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -502,10 +503,10 @@ func parseLICDueList(rawText string) (domain.LICDueListHeader, []domain.LICParse
 			Mode:                  normalizeMode(match[6]),
 			FUP:                   match[7],
 			Flag:                  strings.ToUpper(match[8]),
-			Premium:               premium,
+			Premium:               utils.RoundCurrency(premium),
 			DueCount:              dueCount,
-			TotalPremium:          totalPremium,
-			EstimatedCommission:   estCommission,
+			TotalPremium:          utils.RoundCurrency(totalPremium),
+			EstimatedCommission:   utils.RoundCurrency(estCommission),
 			CalculatedNextDueDate: calculateNextDueDate(match[3], match[7]),
 		}
 	}
