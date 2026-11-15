@@ -17,13 +17,9 @@ type MongoDB struct {
 	Database *mongo.Database
 }
 
-// Connect establishes a connection to MongoDB Atlas and verifies it with a ping.
-func Connect(uri, dbName string) (*MongoDB, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// Set client options with timeouts and connection pool limits
-	clientOptions := options.Client().
+// NewClientOptions builds driver options configured with production connection timeouts and pool limits.
+func NewClientOptions(uri string) *options.ClientOptions {
+	return options.Client().
 		ApplyURI(uri).
 		SetServerSelectionTimeout(5 * time.Second).
 		SetConnectTimeout(10 * time.Second).
@@ -31,6 +27,15 @@ func Connect(uri, dbName string) (*MongoDB, error) {
 		SetMaxPoolSize(50).
 		SetMinPoolSize(5).
 		SetMaxConnIdleTime(5 * time.Minute)
+}
+
+// Connect establishes a connection to MongoDB Atlas and verifies it with a ping.
+func Connect(uri, dbName string) (*MongoDB, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Set client options with timeouts and connection pool limits
+	clientOptions := NewClientOptions(uri)
 
 	// Connect to MongoDB
 	client, err := mongo.Connect(clientOptions)
