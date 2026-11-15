@@ -12,20 +12,22 @@ import (
 type Claims struct {
 	UserID          bson.ObjectID  `json:"user_id"`
 	Role            string         `json:"role"`
+	TokenVersion    int            `json:"token_version"`
 	ImpersonatedBy  *bson.ObjectID `json:"impersonated_by,omitempty"`
 	IsImpersonating bool           `json:"is_impersonating,omitempty"`
 	jwt.RegisteredClaims
 }
 
 // GenerateJWT creates a new JWT token for a user.
-func GenerateJWT(userID bson.ObjectID, role string, secret string, expiryHours int) (string, error) {
+func GenerateJWT(userID bson.ObjectID, role string, tokenVersion int, secret string, expiryHours int) (string, error) {
 	// Set expiration time
 	expirationTime := time.Now().Add(time.Duration(expiryHours) * time.Hour)
 
 	// Create the claims
 	claims := &Claims{
-		UserID: userID,
-		Role:   role,
+		UserID:       userID,
+		Role:         role,
+		TokenVersion: tokenVersion,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -46,12 +48,13 @@ func GenerateJWT(userID bson.ObjectID, role string, secret string, expiryHours i
 }
 
 // GenerateImpersonationJWT creates a new JWT token for a super_admin impersonating a target user.
-func GenerateImpersonationJWT(targetUserID, superAdminID bson.ObjectID, role string, secret string, expiryHours int) (string, error) {
+func GenerateImpersonationJWT(targetUserID, superAdminID bson.ObjectID, role string, tokenVersion int, secret string, expiryHours int) (string, error) {
 	expirationTime := time.Now().Add(time.Duration(expiryHours) * time.Hour)
 
 	claims := &Claims{
 		UserID:          targetUserID,
 		Role:            role,
+		TokenVersion:    tokenVersion,
 		ImpersonatedBy:  &superAdminID,
 		IsImpersonating: true,
 		RegisteredClaims: jwt.RegisteredClaims{

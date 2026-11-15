@@ -195,6 +195,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			users.DELETE("/me", userHandler.DeleteMyAccount)
 			users.PUT("/change-password", userHandler.ChangePassword)
 			users.PUT("/change-pin", userHandler.ChangePIN)
+			users.POST("/logout", userHandler.Logout)
 
 			// Admin only routes — GetByID/Update let staff look up or edit another account
 			// (e.g. ClientDetailScreen), so they must never be reachable by a plain client.

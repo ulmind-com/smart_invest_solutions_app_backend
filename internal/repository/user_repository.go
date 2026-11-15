@@ -223,13 +223,16 @@ func (r *userRepository) Update(ctx context.Context, id bson.ObjectID, req *doma
 	return &user, nil
 }
 
-// UpdatePassword updates the hashed password for a user document.
+// UpdatePassword updates the hashed password for a user document and invalidates previous sessions.
 func (r *userRepository) UpdatePassword(ctx context.Context, id bson.ObjectID, hashedPassword string) error {
 	filter := bson.M{"_id": id}
 	update := bson.M{
 		"$set": bson.M{
 			"password":   hashedPassword,
 			"updated_at": time.Now().UTC(),
+		},
+		"$inc": bson.M{
+			"token_version": 1,
 		},
 	}
 
@@ -243,7 +246,7 @@ func (r *userRepository) UpdatePassword(ctx context.Context, id bson.ObjectID, h
 	return nil
 }
 
-// UpdatePIN updates the hashed 4-digit Security PIN for a user document.
+// UpdatePIN updates the hashed 4-digit Security PIN for a user document and invalidates previous sessions.
 func (r *userRepository) UpdatePIN(ctx context.Context, id bson.ObjectID, hashedPIN string) error {
 	filter := bson.M{"_id": id}
 	update := bson.M{
@@ -251,11 +254,36 @@ func (r *userRepository) UpdatePIN(ctx context.Context, id bson.ObjectID, hashed
 			"pin":        hashedPIN,
 			"updated_at": time.Now().UTC(),
 		},
+		"$inc": bson.M{
+			"token_version": 1,
+		},
 	}
 
 	result, err := r.collection.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return fmt.Errorf("failed to update PIN: %w", err)
+	}
+	if result.MatchedCount == 0 {
+		return fmt.Errorf("user not found")
+	}
+	return nil
+}
+
+// IncrementTokenVersion atomically increments token_version by 1, immediately revoking all active JWT sessions.
+func (r *userRepository) IncrementTokenVersion(ctx context.Context, id bson.ObjectID) error {
+	filter := bson.M{"_id": id}
+	update := bson.M{
+		"$inc": bson.M{
+			"token_version": 1,
+		},
+		"$set": bson.M{
+			"updated_at": time.Now().UTC(),
+		},
+	}
+
+	result, err := r.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to increment token version: %w", err)
 	}
 	if result.MatchedCount == 0 {
 		return fmt.Errorf("user not found")

@@ -30,8 +30,45 @@ type accountGuard struct {
 	cache map[bson.ObjectID]cachedAccount
 }
 
+var (
+	activeGuards   []*accountGuard
+	activeGuardsMu sync.Mutex
+)
+
+func registerGuard(g *accountGuard) {
+	activeGuardsMu.Lock()
+	defer activeGuardsMu.Unlock()
+	activeGuards = append(activeGuards, g)
+}
+
+// InvalidateAccount evicts an account from all active guard caches immediately, so any subsequent
+// request hits the database for fresh state without waiting for accountCacheTTL.
+func InvalidateAccount(id bson.ObjectID) {
+	activeGuardsMu.Lock()
+	defer activeGuardsMu.Unlock()
+	for _, g := range activeGuards {
+		g.Invalidate(id)
+	}
+}
+
+// InvalidateAccountHex evicts an account given its hex string representation.
+func InvalidateAccountHex(idStr string) {
+	if id, err := bson.ObjectIDFromHex(idStr); err == nil {
+		InvalidateAccount(id)
+	}
+}
+
+// Invalidate evicts a single account from this guard instance's in-memory cache.
+func (g *accountGuard) Invalidate(id bson.ObjectID) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	delete(g.cache, id)
+}
+
 func newAccountGuard(users domain.UserRepository) *accountGuard {
-	return &accountGuard{users: users, cache: make(map[bson.ObjectID]cachedAccount)}
+	g := &accountGuard{users: users, cache: make(map[bson.ObjectID]cachedAccount)}
+	registerGuard(g)
+	return g
 }
 
 // load returns the account, or (nil, nil) when it no longer exists. A non-nil error means the
@@ -77,7 +114,7 @@ func (g *accountGuard) check(ctx context.Context, claims *utils.Claims) (int, st
 		log.Error().Err(err).Str("user_id", claims.UserID.Hex()).Msg("account guard lookup failed")
 		return http.StatusServiceUnavailable, "We couldn't verify your session right now. Please try again in a moment."
 	}
-	if msg := AccountRejection(user, claims.Role, time.Now().UTC()); msg != "" {
+	if msg := AccountRejection(user, claims.Role, claims.TokenVersion, time.Now().UTC()); msg != "" {
 		return http.StatusUnauthorized, msg
 	}
 
@@ -88,7 +125,7 @@ func (g *accountGuard) check(ctx context.Context, claims *utils.Claims) (int, st
 			log.Error().Err(err).Msg("account guard impersonator lookup failed")
 			return http.StatusServiceUnavailable, "We couldn't verify your session right now. Please try again in a moment."
 		}
-		if msg := AccountRejection(impersonator, domain.RoleSuperAdmin, time.Now().UTC()); msg != "" {
+		if msg := AccountRejection(impersonator, domain.RoleSuperAdmin, impersonator.TokenVersion, time.Now().UTC()); msg != "" {
 			return http.StatusUnauthorized, "The super admin session behind this view has ended. Please sign in again."
 		}
 	}
@@ -97,8 +134,8 @@ func (g *accountGuard) check(ctx context.Context, claims *utils.Claims) (int, st
 }
 
 // AccountRejection explains why a token for this account must no longer be honoured, or returns ""
-// when it is fine. tokenRole is the role the token was issued with.
-func AccountRejection(user *domain.User, tokenRole string, now time.Time) string {
+// when it is fine. tokenRole and tokenVersion are the values the token was issued with.
+func AccountRejection(user *domain.User, tokenRole string, tokenVersion int, now time.Time) string {
 	switch {
 	case user == nil:
 		return "This account no longer exists. Please sign in again."
@@ -110,6 +147,8 @@ func AccountRejection(user *domain.User, tokenRole string, now time.Time) string
 		return "Your admin access has expired. Please contact your super admin to renew it."
 	case user.Role != tokenRole:
 		return "Your access level has changed. Please sign in again."
+	case user.TokenVersion != tokenVersion:
+		return "Your session has ended or been revoked. Please sign in again."
 	}
 	return ""
 }

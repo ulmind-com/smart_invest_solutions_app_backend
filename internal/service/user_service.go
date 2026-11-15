@@ -443,7 +443,7 @@ func (s *userService) issueToken(user *domain.User) (*domain.LoginResponse, erro
 		expiryHours = 24 // default fallback
 	}
 
-	token, err := utils.GenerateJWT(user.ID, user.Role, s.config.JWTSecret, expiryHours)
+	token, err := utils.GenerateJWT(user.ID, user.Role, user.TokenVersion, s.config.JWTSecret, expiryHours)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
@@ -500,7 +500,7 @@ func (s *userService) ImpersonateUser(ctx context.Context, superAdminIDStr, targ
 		expiryHours = 24
 	}
 
-	token, err := utils.GenerateImpersonationJWT(targetUser.ID, superAdminID, targetUser.Role, s.config.JWTSecret, expiryHours)
+	token, err := utils.GenerateImpersonationJWT(targetUser.ID, superAdminID, targetUser.Role, targetUser.TokenVersion, s.config.JWTSecret, expiryHours)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate impersonation token: %w", err)
 	}
@@ -1394,4 +1394,13 @@ func (s *userService) MergeFamilyAccounts(ctx context.Context, requesterID strin
 	}
 
 	return result, nil
+}
+
+// Logout revokes all active JWT tokens for the given user by atomically incrementing their TokenVersion.
+func (s *userService) Logout(ctx context.Context, userID string) error {
+	objectID, err := bson.ObjectIDFromHex(userID)
+	if err != nil {
+		return fmt.Errorf("invalid user ID format: %w", err)
+	}
+	return s.userRepo.IncrementTokenVersion(ctx, objectID)
 }

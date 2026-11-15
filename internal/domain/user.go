@@ -58,8 +58,11 @@ type User struct {
 	// MergeFamilyAccounts): once set, this account is retired for good — its data has been moved to
 	// the referenced account and it can never log in again, regardless of IsActive.
 	MergedIntoUserID *bson.ObjectID `bson:"merged_into_user_id,omitempty" json:"merged_into_user_id,omitempty"`
-	CreatedAt        time.Time      `bson:"created_at" json:"created_at"`
-	UpdatedAt        time.Time      `bson:"updated_at" json:"updated_at"`
+	// TokenVersion is bumped whenever all active sessions/tokens for this account must be revoked
+	// (e.g. on sign-out, password change, PIN change).
+	TokenVersion int       `bson:"token_version" json:"token_version"`
+	CreatedAt    time.Time `bson:"created_at" json:"created_at"`
+	UpdatedAt    time.Time `bson:"updated_at" json:"updated_at"`
 }
 
 // CreateUserRequest represents the request payload for creating a new user.
@@ -315,6 +318,8 @@ type UserRepository interface {
 	// RecordExpiryAlertSent stamps the time an expiry-warning email was sent to an admin, used to
 	// throttle repeat sends.
 	RecordExpiryAlertSent(ctx context.Context, id bson.ObjectID) error
+	// IncrementTokenVersion atomically increments token_version by 1, invalidating all existing JWTs.
+	IncrementTokenVersion(ctx context.Context, id bson.ObjectID) error
 }
 
 // UserService defines the interface for user business logic operations.
@@ -360,4 +365,6 @@ type UserService interface {
 	// SendAdminExpiryAlert emails a specific admin a reminder that their access is expiring soon or
 	// has expired. Throttled to one alert per cooldown window per admin.
 	SendAdminExpiryAlert(ctx context.Context, targetID string) error
+	// Logout revokes all active JWT tokens for the given user by incrementing their TokenVersion.
+	Logout(ctx context.Context, userID string) error
 }

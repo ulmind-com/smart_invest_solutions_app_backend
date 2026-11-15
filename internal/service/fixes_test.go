@@ -63,7 +63,16 @@ func (r *fakeUserRepo) FindByAdminID(_ context.Context, adminID string) (*domain
 
 func (r *fakeUserRepo) UpdatePassword(_ context.Context, id bson.ObjectID, hashed string) error {
 	r.users[id].Password = hashed
+	r.users[id].TokenVersion++
 	return nil
+}
+
+func (r *fakeUserRepo) IncrementTokenVersion(_ context.Context, id bson.ObjectID) error {
+	if u, ok := r.users[id]; ok {
+		u.TokenVersion++
+		return nil
+	}
+	return domain.ErrUserNotFound
 }
 
 func (r *fakeUserRepo) RecordFailedLogin(_ context.Context, id bson.ObjectID) (int, error) {

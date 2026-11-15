@@ -391,6 +391,8 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 
+	middleware.InvalidateAccountHex(userID)
+
 	response.Success(c, "Password changed successfully", nil)
 }
 
@@ -429,7 +431,37 @@ func (h *UserHandler) ChangePIN(c *gin.Context) {
 		return
 	}
 
+	middleware.InvalidateAccountHex(userID)
+
 	response.Success(c, "PIN changed successfully", nil)
+}
+
+// Logout invalidates all active sessions for the authenticated user.
+// @Summary      Logout and revoke active session
+// @Description  Atomically increments the user's TokenVersion in MongoDB and clears cached credentials, invalidating the current JWT and all active sessions.
+// @Tags         User Authentication
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  response.APIResponse  "Logged out successfully"
+// @Failure      401  {object}  response.APIResponse  "Unauthorized"
+// @Failure      500  {object}  response.APIResponse  "Internal server error"
+// @Security     BearerAuth
+// @Router       /users/logout [post]
+func (h *UserHandler) Logout(c *gin.Context) {
+	userID, ok := middleware.GetUserID(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if err := h.userService.Logout(c.Request.Context(), userID); err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to log out: "+err.Error())
+		return
+	}
+
+	middleware.InvalidateAccountHex(userID)
+
+	response.Success(c, "Logged out successfully", nil)
 }
 
 // ForgotPassword handles requesting a password reset OTP.
