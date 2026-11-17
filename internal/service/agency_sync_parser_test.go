@@ -239,3 +239,65 @@ func TestParseLICDueListDeduplicatesPolicyNumbers(t *testing.T) {
 		t.Errorf("policy 530766131 appeared %d times, want exactly 1", seen)
 	}
 }
+
+func TestEstimateLICSumAssured(t *testing.T) {
+	tests := []struct {
+		name    string
+		premium float64
+		mode    string
+		term    int
+		want    float64
+	}{
+		{
+			name:    "Yearly mode, 24500, 20 yr",
+			premium: 24500,
+			mode:    "YLY",
+			term:    20,
+			want:    500000, // 24500 * 20 = 490000 -> rounded to nearest 25k/50k = 500000
+		},
+		{
+			name:    "Monthly mode, 2100, 16 yr",
+			premium: 2100,
+			mode:    "M",
+			term:    16,
+			want:    400000, // 2100 * 12 = 25200 * 16 = 403200 -> rounded to 400000
+		},
+		{
+			name:    "Half-Yearly mode, 5500, 15 yr",
+			premium: 5500,
+			mode:    "Hly",
+			term:    15,
+			want:    175000, // 5500 * 2 = 11000 * 15 = 165000 -> rounded to 175000
+		},
+		{
+			name:    "Quarterly mode, 12500, 25 yr",
+			premium: 12500,
+			mode:    "Qly",
+			term:    25,
+			want:    1250000, // 12500 * 4 = 50000 * 25 = 1250000
+		},
+		{
+			name:    "Small premium defaults to minimum 50000",
+			premium: 300,
+			mode:    "Y",
+			term:    10,
+			want:    50000,
+		},
+		{
+			name:    "Zero or negative premium returns 0",
+			premium: 0,
+			mode:    "Y",
+			term:    20,
+			want:    0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := EstimateLICSumAssured(tt.premium, tt.mode, tt.term)
+			if got != tt.want {
+				t.Errorf("EstimateLICSumAssured(%v, %v, %v) = %v, want %v", tt.premium, tt.mode, tt.term, got, tt.want)
+			}
+		})
+	}
+}

@@ -71,12 +71,12 @@ type ImportedPolicyView struct {
 }
 
 // LinkImportedPolicyDTO is the payload for attaching an unclaimed imported policy to a real client
-// account. SumAssured and NomineeName are asked for because an LIC due list simply does not carry
-// them — without SumAssured the client's portfolio would show a policy with zero cover.
+// account. SumAssured is optional — when omitted or <= 0, the system automatically estimates
+// a standard LIC sum assured from the premium, payment mode and term.
 type LinkImportedPolicyDTO struct {
 	UserID         string  `json:"user_id" binding:"required" example:"64f1a2b3c4d5e6f7a8b9c0d1"`
 	FamilyMemberID string  `json:"family_member_id" binding:"required"`
-	SumAssured     float64 `json:"sum_assured" binding:"required,gt=0"`
+	SumAssured     float64 `json:"sum_assured"`
 	NomineeName    string  `json:"nominee_name,omitempty"`
 	// PlanName is free text (e.g. "Jeevan Labh"); the PDF only carries the numeric plan code.
 	PlanName string `json:"plan_name,omitempty"`

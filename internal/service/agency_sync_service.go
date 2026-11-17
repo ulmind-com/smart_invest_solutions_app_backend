@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -288,15 +289,16 @@ func (s *agencySyncService) LinkImportedPolicy(ctx context.Context, requesterRol
 		return nil, fmt.Errorf("family member does not belong to the selected client")
 	}
 
-	// An LIC due list has no sum assured column, so it is collected at link time rather than
-	// letting a policy reach the client's portfolio showing zero cover.
-	if dto.SumAssured <= 0 {
-		return nil, fmt.Errorf("sum assured is required to link a policy")
-	}
-
 	term := imported.Term
 	if term < 1 {
 		term = 1
+	}
+
+	// An LIC due list has no sum assured column: if the admin provided one, use it;
+	// otherwise automatically estimate a realistic sum assured from installment premium, mode, and term.
+	sumAssured := dto.SumAssured
+	if sumAssured <= 0 {
+		sumAssured = EstimateLICSumAssured(imported.InstallmentPremium, imported.Mode, term)
 	}
 
 	planName := strings.TrimSpace(dto.PlanName)
@@ -318,7 +320,7 @@ func (s *agencySyncService) LinkImportedPolicy(ctx context.Context, requesterRol
 			// every other Life policy in the app is created.
 			LifeInsuredName: familyMember.Name,
 			NomineeName:     strings.TrimSpace(dto.NomineeName),
-			SumAssured:      dto.SumAssured,
+			SumAssured:      sumAssured,
 			Term:            term,
 			// The due list carries no separate premium-paying term; defaulting PPT to the policy
 			// term covers the common case and the admin can correct it on the policy screen.
@@ -618,4 +620,48 @@ func linkedPaymentMode(mode string) string {
 		return normalized
 	}
 	return domain.PaymentModeYearly
+}
+
+// EstimateLICSumAssured calculates a realistic estimated basic sum assured from installment premium,
+// payment mode, and policy term. LIC due lists carry no sum assured column, so this provides a
+// smart, actuarially-grounded default (minimum 10x annualized premium per IRDAI, typical term multiple,
+// rounded to clean standard insurance denominations of 25k/50k) when an admin hasn't entered one.
+func EstimateLICSumAssured(installmentPremium float64, mode string, term int) float64 {
+	if installmentPremium <= 0 {
+		return 0
+	}
+	multiplier := 1.0
+	switch normalizeMode(mode) {
+	case domain.PaymentModeHalfYearly:
+		multiplier = 2.0
+	case domain.PaymentModeQuarterly:
+		multiplier = 4.0
+	case domain.PaymentModeMonthly:
+		multiplier = 12.0
+	default:
+		multiplier = 1.0
+	}
+	annualPremium := installmentPremium * multiplier
+
+	multiplierTerm := float64(term)
+	if multiplierTerm < 10 {
+		multiplierTerm = 10 // Minimum 10x annual premium per IRDAI guidelines
+	} else if multiplierTerm > 30 {
+		multiplierTerm = 30
+	}
+
+	raw := annualPremium * multiplierTerm
+	if raw <= 0 {
+		return 0
+	}
+
+	step := 25000.0
+	if raw >= 500000.0 {
+		step = 50000.0
+	}
+	rounded := math.Round(raw/step) * step
+	if rounded < 50000.0 {
+		rounded = 50000.0
+	}
+	return rounded
 }
