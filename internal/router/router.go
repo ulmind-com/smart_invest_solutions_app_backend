@@ -313,21 +313,21 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			}
 		}
 
-		// General Insurance routes
+		// General Insurance routes — viewing is open to all authenticated users; create/update/delete
+		// are strictly restricted to admin & super_admin (clients are read-only monitors).
 		generalInsurances := v1.Group("/general-insurances")
 		{
 			generalInsurances.Use(middleware.RequireAuth(cfg, userRepo))
 
-			generalInsurances.POST("", generalInsuranceHandler.AddInsurance)
 			generalInsurances.GET("", generalInsuranceHandler.GetMyInsurances)
 			generalInsurances.GET("/:id", generalInsuranceHandler.GetByID)
-			generalInsurances.PUT("/:id", generalInsuranceHandler.UpdateInsurance)
-			generalInsurances.DELETE("/:id", generalInsuranceHandler.DeleteInsurance)
 
-			// Admin route
 			adminInsurance := generalInsurances.Group("")
 			adminInsurance.Use(middleware.RequireRole("admin"))
 			{
+				adminInsurance.POST("", generalInsuranceHandler.AddInsurance)
+				adminInsurance.PUT("/:id", generalInsuranceHandler.UpdateInsurance)
+				adminInsurance.DELETE("/:id", generalInsuranceHandler.DeleteInsurance)
 				adminInsurance.GET("/all", generalInsuranceHandler.GetAllInsurancesAdmin)
 				adminInsurance.GET("/user/:userId", generalInsuranceHandler.GetInsurancesByUserIDAdmin)
 			}
@@ -352,67 +352,64 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			}
 		}
 
-		// Life Insurance routes — RBAC (client-owns-only vs admin-bypass) is enforced inside the
-		// service layer per policy, so no RequireRole gate is needed at the router level; every
-		// route just requires authentication.
+		// Life Insurance routes — viewing is open to all authenticated users; modifications
+		// (create/update/delete/mark-paid) are restricted to admin & super_admin.
 		lifeInsurances := v1.Group("/life-insurances")
 		{
 			lifeInsurances.Use(middleware.RequireAuth(cfg, userRepo))
 
-			lifeInsurances.POST("", lifeInsuranceHandler.CreatePolicy)
 			lifeInsurances.GET("", lifeInsuranceHandler.GetPolicies)
 			lifeInsurances.GET("/:id", lifeInsuranceHandler.GetByID)
-			lifeInsurances.PUT("/:id", lifeInsuranceHandler.UpdatePolicy)
-			lifeInsurances.DELETE("/:id", lifeInsuranceHandler.DeletePolicy)
-			lifeInsurances.POST("/:id/mark-paid", lifeInsuranceHandler.MarkPremiumPaid)
 
-			// Admin route
+			// Admin & Super Admin write routes
 			adminLifeInsurance := lifeInsurances.Group("")
 			adminLifeInsurance.Use(middleware.RequireRole("admin"))
 			{
+				adminLifeInsurance.POST("", lifeInsuranceHandler.CreatePolicy)
+				adminLifeInsurance.PUT("/:id", lifeInsuranceHandler.UpdatePolicy)
+				adminLifeInsurance.DELETE("/:id", lifeInsuranceHandler.DeletePolicy)
+				adminLifeInsurance.POST("/:id/mark-paid", lifeInsuranceHandler.MarkPremiumPaid)
 				adminLifeInsurance.GET("/user/:userId", lifeInsuranceHandler.GetPoliciesByUserIDAdmin)
 			}
 		}
 
-		// Fixed Deposit / Postal routes — RBAC (client-owns-only vs admin-bypass, plus the
-		// admin-only is_mapped modification rule) is enforced inside the service layer, so no
-		// RequireRole gate is needed at the router level; every route just requires authentication.
+		// Fixed Deposit / Postal routes — viewing is open to all authenticated users; modifications
+		// (create/update/delete) are restricted to admin & super_admin.
 		fixedDeposits := v1.Group("/fixed-deposits")
 		{
 			fixedDeposits.Use(middleware.RequireAuth(cfg, userRepo))
 
-			fixedDeposits.POST("", fixedDepositHandler.CreateFD)
 			fixedDeposits.GET("", fixedDepositHandler.GetFDs)
 			fixedDeposits.GET("/:id", fixedDepositHandler.GetByID)
-			fixedDeposits.PUT("/:id", fixedDepositHandler.UpdateFD)
-			fixedDeposits.DELETE("/:id", fixedDepositHandler.DeleteFD)
 
-			// Admin route
+			// Admin & Super Admin write routes
 			adminFixedDeposits := fixedDeposits.Group("")
 			adminFixedDeposits.Use(middleware.RequireRole("admin"))
 			{
+				adminFixedDeposits.POST("", fixedDepositHandler.CreateFD)
+				adminFixedDeposits.PUT("/:id", fixedDepositHandler.UpdateFD)
+				adminFixedDeposits.DELETE("/:id", fixedDepositHandler.DeleteFD)
 				adminFixedDeposits.GET("/user/:userId", fixedDepositHandler.GetFDsByUserIDAdmin)
 			}
 		}
 
-		// Health Insurance routes — RBAC (client-owns-only vs admin-bypass, plus the admin-only
-		// is_mapped modification rule) is enforced inside the service layer, so no RequireRole
-		// gate is needed at the router level; every route just requires authentication.
+		// Health Insurance routes — viewing is open to all authenticated users; modifications
+		// (create/update/delete/mark-paid) are restricted to admin & super_admin.
 		healthInsurances := v1.Group("/health-insurances")
 		{
 			healthInsurances.Use(middleware.RequireAuth(cfg, userRepo))
 
-			healthInsurances.POST("", healthInsuranceHandler.CreatePolicy)
 			healthInsurances.GET("", healthInsuranceHandler.GetPolicies)
 			healthInsurances.GET("/:id", healthInsuranceHandler.GetByID)
-			healthInsurances.PUT("/:id", healthInsuranceHandler.UpdatePolicy)
-			healthInsurances.DELETE("/:id", healthInsuranceHandler.DeletePolicy)
-			healthInsurances.POST("/:id/mark-paid", healthInsuranceHandler.MarkPremiumPaid)
 
-			// Admin route
+			// Admin & Super Admin write routes
 			adminHealthInsurance := healthInsurances.Group("")
 			adminHealthInsurance.Use(middleware.RequireRole("admin"))
 			{
+				adminHealthInsurance.POST("", healthInsuranceHandler.CreatePolicy)
+				adminHealthInsurance.PUT("/:id", healthInsuranceHandler.UpdatePolicy)
+				adminHealthInsurance.DELETE("/:id", healthInsuranceHandler.DeletePolicy)
+				adminHealthInsurance.POST("/:id/mark-paid", healthInsuranceHandler.MarkPremiumPaid)
 				adminHealthInsurance.GET("/user/:userId", healthInsuranceHandler.GetPoliciesByUserIDAdmin)
 			}
 		}
