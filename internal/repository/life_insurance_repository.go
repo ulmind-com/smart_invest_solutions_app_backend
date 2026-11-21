@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -108,6 +109,7 @@ func (r *lifeInsuranceRepository) GetAll(ctx context.Context, page, limit int64,
 		basePipeline = append(basePipeline, bson.D{{Key: "$match", Value: bson.D{{Key: "is_mapped", Value: *isMapped}}}})
 	}
 	if licCustomerID != "" {
+		safe := regexp.QuoteMeta(licCustomerID)
 		basePipeline = append(basePipeline,
 			bson.D{{Key: "$lookup", Value: bson.D{
 				{Key: "from", Value: familyMembersCollection},
@@ -119,7 +121,14 @@ func (r *lifeInsuranceRepository) GetAll(ctx context.Context, page, limit int64,
 				{Key: "path", Value: "$family"},
 				{Key: "preserveNullAndEmptyArrays", Value: true},
 			}}},
-			bson.D{{Key: "$match", Value: bson.D{{Key: "family.lic_customer_id", Value: licCustomerID}}}},
+			bson.D{{Key: "$match", Value: bson.D{
+				{Key: "$or", Value: bson.A{
+					bson.D{{Key: "family.lic_customer_id", Value: bson.D{{Key: "$regex", Value: safe}, {Key: "$options", Value: "i"}}}},
+					bson.D{{Key: "policy_details.policy_no", Value: bson.D{{Key: "$regex", Value: safe}, {Key: "$options", Value: "i"}}}},
+					bson.D{{Key: "policy_details.life_insured_name", Value: bson.D{{Key: "$regex", Value: safe}, {Key: "$options", Value: "i"}}}},
+					bson.D{{Key: "policy_details.plan_name", Value: bson.D{{Key: "$regex", Value: safe}, {Key: "$options", Value: "i"}}}},
+				}},
+			}}},
 		)
 	}
 	// The customer lookup moves ahead of pagination (rather than staying in the page-only section
