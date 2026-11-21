@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/smart-invest-solutions/backend/internal/domain"
+	"github.com/smart-invest-solutions/backend/pkg/email"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -277,6 +278,41 @@ func (s *agencySyncService) LinkImportedDeposit(ctx context.Context, requesterRo
 	created, err := s.fixedDepositRepo.Create(ctx, deposit)
 	if err != nil {
 		return nil, err
+	}
+
+	if s.emailSvc != nil && targetUser != nil && targetUser.Email != "" && targetUser.IsActive {
+		advisorName := agencyID
+		advisorPhone := ""
+		if advisor, err := s.userRepo.FindByAdminID(ctx, agencyID); err == nil && advisor != nil {
+			advisorName = advisor.Name
+			advisorPhone = advisor.Phone
+		}
+		emailData := email.PolicyNotificationData{
+			PolicyType:         "Postal Deposit",
+			PolicyNo:           created.FDNumber,
+			PlanName:           created.FDName,
+			CompanyName:        created.CompanyName,
+			InsuredName:        familyMember.Name,
+			NomineeName:        created.NomineeName,
+			SumAssured:         created.MaturityAmount,
+			InstallmentPremium: created.PrincipalAmount,
+			PaymentMode:        "Deposit / Term",
+			NextDueDate:        created.MaturityDate,
+			DOC:                created.OpeningDate,
+			MaturityDate:       created.MaturityDate,
+			AdvisorName:        advisorName,
+			AdvisorContact:     advisorPhone,
+		}
+		toEmail := targetUser.Email
+		toName := targetUser.Name
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					_ = r
+				}
+			}()
+			_ = s.emailSvc.SendPolicyCreatedEmail(context.Background(), toEmail, toName, emailData)
+		}()
 	}
 
 	return created, nil

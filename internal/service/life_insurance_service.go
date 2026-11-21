@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/smart-invest-solutions/backend/internal/domain"
+	"github.com/smart-invest-solutions/backend/pkg/email"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -14,6 +16,7 @@ type lifeInsuranceService struct {
 	repo             domain.LifeInsuranceRepository
 	userRepo         domain.UserRepository
 	familyMemberRepo domain.FamilyMemberRepository
+	emailSvc         email.EmailService
 }
 
 // NewLifeInsuranceService creates a new instance of LifeInsuranceService.
@@ -23,6 +26,22 @@ func NewLifeInsuranceService(repo domain.LifeInsuranceRepository, userRepo domai
 		userRepo:         userRepo,
 		familyMemberRepo: familyMemberRepo,
 	}
+}
+
+// SetEmailService injects the email service for transactional policy notifications.
+func (s *lifeInsuranceService) SetEmailService(emailSvc email.EmailService) {
+	s.emailSvc = emailSvc
+}
+
+func (s *lifeInsuranceService) resolveAdvisor(ctx context.Context, agencyID string) (string, string) {
+	if agencyID == "" {
+		return "Smart Invest Solutions", ""
+	}
+	advisor, err := s.userRepo.FindByAdminID(ctx, agencyID)
+	if err != nil || advisor == nil {
+		return "Smart Invest Solutions", ""
+	}
+	return advisor.Name, advisor.Phone
 }
 
 // resolveTargetUserID determines which client account a policy belongs to: a client always acts
@@ -133,7 +152,42 @@ func (s *lifeInsuranceService) CreatePolicy(ctx context.Context, requesterRole, 
 		ManagedBy: domain.ManagedByForRole(requesterRole),
 	}
 
-	return s.repo.Create(ctx, policy)
+	created, err := s.repo.Create(ctx, policy)
+	if err != nil {
+		return nil, err
+	}
+
+	if s.emailSvc != nil && targetUser != nil && targetUser.Email != "" && targetUser.IsActive {
+		advisorName, advisorContact := s.resolveAdvisor(ctx, targetUser.AgencyID)
+		emailData := email.PolicyNotificationData{
+			PolicyType:         "Life Insurance",
+			PolicyNo:           created.PolicyDetails.PolicyNo,
+			PlanName:           created.PolicyDetails.PlanName,
+			CompanyName:        created.CompanyName,
+			InsuredName:        created.PolicyDetails.LifeInsuredName,
+			NomineeName:        created.PolicyDetails.NomineeName,
+			SumAssured:         created.PolicyDetails.SumAssured,
+			InstallmentPremium: created.PremiumDetails.InstallmentPremium,
+			PaymentMode:        created.PremiumDetails.PaymentMode,
+			NextDueDate:        created.PremiumDetails.NextDueDate,
+			DOC:                created.PolicyDetails.DOC,
+			MaturityDate:       created.PolicyDetails.MaturityDate,
+			AdvisorName:        advisorName,
+			AdvisorContact:     advisorContact,
+		}
+		toEmail := targetUser.Email
+		toName := targetUser.Name
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Error().Interface("panic", r).Msg("[Email] Panic recovered during policy created email")
+				}
+			}()
+			_ = s.emailSvc.SendPolicyCreatedEmail(context.Background(), toEmail, toName, emailData)
+		}()
+	}
+
+	return created, nil
 }
 
 // GetPolicyByID retrieves a single policy, enforcing that a client requester owns it.
@@ -293,7 +347,45 @@ func (s *lifeInsuranceService) UpdatePolicy(ctx context.Context, requesterRole, 
 		return nil, fmt.Errorf("premium paying term (%d years) cannot be longer than the policy term (%d years)", ppt, term)
 	}
 
-	return s.repo.Update(ctx, id, dto)
+	updated, err := s.repo.Update(ctx, id, dto)
+	if err != nil {
+		return nil, err
+	}
+
+	if s.emailSvc != nil && updated != nil {
+		owner, err := s.userRepo.FindByID(ctx, updated.UserID)
+		if err == nil && owner != nil && owner.Email != "" && owner.IsActive {
+			advisorName, advisorContact := s.resolveAdvisor(ctx, owner.AgencyID)
+			emailData := email.PolicyNotificationData{
+				PolicyType:         "Life Insurance",
+				PolicyNo:           updated.PolicyDetails.PolicyNo,
+				PlanName:           updated.PolicyDetails.PlanName,
+				CompanyName:        updated.CompanyName,
+				InsuredName:        updated.PolicyDetails.LifeInsuredName,
+				NomineeName:        updated.PolicyDetails.NomineeName,
+				SumAssured:         updated.PolicyDetails.SumAssured,
+				InstallmentPremium: updated.PremiumDetails.InstallmentPremium,
+				PaymentMode:        updated.PremiumDetails.PaymentMode,
+				NextDueDate:        updated.PremiumDetails.NextDueDate,
+				DOC:                updated.PolicyDetails.DOC,
+				MaturityDate:       updated.PolicyDetails.MaturityDate,
+				AdvisorName:        advisorName,
+				AdvisorContact:     advisorContact,
+			}
+			toEmail := owner.Email
+			toName := owner.Name
+			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						log.Error().Interface("panic", r).Msg("[Email] Panic recovered during policy updated email")
+					}
+				}()
+				_ = s.emailSvc.SendPolicyUpdatedEmail(context.Background(), toEmail, toName, emailData)
+			}()
+		}
+	}
+
+	return updated, nil
 }
 
 // DeletePolicy removes a policy, enforcing ownership for client requesters.
@@ -365,5 +457,40 @@ func (s *lifeInsuranceService) MarkPremiumPaid(ctx context.Context, requesterRol
 	if err != nil {
 		return nil, err
 	}
-	return s.repo.AdvanceNextDueDate(ctx, id, current, next)
+	advanced, err := s.repo.AdvanceNextDueDate(ctx, id, current, next)
+	if err != nil {
+		return nil, err
+	}
+
+	if s.emailSvc != nil && advanced != nil {
+		owner, err := s.userRepo.FindByID(ctx, advanced.UserID)
+		if err == nil && owner != nil && owner.Email != "" && owner.IsActive {
+			advisorName, advisorContact := s.resolveAdvisor(ctx, owner.AgencyID)
+			receiptData := email.PaymentReceiptData{
+				PolicyType:     "Life Insurance",
+				PolicyNo:       advanced.PolicyDetails.PolicyNo,
+				PlanName:       advanced.PolicyDetails.PlanName,
+				CompanyName:    advanced.CompanyName,
+				InsuredName:    advanced.PolicyDetails.LifeInsuredName,
+				AmountPaid:     advanced.PremiumDetails.InstallmentPremium,
+				PaidAt:         time.Now(),
+				NextDueDate:    advanced.PremiumDetails.NextDueDate,
+				PaymentMode:    advanced.PremiumDetails.PaymentMode,
+				AdvisorName:    advisorName,
+				AdvisorContact: advisorContact,
+			}
+			toEmail := owner.Email
+			toName := owner.Name
+			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						log.Error().Interface("panic", r).Msg("[Email] Panic recovered during receipt email")
+					}
+				}()
+				_ = s.emailSvc.SendPremiumPaymentReceiptEmail(context.Background(), toEmail, toName, receiptData)
+			}()
+		}
+	}
+
+	return advanced, nil
 }

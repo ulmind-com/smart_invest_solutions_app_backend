@@ -6,12 +6,15 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/smart-invest-solutions/backend/internal/domain"
+	"github.com/smart-invest-solutions/backend/pkg/email"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 type cronService struct {
 	userRepo       domain.UserRepository
 	userService    domain.UserService
 	renewalService domain.RenewalService
+	emailSvc       email.EmailService
 }
 
 // NewCronService creates a new instance of CronService.
@@ -19,11 +22,13 @@ func NewCronService(
 	userRepo domain.UserRepository,
 	userService domain.UserService,
 	renewalService domain.RenewalService,
+	emailSvc email.EmailService,
 ) domain.CronService {
 	return &cronService{
 		userRepo:       userRepo,
 		userService:    userService,
 		renewalService: renewalService,
+		emailSvc:       emailSvc,
 	}
 }
 
@@ -87,6 +92,68 @@ func (s *cronService) RunDailyMaintenance(ctx context.Context) (*domain.CronExec
 		}
 	}
 
+	// Task 3: Send client renewal reminders for upcoming/overdue policies
+	if s.emailSvc != nil && s.renewalService != nil {
+		query := domain.RenewalQuery{
+			Window: domain.RenewalWindow30,
+			Page:   1,
+			Limit:  200,
+		}
+		page, err := s.renewalService.GetRenewals(ctx, domain.RoleSuperAdmin, "", query)
+		if err != nil {
+			log.Warn().Err(err).Msg("[Cron] Failed to fetch renewals for client reminder dispatch")
+		} else if page != nil && len(page.Items) > 0 {
+			userCache := make(map[string]*domain.User)
+
+			for _, row := range page.Items {
+				// Send reminders for policies due in <= 7 days, due today (0), exactly 30 days, or overdue
+				isReminderWindow := row.DaysLeft <= 7 || row.DaysLeft == 30 || row.IsOverdue
+				if !isReminderWindow || row.ClientID == "" {
+					continue
+				}
+
+				user, ok := userCache[row.ClientID]
+				if !ok {
+					clientObjID, parseErr := bson.ObjectIDFromHex(row.ClientID)
+					if parseErr != nil {
+						continue
+					}
+					u, findErr := s.userRepo.FindByID(ctx, clientObjID)
+					if findErr == nil && u != nil {
+						user = u
+						userCache[row.ClientID] = u
+					} else {
+						userCache[row.ClientID] = nil
+					}
+				}
+
+				if user != nil && user.Email != "" && user.IsActive {
+					reminderData := email.RenewalReminderData{
+						PolicyType:     row.Kind,
+						PolicyNo:       row.Reference,
+						PlanName:       row.Title,
+						CompanyName:    row.Company,
+						InsuredName:    row.InsuredName,
+						AmountDue:      row.Amount,
+						DueDate:        row.DueDate,
+						DaysLeft:       row.DaysLeft,
+						IsOverdue:      row.IsOverdue,
+						PaymentMode:    row.Label,
+						AdvisorName:    row.AgencyName,
+						AdvisorContact: user.Phone,
+					}
+
+					if sendErr := s.emailSvc.SendRenewalReminderEmail(ctx, user.Email, user.Name, reminderData); sendErr != nil {
+						log.Warn().Err(sendErr).Str("policy_no", row.Reference).Msg("[Cron] Failed to send renewal reminder email")
+					} else {
+						result.ClientRenewalAlertsSent++
+						log.Info().Str("client", user.Email).Str("policy_no", row.Reference).Msg("[Cron] Sent automated renewal reminder email")
+					}
+				}
+			}
+		}
+	}
+
 	result.DurationMs = time.Since(start).Milliseconds()
 	result.Message = "Daily maintenance completed successfully"
 
@@ -94,6 +161,7 @@ func (s *cronService) RunDailyMaintenance(ctx context.Context) (*domain.CronExec
 		Int("alerts_sent", result.AdminExpiryAlertsSent).
 		Int("admins_checked", result.AdminAccountsChecked).
 		Int("admins_expired", result.ActiveAdminsExpired).
+		Int("client_reminders_sent", result.ClientRenewalAlertsSent).
 		Int64("duration_ms", result.DurationMs).
 		Msg("[Cron] RunDailyMaintenance finished")
 

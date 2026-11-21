@@ -13,6 +13,7 @@ type CronExecutionResult struct {
 	AdminExpiryAlertsSent int                    `json:"admin_expiry_alerts_sent"`
 	AdminAccountsChecked  int                    `json:"admin_accounts_checked"`
 	ActiveAdminsExpired   int                    `json:"active_admins_expired"`
+	ClientRenewalAlertsSent int                  `json:"client_renewal_alerts_sent"`
 	RenewalsSummary       map[string]interface{} `json:"renewals_summary"`
 	Message               string                 `json:"message"`
 }

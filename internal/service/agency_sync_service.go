@@ -12,6 +12,7 @@ import (
 
 	"github.com/ledongthuc/pdf"
 	"github.com/smart-invest-solutions/backend/internal/domain"
+	"github.com/smart-invest-solutions/backend/pkg/email"
 	"github.com/smart-invest-solutions/backend/pkg/utils"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -27,6 +28,12 @@ type agencySyncService struct {
 	importedDepositRepo domain.ImportedDepositRepository
 	familyMemberRepo    domain.FamilyMemberRepository
 	userRepo            domain.UserRepository
+	emailSvc            email.EmailService
+}
+
+// SetEmailService sets the email service for postal/agency sync notifications.
+func (s *agencySyncService) SetEmailService(emailSvc email.EmailService) {
+	s.emailSvc = emailSvc
 }
 
 // NewAgencySyncService initializes a new AgencySyncService.
@@ -340,6 +347,41 @@ func (s *agencySyncService) LinkImportedPolicy(ctx context.Context, requesterRol
 	created, err := s.lifeInsuranceRepo.Create(ctx, policy)
 	if err != nil {
 		return nil, err
+	}
+
+	if s.emailSvc != nil && targetUser != nil && targetUser.Email != "" && targetUser.IsActive {
+		advisorName := agencyID
+		advisorPhone := ""
+		if advisor, err := s.userRepo.FindByAdminID(ctx, agencyID); err == nil && advisor != nil {
+			advisorName = advisor.Name
+			advisorPhone = advisor.Phone
+		}
+		emailData := email.PolicyNotificationData{
+			PolicyType:         "Life Insurance",
+			PolicyNo:           created.PolicyDetails.PolicyNo,
+			PlanName:           created.PolicyDetails.PlanName,
+			CompanyName:        created.CompanyName,
+			InsuredName:        created.PolicyDetails.LifeInsuredName,
+			NomineeName:        created.PolicyDetails.NomineeName,
+			SumAssured:         created.PolicyDetails.SumAssured,
+			InstallmentPremium: created.PremiumDetails.InstallmentPremium,
+			PaymentMode:        created.PremiumDetails.PaymentMode,
+			NextDueDate:        created.PremiumDetails.NextDueDate,
+			DOC:                created.PolicyDetails.DOC,
+			MaturityDate:       created.PolicyDetails.MaturityDate,
+			AdvisorName:        advisorName,
+			AdvisorContact:     advisorPhone,
+		}
+		toEmail := targetUser.Email
+		toName := targetUser.Name
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					_ = r
+				}
+			}()
+			_ = s.emailSvc.SendPolicyCreatedEmail(context.Background(), toEmail, toName, emailData)
+		}()
 	}
 
 	return created, nil

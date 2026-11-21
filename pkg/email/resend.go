@@ -28,6 +28,10 @@ type EmailService interface {
 	SendAdminExpiryRenewedEmail(ctx context.Context, toEmail, name string, newExpiryDate time.Time) error
 	SendAccountMergedEmail(ctx context.Context, toEmail, name, primaryName string) error
 	SendAccountActivatedEmail(ctx context.Context, toEmail, name string) error
+	SendPolicyCreatedEmail(ctx context.Context, toEmail, name string, data PolicyNotificationData) error
+	SendPolicyUpdatedEmail(ctx context.Context, toEmail, name string, data PolicyNotificationData) error
+	SendPremiumPaymentReceiptEmail(ctx context.Context, toEmail, name string, data PaymentReceiptData) error
+	SendRenewalReminderEmail(ctx context.Context, toEmail, name string, data RenewalReminderData) error
 }
 
 // ResendService implements EmailService using the Resend HTTP API.
@@ -626,5 +630,37 @@ func (s *ResendService) SendAccountActivatedEmail(ctx context.Context, toEmail, 
 </html>
 `, name)
 
+	return s.sendResendRequest(ctx, subject, toEmail, htmlBody)
+}
+
+// SendPolicyCreatedEmail sends an alert email to the client when a policy is added or linked.
+func (s *ResendService) SendPolicyCreatedEmail(ctx context.Context, toEmail, name string, data PolicyNotificationData) error {
+	subject := fmt.Sprintf("🎉 Policy Linked: %s (#%s) — Smart Invest Solutions", data.PlanName, data.PolicyNo)
+	htmlBody := RenderPolicyCreatedEmail(name, data)
+	return s.sendResendRequest(ctx, subject, toEmail, htmlBody)
+}
+
+// SendPolicyUpdatedEmail sends an alert email to the client when a policy is updated.
+func (s *ResendService) SendPolicyUpdatedEmail(ctx context.Context, toEmail, name string, data PolicyNotificationData) error {
+	subject := fmt.Sprintf("📝 Policy Updated: %s (#%s) — Smart Invest Solutions", data.PlanName, data.PolicyNo)
+	htmlBody := RenderPolicyUpdatedEmail(name, data)
+	return s.sendResendRequest(ctx, subject, toEmail, htmlBody)
+}
+
+// SendPremiumPaymentReceiptEmail sends a payment acknowledgment receipt email to the client.
+func (s *ResendService) SendPremiumPaymentReceiptEmail(ctx context.Context, toEmail, name string, data PaymentReceiptData) error {
+	subject := fmt.Sprintf("✅ Premium Payment Acknowledged (#%s) — Smart Invest Solutions", data.PolicyNo)
+	htmlBody := RenderPaymentReceiptEmail(name, data)
+	return s.sendResendRequest(ctx, subject, toEmail, htmlBody)
+}
+
+// SendRenewalReminderEmail sends an upcoming or overdue renewal reminder email to the client.
+func (s *ResendService) SendRenewalReminderEmail(ctx context.Context, toEmail, name string, data RenewalReminderData) error {
+	prefix := "⏳ Premium Due Soon"
+	if data.IsOverdue {
+		prefix = "⚠️ Urgent: Premium Overdue"
+	}
+	subject := fmt.Sprintf("%s: %s (#%s) — Smart Invest Solutions", prefix, data.PlanName, data.PolicyNo)
+	htmlBody := RenderRenewalReminderEmail(name, data)
 	return s.sendResendRequest(ctx, subject, toEmail, htmlBody)
 }

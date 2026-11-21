@@ -124,6 +124,9 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	generalInsuranceService := service.NewGeneralInsuranceService(generalInsuranceRepo, userRepo)
 	documentService := service.NewDocumentService(documentRepo, storageSvc, userRepo)
 	lifeInsuranceService := service.NewLifeInsuranceService(lifeInsuranceRepo, userRepo, familyMemberRepo)
+	if setter, ok := lifeInsuranceService.(interface{ SetEmailService(email.EmailService) }); ok {
+		setter.SetEmailService(emailSvc)
+	}
 	fixedDepositService := service.NewFixedDepositService(fixedDepositRepo, userRepo, familyMemberRepo)
 	healthInsuranceService := service.NewHealthInsuranceService(healthInsuranceRepo, userRepo, familyMemberRepo)
 	supportTicketService := service.NewSupportTicketService(supportTicketRepo, userRepo)
@@ -134,12 +137,15 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	dashboardService := service.NewDashboardService(userRepo, familyMemberRepo, lifeInsuranceRepo, healthInsuranceRepo, generalInsuranceRepo, fixedDepositRepo, accessReqRepo)
 	reportService := service.NewReportService(userRepo, familyMemberRepo, lifeInsuranceRepo, healthInsuranceRepo, generalInsuranceRepo, fixedDepositRepo)
 	agencySyncService := service.NewAgencySyncService(lifeInsuranceRepo, importedPolicyRepo, fixedDepositRepo, importedDepositRepo, familyMemberRepo, userRepo)
+	if setter, ok := agencySyncService.(interface{ SetEmailService(email.EmailService) }); ok {
+		setter.SetEmailService(emailSvc)
+	}
 	calculatorService := service.NewCalculatorService(calculatorRepo)
 	referralService := service.NewReferralService(referralRepo, userRepo)
 	clientMapService := service.NewClientMapService(clientMapRepo, userRepo)
 	renewalService := service.NewRenewalService(renewalRepo, userRepo)
 	announcementService := service.NewAnnouncementService(announcementRepo, userRepo, storageSvc)
-	cronService := service.NewCronService(userRepo, userService, renewalService)
+	cronService := service.NewCronService(userRepo, userService, renewalService, emailSvc)
 
 	// Initialize Handlers
 	userHandler := handler.NewUserHandler(userService, passResetService)
