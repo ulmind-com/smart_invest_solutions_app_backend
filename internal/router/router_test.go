@@ -53,6 +53,9 @@ func TestSetupRegistersRoutesWithoutConflicts(t *testing.T) {
 		"GET /api/v1/users/:id/product-access":           false,
 		"PUT /api/v1/users/:id/product-access":           false,
 		"POST /api/v1/users/logout":                      false,
+		"GET /api/v1/cron/health":                        false,
+		"POST /api/v1/cron/run":                          false,
+		"GET /api/v1/cron/run":                           false,
 	}
 	for _, route := range r.Routes() {
 		key := route.Method + " " + route.Path

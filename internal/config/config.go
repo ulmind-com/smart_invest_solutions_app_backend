@@ -24,6 +24,7 @@ type Config struct {
 	ResendAPIKey       string
 	SuperAdminEmail    string
 	SuperAdminPassword string
+	CronSecret         string
 }
 
 // Load reads configuration from environment variables.
@@ -47,6 +48,7 @@ func Load() *Config {
 		ResendAPIKey:       getEnv("RESEND_API_KEY", ""),
 		SuperAdminEmail:    getEnv("SUPER_ADMIN_EMAIL", "super@admin.com"),
 		SuperAdminPassword: getEnv("SUPER_ADMIN_PASSWORD", "superadmin123"),
+		CronSecret:         getEnv("CRON_SECRET", "smartwealth-cron-secret-2026"),
 	}
 
 	if cfg.IsProduction() {

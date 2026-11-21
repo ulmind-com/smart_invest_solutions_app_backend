@@ -139,6 +139,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	clientMapService := service.NewClientMapService(clientMapRepo, userRepo)
 	renewalService := service.NewRenewalService(renewalRepo, userRepo)
 	announcementService := service.NewAnnouncementService(announcementRepo, userRepo, storageSvc)
+	cronService := service.NewCronService(userRepo, userService, renewalService)
 
 	// Initialize Handlers
 	userHandler := handler.NewUserHandler(userService, passResetService)
@@ -161,6 +162,7 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 	renewalHandler := handler.NewRenewalHandler(renewalService)
 	announcementHandler := handler.NewAnnouncementHandler(announcementService)
 	productAccessHandler := handler.NewClientProductAccessHandler(productAccessService)
+	cronHandler := handler.NewCronHandler(cronService, cfg)
 
 	// API v1 routes
 	v1 := router.Group("/api/v1")
@@ -527,6 +529,16 @@ func Setup(db *database.MongoDB, cfg *config.Config) *gin.Engine {
 			referrals.GET("/my-stats", referralHandler.GetMyStats)
 			referrals.GET("/all", referralHandler.GetAllReferrals)
 			referrals.GET("/summary", middleware.RequireRole(domain.RoleSuperAdmin), referralHandler.GetAdminSummary)
+		}
+
+		// Background maintenance (Cron) routes — pinged by external schedulers (UptimeRobot, cron-job.org)
+		// Accepts secret via header (X-Cron-Secret / Bearer) or query param (?secret= or ?key=)
+		cron := v1.Group("/cron")
+		{
+			cron.GET("/health", cronHandler.Health)
+			cron.HEAD("/health", cronHandler.Health)
+			cron.POST("/run", cronHandler.RunCron)
+			cron.GET("/run", cronHandler.RunCron)
 		}
 	}
 

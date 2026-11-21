@@ -1,0 +1,101 @@
+package service
+
+import (
+	"context"
+	"time"
+
+	"github.com/rs/zerolog/log"
+	"github.com/smart-invest-solutions/backend/internal/domain"
+)
+
+type cronService struct {
+	userRepo       domain.UserRepository
+	userService    domain.UserService
+	renewalService domain.RenewalService
+}
+
+// NewCronService creates a new instance of CronService.
+func NewCronService(
+	userRepo domain.UserRepository,
+	userService domain.UserService,
+	renewalService domain.RenewalService,
+) domain.CronService {
+	return &cronService{
+		userRepo:       userRepo,
+		userService:    userService,
+		renewalService: renewalService,
+	}
+}
+
+// RunDailyMaintenance executes scheduled system maintenance:
+// 1. Checks all admin accounts nearing expiration or already expired, and emails reminders (throttled).
+// 2. Aggregates upcoming premium renewals across all policy types and deposits.
+// 3. Produces a comprehensive JSON execution report with timing and task metrics.
+func (s *cronService) RunDailyMaintenance(ctx context.Context) (*domain.CronExecutionResult, error) {
+	start := time.Now()
+	nowUTC := start.UTC()
+
+	result := &domain.CronExecutionResult{
+		Status:          "success",
+		ExecutedAt:      nowUTC,
+		RenewalsSummary: make(map[string]interface{}),
+	}
+
+	// Task 1: Check admin expiries & send automated warning alerts
+	expiringAdmins, err := s.userService.ListExpiringAdmins(ctx, 2)
+	if err != nil {
+		log.Error().Err(err).Msg("[Cron] Failed to query expiring admins")
+	} else {
+		result.AdminAccountsChecked = len(expiringAdmins)
+		for _, admin := range expiringAdmins {
+			if admin.AdminExpiryDate != nil {
+				if nowUTC.After(*admin.AdminExpiryDate) {
+					result.ActiveAdminsExpired++
+				}
+
+				if alertErr := s.userService.SendAdminExpiryAlert(ctx, admin.ID.Hex()); alertErr != nil {
+					// Could be cooldown (throttled) or email error
+					log.Debug().Err(alertErr).Str("admin_id", admin.AdminID).Msg("[Cron] Admin expiry alert skipped or throttled")
+				} else {
+					result.AdminExpiryAlertsSent++
+					log.Info().Str("admin_id", admin.AdminID).Msg("[Cron] Sent automated expiry alert email")
+				}
+			}
+		}
+	}
+
+	// Task 2: Aggregated renewal book check
+	if s.renewalService != nil {
+		query := domain.RenewalQuery{
+			Window: domain.RenewalWindowAll,
+			Page:   1,
+			Limit:  1,
+		}
+		renewals, err := s.renewalService.GetRenewals(ctx, domain.RoleSuperAdmin, "", query)
+		if err != nil {
+			log.Warn().Err(err).Msg("[Cron] Failed to compile renewals snapshot")
+		} else if renewals != nil && renewals.Summary != nil {
+			result.RenewalsSummary["overdue_count"] = renewals.Summary.Overdue
+			result.RenewalsSummary["due_in_7_days"] = renewals.Summary.DueIn7
+			result.RenewalsSummary["due_in_30_days"] = renewals.Summary.DueIn30
+			result.RenewalsSummary["amount_overdue"] = renewals.Summary.AmountOverdue
+			result.RenewalsSummary["amount_due_in_30"] = renewals.Summary.AmountDueIn30
+			result.RenewalsSummary["total_life_due"] = renewals.Summary.Life
+			result.RenewalsSummary["total_health_due"] = renewals.Summary.Health
+			result.RenewalsSummary["total_motor_due"] = renewals.Summary.Motor
+			result.RenewalsSummary["total_deposits_due"] = renewals.Summary.Deposits
+		}
+	}
+
+	result.DurationMs = time.Since(start).Milliseconds()
+	result.Message = "Daily maintenance completed successfully"
+
+	log.Info().
+		Int("alerts_sent", result.AdminExpiryAlertsSent).
+		Int("admins_checked", result.AdminAccountsChecked).
+		Int("admins_expired", result.ActiveAdminsExpired).
+		Int64("duration_ms", result.DurationMs).
+		Msg("[Cron] RunDailyMaintenance finished")
+
+	return result, nil
+}
